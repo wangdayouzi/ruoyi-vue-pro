@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.system.dal.dataobject.dept;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
 import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.user.AdminUserDO;
+import cn.iocoder.yudao.module.system.enums.social.SocialTypeEnum;
 import com.baomidou.mybatisplus.annotation.KeySequence;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -62,5 +63,19 @@ public class DeptDO extends TenantBaseDO {
      * 枚举 {@link CommonStatusEnum}
      */
     private Integer status;
+
+    /**
+     * 来源类型
+     *
+     * 枚举 {@link SocialTypeEnum}
+     * 0 = 内部创建，>0 = 第三方平台同步
+     */
+    private Integer sourceType;
+    /**
+     * 第三方平台部门ID
+     *
+     * 与 {@link #sourceType} 配合使用，唯一标识一个第三方部门
+     */
+    private String sourceDeptId;
 
 }

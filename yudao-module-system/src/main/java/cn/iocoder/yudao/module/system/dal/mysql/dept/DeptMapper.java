@@ -34,4 +34,9 @@ public interface DeptMapper extends BaseMapperX<DeptDO> {
         return selectList(DeptDO::getLeaderUserId, id);
     }
 
+    default DeptDO selectBySourceTypeAndSourceDeptId(Integer sourceType, String sourceDeptId) {
+        return selectOne(DeptDO::getSourceType, sourceType,
+                DeptDO::getSourceDeptId, sourceDeptId);
+    }
+
 }

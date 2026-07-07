@@ -6,7 +6,7 @@ spring:
   autoconfigure:
     # noinspection SpringBootApplicationYaml
     exclude:
-      - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration # 默认 local 环境，不开启 Quartz 的自动配置
+#      - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration # 默认 local 环境，不开启 Quartz 的自动配置
       - org.springframework.ai.vectorstore.qdrant.autoconfigure.QdrantVectorStoreAutoConfiguration # 禁用 AI 模块的 Qdrant，手动创建
       - org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusVectorStoreAutoConfiguration # 禁用 AI 模块的 Milvus，手动创建
   # 数据源配置项
@@ -47,7 +47,9 @@ spring:
       primary: master
       datasource:
         master:
-          url: jdbc:mysql://127.0.0.1:3306/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
+#          url: jdbc:mysql://127.0.0.1:3306/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
+          url: jdbc:postgresql://localhost:5432/yudao?useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&serverTimezone=Asia/Shanghai
+
           #          url: jdbc:mysql://127.0.0.1:3306/ruoyi-vue-pro?useSSL=true&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true # MySQL Connector/J 5.X 连接的示例
           #          url: jdbc:postgresql://127.0.0.1:5432/ruoyi-vue-pro # PostgreSQL 连接的示例
           #          url: jdbc:oracle:thin:@127.0.0.1:1521:xe # Oracle 连接的示例
@@ -56,8 +58,8 @@ spring:
           #          url: jdbc:kingbase8://127.0.0.1:54321/test  # 人大金仓 KingbaseES 连接的示例
           #          url: jdbc:postgresql://127.0.0.1:5432/postgres # OpenGauss 连接的示例
           #          url: jdbc:postgresql://127.0.0.1:5866/ruoyi-vue-pro # 瀚高 HighGo 连接的示例
-          username: root
-          password: 123456
+          username: postgres
+          password: postgres
           #          username: sa # SQL Server 连接的示例
           #          password: Yudao@2024 # SQL Server 连接的示例
           #          username: SYSDBA # DM 连接的示例
@@ -193,6 +195,7 @@ logging:
     cn.iocoder.yudao.module.erp.dal.mysql: debug
     cn.iocoder.yudao.module.mes.dal.mysql: debug
     cn.iocoder.yudao.module.wms.dal.mysql: debug
+    cn.iocoder.yudao.module.amf.dal.mysql: debug
     cn.iocoder.yudao.module.iot.dal.mysql: debug
     cn.iocoder.yudao.module.iot.dal.tdengine: DEBUG
     cn.iocoder.yudao.module.iot.service.rule: debug
@@ -201,6 +204,16 @@ logging:
     org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR # TODO 芋艿：先禁用，Spring Boot 3.X 存在部分错误的 WARN 提示
 
 debug: false
+
+--- #################### 分析方法文件管理（AMF）相关配置 ####################
+yudao:
+  amf:
+    file-storage-path: D:/uploadfile # 文件本地存储路径
+
+# OnlyOffice 相关配置
+onlyoffice:
+  doc-server-url: http://localhost:8088 # OnlyOffice Document Server 地址
+  callback-url: http://localhost:48080/admin-api/amf/onlyoffice/callback # OnlyOffice 回调地址
 
 --- #################### 微信公众号、小程序相关配置 ####################
 wx:
@@ -255,8 +268,11 @@ justauth:
   enabled: true
   type:
     DINGTALK: # 钉钉
-      client-id: dingvrnreaje3yqvzhxg
-      client-secret: i8E6iZyDvZj51JIb0tYsYfVQYOks9Cq1lgryEjFRqC79P3iJcrxEwT6Qk2QvLrLI
+      #xining
+#      client-id: dingvd9yfoaadmg7emoe
+#      client-secret: zYfVeGBQ4R-RPqSqq3oE6CA0J8p91_-OzOLOfaBPdUDUWVuI6eSd2MkJ4lNuzN5L
+      client-id: dingymbf2y78xky5kd9s
+      client-secret: 4uoM6SCOcIZGJvkSX9oMSP7vMaxzecS1wTQKnUpGWU1PCBPT8-EVSBqLEpk0znCS
       ignore-check-redirect-uri: true
     WECHAT_ENTERPRISE: # 企业微信
       client-id: wwd411c69a39ad2e54

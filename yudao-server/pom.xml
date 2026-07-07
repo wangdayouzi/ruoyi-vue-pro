@@ -128,7 +128,12 @@
 <!--            <artifactId>yudao-module-wms</artifactId>-->
 <!--            <version>${revision}</version>-->
 <!--        </dependency>-->
-
+        <!-- AMF 分析方法文件管理模块 -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-module-amf</artifactId>
+            <version>${revision}</version>
+        </dependency>
         <!-- IM 相关模块。默认注释，保证编译速度 -->
 <!--        <dependency>-->
 <!--            <groupId>cn.iocoder.boot</groupId>-->
