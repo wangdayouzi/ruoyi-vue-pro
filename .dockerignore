@@ -1,0 +1,13 @@
+**/target/
+**/.git/
+**/.idea/
+**/*.iml
+**/node_modules/
+**/dist/
+**/dist-*/
+.env
+.env.*
+*.log
+logs/
+.DS_Store
+Thumbs.db

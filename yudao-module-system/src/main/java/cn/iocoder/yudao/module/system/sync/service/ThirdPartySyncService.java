@@ -3,12 +3,13 @@ package cn.iocoder.yudao.module.system.sync.service;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.system.dal.dataobject.dept.DeptDO;
+import cn.iocoder.yudao.module.system.dal.dataobject.permission.UserRoleDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialClientDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserBindDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.user.AdminUserDO;
 import cn.iocoder.yudao.module.system.dal.mysql.dept.DeptMapper;
-import cn.iocoder.yudao.module.system.dal.mysql.social.SocialClientMapper;
+import cn.iocoder.yudao.module.system.dal.mysql.permission.UserRoleMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.social.SocialUserBindMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.social.SocialUserMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.user.AdminUserMapper;
@@ -16,10 +17,14 @@ import cn.iocoder.yudao.module.system.enums.social.SocialTypeEnum;
 import cn.iocoder.yudao.module.system.sync.dto.ThirdPartyDeptDTO;
 import cn.iocoder.yudao.module.system.sync.dto.ThirdPartyUserDTO;
 import cn.iocoder.yudao.module.system.sync.strategy.ThirdPartySyncStrategy;
+import com.xkcoding.justauth.autoconfigure.JustAuthProperties;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import me.zhyd.oauth.config.AuthConfig;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.*;
 
@@ -48,48 +53,99 @@ public class ThirdPartySyncService {
     private SocialUserBindMapper socialUserBindMapper;
 
     @Resource
-    private SocialClientMapper socialClientMapper;
+    private UserRoleMapper userRoleMapper;
 
-    private static final String DEFAULT_PASSWORD = "$2a$10$mRMFK4ZfjHMQq5kXXqhmXO52FJhrBSiCbGEIM4mGVPFFfRZ5HuQGW"; // 默认密码
+    @Autowired(required = false)
+    private JustAuthProperties justAuthProperties; // 复用 justauth 配置（与 OAuth 登录共用）
+
+    @Resource
+    private TransactionTemplate transactionTemplate;
+
+    /**
+     * 同步部门挂载的本地父部门ID，不配置则默认挂到根部门(0)
+     */
+    @Value("${yudao.sync.parent-dept-id:0}")
+    private Long syncParentDeptId;
+
+    /**
+     * 同步用户默认分配的角色ID，不配置则不分配角色
+     */
+    @Value("${yudao.sync.default-role-id:0}")
+    private Long defaultRoleId;
+
+    private static final String DEFAULT_PASSWORD = "$2a$04$y9izLO/uRwlP/1y.RsZiCumqMYlRsAtncVPWwRbbFhau5U1JVujO."; // 默认密码
 
     /**
      * 执行同步
-     *
-     * @param strategy 同步策略
+     * 部门、用户各自独立事务，一方失败不影响另一方
      */
-    @Transactional(rollbackFor = Exception.class)
     public void sync(ThirdPartySyncStrategy strategy) {
         Integer socialType = strategy.getSocialType();
-        log.info("[sync][{}] 开始同步", SocialTypeEnum.valueOfType(socialType));
+        SocialTypeEnum typeEnum = SocialTypeEnum.valueOfType(socialType);
+        log.info("[sync][{}] 开始", typeEnum);
 
-        // 1. 获取客户端配置
-        List<SocialClientDO> clients = socialClientMapper.selectList(
-                SocialClientDO::getSocialType, socialType);
-        if (CollUtil.isEmpty(clients)) {
-            log.info("[sync][{}] 未配置客户端，跳过", SocialTypeEnum.valueOfType(socialType));
+        SocialClientDO client = buildClientFromJustAuth(socialType);
+        if (client == null) {
+            log.warn("[sync][{}] justauth.type 未配置，跳过", typeEnum);
+            return;
+        }
+        if (!strategy.validate(client)) {
+            log.warn("[sync][{}] 验证失败，跳过", typeEnum);
             return;
         }
 
-        for (SocialClientDO client : clients) {
-            if (!strategy.validate(client)) {
-                log.warn("[sync][{}] 客户端[{}]验证失败，跳过", SocialTypeEnum.valueOfType(socialType), client.getName());
-                continue;
-            }
-            syncDepts(strategy, client, socialType);
-            syncUsers(strategy, client, socialType);
+        // 先拉取部门（只调一次 API），再各自独立事务同步
+        List<ThirdPartyDeptDTO> deptList;
+        try {
+            deptList = transactionTemplate.execute(status -> syncDepts(strategy, client, socialType));
+        } catch (Exception e) {
+            log.error("[sync][{}] 部门同步失败", typeEnum, e);
+            return;
+        }
+        log.info("[sync][{}] 部门同步完成，获得 {} 个部门，开始用户同步", typeEnum,
+                deptList != null ? deptList.size() : 0);
+
+        try {
+            transactionTemplate.execute(status -> {
+                syncUsers(strategy, client, socialType, deptList);
+                return null;
+            });
+        } catch (Exception e) {
+            log.error("[sync][{}] 用户同步失败", typeEnum, e);
         }
 
-        log.info("[sync][{}] 同步完成", SocialTypeEnum.valueOfType(socialType));
+        log.info("[sync][{}] 完成", typeEnum);
+    }
+
+    /**
+     * 从 justauth 配置构建 SocialClientDO（复用 application-{profile}.yaml 中的 justauth.type.XXX 配置）
+     */
+    private SocialClientDO buildClientFromJustAuth(Integer socialType) {
+        if (justAuthProperties == null) return null;
+        SocialTypeEnum typeEnum = SocialTypeEnum.valueOfType(socialType);
+        if (typeEnum == null) return null;
+
+        AuthConfig authConfig = justAuthProperties.getType().get(typeEnum.name());
+        if (authConfig == null || authConfig.getClientId() == null || authConfig.getClientSecret() == null) {
+            return null;
+        }
+
+        SocialClientDO client = new SocialClientDO();
+        client.setName(typeEnum.name() + "同步(justauth配置)");
+        client.setSocialType(socialType);
+        client.setClientId(authConfig.getClientId());
+        client.setClientSecret(authConfig.getClientSecret());
+        return client;
     }
 
     /**
      * 同步部门
      */
-    private void syncDepts(ThirdPartySyncStrategy strategy, SocialClientDO client, Integer socialType) {
+    private List<ThirdPartyDeptDTO> syncDepts(ThirdPartySyncStrategy strategy, SocialClientDO client, Integer socialType) {
         List<ThirdPartyDeptDTO> deptList = strategy.fetchDepartments(client);
         if (CollUtil.isEmpty(deptList)) {
             log.info("[sync][{}] 无部门数据", SocialTypeEnum.valueOfType(socialType));
-            return;
+            return deptList;
         }
 
         // sourceDeptId → DeptDO 映射（用于后续设置 parentId）
@@ -131,33 +187,44 @@ public class ThirdPartySyncService {
         }
 
         log.info("[sync][{}] 部门同步完成，共 {} 条", SocialTypeEnum.valueOfType(socialType), deptList.size());
+        return deptList;
     }
 
     /**
      * 解析父部门：将第三方 parentId 映射为本地 deptId
      */
     private void resolveParentId(DeptDO dept, String sourceParentId, Map<String, DeptDO> sourceDeptMap) {
+        // 钉钉根部门(0/1) → 映射到配置的本地父部门
         if (StrUtil.isBlank(sourceParentId) || "0".equals(sourceParentId) || "1".equals(sourceParentId)) {
-            dept.setParentId(DeptDO.PARENT_ID_ROOT);
+            dept.setParentId(syncParentDeptId);
             return;
         }
         DeptDO parent = sourceDeptMap.get(sourceParentId);
         if (parent != null) {
             dept.setParentId(parent.getId());
         } else {
-            dept.setParentId(DeptDO.PARENT_ID_ROOT); // 兜底置为根部门
+            dept.setParentId(syncParentDeptId); // 兜底挂到配置的父部门
         }
     }
 
     /**
      * 同步用户
      */
-    private void syncUsers(ThirdPartySyncStrategy strategy, SocialClientDO client, Integer socialType) {
-        List<ThirdPartyUserDTO> userList = strategy.fetchUsers(client);
+    private void syncUsers(ThirdPartySyncStrategy strategy, SocialClientDO client,
+                            Integer socialType, List<ThirdPartyDeptDTO> deptList) {
+        // 优先使用带 deptList 的重载（避免重复拉取部门）
+        List<ThirdPartyUserDTO> userList;
+        if (strategy instanceof cn.iocoder.yudao.module.system.sync.strategy.DingTalkSyncStrategy dts) {
+            userList = dts.fetchUsers(client, deptList);
+        } else {
+            userList = strategy.fetchUsers(client);
+        }
+
         if (CollUtil.isEmpty(userList)) {
             log.info("[sync][{}] 无用户数据", SocialTypeEnum.valueOfType(socialType));
             return;
         }
+        log.info("[sync][{}] 拉取到 {} 个用户, 开始写入", SocialTypeEnum.valueOfType(socialType), userList.size());
 
         // 预加载现有 sourceDeptId → DeptDO 映射
         Map<String, DeptDO> sourceDeptMap = new HashMap<>();
@@ -243,7 +310,14 @@ public class ThirdPartySyncService {
         }
 
         adminUserMapper.insert(user);
-        log.info("[sync] 创建系统用户: username={}, id={}", username, user.getId());
+        // 分配默认角色
+        if (defaultRoleId != null && defaultRoleId > 0) {
+            UserRoleDO userRole = new UserRoleDO();
+            userRole.setUserId(user.getId());
+            userRole.setRoleId(defaultRoleId);
+            userRoleMapper.insert(userRole);
+        }
+        log.info("[sync] 创建系统用户: username={}, id={}, roleId={}", username, user.getId(), defaultRoleId);
         return user.getId();
     }
 

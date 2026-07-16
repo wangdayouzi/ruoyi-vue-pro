@@ -17,16 +17,19 @@ public interface AmfBusinessMapper extends BaseMapperX<AmfBusinessDO> {
 
     default PageResult<AmfBusinessDO> selectPage(AmfBusinessPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<AmfBusinessDO>()
-                .likeIfPresent(AmfBusinessDO::getBasNo, reqVO.getBasNo())
-                .likeIfPresent(AmfBusinessDO::getProtocolNo, reqVO.getProtocolNo())
-                .likeIfPresent(AmfBusinessDO::getSponsor, reqVO.getSponsor())
-                .likeIfPresent(AmfBusinessDO::getAnalysisMethod, reqVO.getAnalysisMethod())
+                .likeIfPresent(AmfBusinessDO::getMethodNo, reqVO.getMethodNo())
+                .likeIfPresent(AmfBusinessDO::getMethodVersion, reqVO.getMethodVersion())
+                .likeIfPresent(AmfBusinessDO::getMethodName, reqVO.getMethodName())
+                .likeIfPresent(AmfBusinessDO::getTestArticle, reqVO.getTestArticle())
+                .likeIfPresent(AmfBusinessDO::getMatrixType, reqVO.getMatrixType())
+                .likeIfPresent(AmfBusinessDO::getSd, reqVO.getSd())
+                .eqIfPresent(AmfBusinessDO::getEffectiveDate, reqVO.getEffectiveDate())
                 .eqIfPresent(AmfBusinessDO::getStatus, reqVO.getStatus())
                 .orderByDesc(AmfBusinessDO::getId));
     }
 
-    default AmfBusinessDO selectByBasNo(String basNo) {
-        return selectOne(AmfBusinessDO::getBasNo, basNo);
+    default AmfBusinessDO selectByMethodNo(String methodNo) {
+        return selectOne(AmfBusinessDO::getMethodNo, methodNo);
     }
 
 }

@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDate;
+
 /**
  * 分析方法文件 - 业务单据主表
  *
@@ -25,24 +27,39 @@ public class AmfBusinessDO extends TenantBaseDO {
     private Long id;
 
     /**
-     * BAS编号
+     * 方法编号
      */
-    private String basNo;
+    private String methodNo;
 
     /**
-     * 临床方案编号
+     * 版本号
      */
-    private String protocolNo;
+    private String methodVersion;
 
     /**
-     * 申办方
+     * 方法名称
      */
-    private String sponsor;
+    private String methodName;
 
     /**
-     * 分析方法
+     * 测试物
      */
-    private String analysisMethod;
+    private String testArticle;
+
+    /**
+     * 基质类型
+     */
+    private String matrixType;
+
+    /**
+     * SD
+     */
+    private String sd;
+
+    /**
+     * 签字生效日期
+     */
+    private LocalDate effectiveDate;
 
     /**
      * 状态（0正常 1停用）

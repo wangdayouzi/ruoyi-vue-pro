@@ -57,7 +57,7 @@ public interface AmfBusinessService {
     PageResult<AmfBusinessDO> getBusinessPage(AmfBusinessPageReqVO pageReqVO);
 
     /**
-     * 上传文件（新版本）
+     * 上传文件（新版本）- 按文件名匹配已有文件记录
      *
      * @param businessId 业务单据ID
      * @param file 上传的文件
@@ -65,6 +65,17 @@ public interface AmfBusinessService {
      * @return 版本记录
      */
     AmfFileVersionDO uploadFile(Long businessId, MultipartFile file, String changeDescription);
+
+    /**
+     * 上传文件（新版本）- 指定文件记录ID，不按文件名匹配
+     *
+     * @param businessId 业务单据ID
+     * @param fileId 已有的文件记录ID（为null时按文件名匹配）
+     * @param file 上传的文件
+     * @param changeDescription 变更说明
+     * @return 版本记录
+     */
+    AmfFileVersionDO uploadFile(Long businessId, Long fileId, MultipartFile file, String changeDescription);
 
     /**
      * 获得指定业务单据的文件列表

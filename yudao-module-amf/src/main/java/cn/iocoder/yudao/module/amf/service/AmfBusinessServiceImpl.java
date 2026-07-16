@@ -49,8 +49,8 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createBusiness(AmfBusinessSaveReqVO createReqVO) {
-        // 校验BAS编号唯一性
-        validateBasNoUnique(null, createReqVO.getBasNo());
+        // 校验方法编号唯一性
+        validateMethodNoUnique(null, createReqVO.getMethodNo());
 
         // 插入业务单据
         AmfBusinessDO business = BeanUtils.toBean(createReqVO, AmfBusinessDO.class);
@@ -63,8 +63,8 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
     public void updateBusiness(AmfBusinessSaveReqVO updateReqVO) {
         // 校验存在
         validateBusinessExists(updateReqVO.getId());
-        // 校验BAS编号唯一性
-        validateBasNoUnique(updateReqVO.getId(), updateReqVO.getBasNo());
+        // 校验方法编号唯一性
+        validateMethodNoUnique(updateReqVO.getId(), updateReqVO.getMethodNo());
 
         // 更新
         AmfBusinessDO updateObj = BeanUtils.toBean(updateReqVO, AmfBusinessDO.class);
@@ -101,25 +101,42 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmfFileVersionDO uploadFile(Long businessId, MultipartFile file, String changeDescription) {
+        return uploadFile(businessId, null, file, changeDescription);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AmfFileVersionDO uploadFile(Long businessId, Long fileId, MultipartFile file, String changeDescription) {
         validateBusinessExists(businessId);
 
         // 存储文件
         String fileUrl = amfFileStorageService.storeFile(file, businessId);
-
-        // 查找或创建文件记录（同文件名视为同一文件，追加版本）
         String originalName = file.getOriginalFilename();
-        List<AmfFileDO> existingFiles = amfFileMapper.selectListByBusinessId(businessId);
-        AmfFileDO fileDO = existingFiles.stream()
-                .filter(f -> f.getFileName().equals(originalName))
-                .findFirst().orElse(null);
 
-        if (fileDO == null) {
-            fileDO = new AmfFileDO();
-            fileDO.setBusinessId(businessId);
+        AmfFileDO fileDO;
+        if (fileId != null) {
+            // 指定了文件记录ID：直接使用该记录，不按文件名匹配（允许修改文件名）
+            fileDO = amfFileMapper.selectById(fileId);
+            if (fileDO == null || !fileDO.getBusinessId().equals(businessId)) {
+                throw exception(AMF_FILE_NOT_EXISTS);
+            }
+            // 更新文件名（用户可能修改了文件名）
             fileDO.setFileName(originalName);
-            fileDO.setFileVersion(0);
-            fileDO.setCreateTime(LocalDateTime.now());
-            amfFileMapper.insert(fileDO);
+        } else {
+            // 未指定文件记录ID：按文件名匹配已有文件记录
+            List<AmfFileDO> existingFiles = amfFileMapper.selectListByBusinessId(businessId);
+            fileDO = existingFiles.stream()
+                    .filter(f -> f.getFileName().equals(originalName))
+                    .findFirst().orElse(null);
+
+            if (fileDO == null) {
+                fileDO = new AmfFileDO();
+                fileDO.setBusinessId(businessId);
+                fileDO.setFileName(originalName);
+                fileDO.setFileVersion(0);
+                fileDO.setCreateTime(LocalDateTime.now());
+                amfFileMapper.insert(fileDO);
+            }
         }
 
         // 版本号递增
@@ -190,8 +207,8 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
         return business;
     }
 
-    private void validateBasNoUnique(Long id, String basNo) {
-        AmfBusinessDO existing = amfBusinessMapper.selectByBasNo(basNo);
+    private void validateMethodNoUnique(Long id, String methodNo) {
+        AmfBusinessDO existing = amfBusinessMapper.selectByMethodNo(methodNo);
         if (existing != null && !Objects.equals(existing.getId(), id)) {
             throw exception(AMF_BUSINESS_BAS_NO_DUPLICATE);
         }

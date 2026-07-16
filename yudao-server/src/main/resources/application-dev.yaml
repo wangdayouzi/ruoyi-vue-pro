@@ -177,11 +177,14 @@ yudao:
     transfer-notify-url: https://yunai.natapp1.cc/admin-api/pay/notify/transfer # 支付渠道的【转账】回调地址
   demo: false # 开启演示模式
   tencent-lbs-key: TVDBZ-TDILD-4ON4B-PFDZA-RNLKH-VVF6E # QQ 地图的密钥 https://lbs.qq.com/service/staticV2/staticGuide/staticDoc
+  sync:
+    parent-dept-id: 100   # 同步部门挂到哪个本地部门下
+    default-role-id: 2  # 同步用户默认角色
 
 justauth:
   enabled: true
   type:
-    DINGTALK: # 钉钉
+    DINGTALK: # 钉钉（老版OAuth，供通讯录同步复用appKey/appSecret）
       #xining
 #      client-id: dingvd9yfoaadmg7emoe
 #      client-secret: zYfVeGBQ4R-RPqSqq3oE6CA0J8p91_-OzOLOfaBPdUDUWVuI6eSd2MkJ4lNuzN5L
@@ -213,3 +216,11 @@ justauth:
     type: REDIS
     prefix: 'social_auth_state:' # 缓存前缀，目前只对 Redis 缓存生效，默认 JUSTAUTH::STATE::
     timeout: 24h # 超时时长，目前只对 Redis 缓存生效，默认 3 分钟
+
+# 钉钉新版 OAuth2（login.dingtalk.com，支持账号密码+扫码）
+dingtalk:
+  oauth2:
+    client-id: dingymbf2y78xky5kd9s     # 钉钉应用 Client ID
+    client-secret: 4uoM6SCOcIZGJvkSX9oMSP7vMaxzecS1wTQKnUpGWU1PCBPT8-EVSBqLEpk0znCS
+    redirect-uri: http://yunai.natapp1.cc/admin-api/system/auth/dingtalk/callback
+    frontend-url: http://yunai.natapp1.cc

@@ -93,9 +93,10 @@ public class AmfBusinessController {
     @PreAuthorize("@ss.hasPermission('amf:business:upload')")
     public CommonResult<AmfFileVersionRespVO> uploadFile(
             @RequestParam("businessId") Long businessId,
+            @RequestParam(value = "fileId", required = false) Long fileId,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "changeDescription", required = false) String changeDescription) {
-        AmfFileVersionDO version = amfBusinessService.uploadFile(businessId, file, changeDescription);
+        AmfFileVersionDO version = amfBusinessService.uploadFile(businessId, fileId, file, changeDescription);
         return success(BeanUtils.toBean(version, AmfFileVersionRespVO.class));
     }
 

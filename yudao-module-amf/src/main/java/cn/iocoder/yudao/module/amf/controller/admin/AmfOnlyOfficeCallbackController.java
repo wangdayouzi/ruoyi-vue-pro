@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.OutputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -62,9 +64,12 @@ public class AmfOnlyOfficeCallbackController {
                           HttpServletResponse response) {
         try {
             byte[] fileBytes = amfOnlyOfficeService.getFileBytes(versionId);
-
-            response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
-            response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment");
+            // OnlyOffice 需要 inline 而非 attachment，并指定正确的 MIME 类型
+            String fileName = amfOnlyOfficeService.getFileName(versionId);
+            String contentType = getContentType(fileName);
+            response.setContentType(contentType);
+            response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                    "inline; filename*=UTF-8''" + URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20"));
             response.setContentLength(fileBytes.length);
 
             try (OutputStream os = response.getOutputStream()) {
@@ -75,6 +80,23 @@ public class AmfOnlyOfficeCallbackController {
             log.error("OnlyOffice 下载文件失败: versionId={}", versionId, e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private String getContentType(String fileName) {
+        String ext = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase() : "";
+        return switch (ext) {
+            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case "pdf" -> "application/pdf";
+            case "odt" -> "application/vnd.oasis.opendocument.text";
+            case "ods" -> "application/vnd.oasis.opendocument.spreadsheet";
+            case "odp" -> "application/vnd.oasis.opendocument.presentation";
+            case "csv" -> "text/csv";
+            case "rtf" -> "application/rtf";
+            case "txt" -> "text/plain";
+            default -> "application/octet-stream";
+        };
     }
 
 }

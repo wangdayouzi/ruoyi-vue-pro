@@ -23,10 +23,13 @@ CREATE SEQUENCE amf_file_version_seq INCREMENT 1 MINVALUE 1 MAXVALUE 92233720368
 -- 业务单据主表
 CREATE TABLE amf_business (
     id              BIGINT          NOT NULL    DEFAULT nextval('amf_business_seq'::regclass) PRIMARY KEY,
-    bas_no          VARCHAR(100)    NOT NULL,
-    protocol_no     VARCHAR(100),
-    sponsor         VARCHAR(200),
-    analysis_method VARCHAR(500),
+    method_no       VARCHAR(100)    NOT NULL,
+    method_version  VARCHAR(100),
+    method_name     VARCHAR(200),
+    test_article    VARCHAR(500),
+    matrix_type     VARCHAR(200),
+    sd              VARCHAR(100),
+    effective_date  DATE,
     status          SMALLINT        DEFAULT 0,
     tenant_id       BIGINT          DEFAULT 0,
     creator         VARCHAR(64)     DEFAULT '',
@@ -36,10 +39,13 @@ CREATE TABLE amf_business (
     deleted         INT             DEFAULT 0
 );
 COMMENT ON TABLE amf_business IS '分析方法文件-业务单据主表';
-COMMENT ON COLUMN amf_business.bas_no IS 'BAS编号';
-COMMENT ON COLUMN amf_business.protocol_no IS '临床方案编号';
-COMMENT ON COLUMN amf_business.sponsor IS '申办方';
-COMMENT ON COLUMN amf_business.analysis_method IS '分析方法';
+COMMENT ON COLUMN amf_business.method_no IS '方法编号';
+COMMENT ON COLUMN amf_business.method_version IS '版本号';
+COMMENT ON COLUMN amf_business.method_name IS '方法名称';
+COMMENT ON COLUMN amf_business.test_article IS '测试物';
+COMMENT ON COLUMN amf_business.matrix_type IS '基质类型';
+COMMENT ON COLUMN amf_business.sd IS 'SD';
+COMMENT ON COLUMN amf_business.effective_date IS '签字生效日期';
 COMMENT ON COLUMN amf_business.status IS '状态（0正常 1停用）';
 COMMENT ON COLUMN amf_business.creator IS '创建者';
 COMMENT ON COLUMN amf_business.create_time IS '创建时间';
@@ -98,7 +104,7 @@ COMMENT ON COLUMN amf_file_version.tenant_id IS '租户编号';
 
 -- ==================== 3. 索引 ====================
 
-CREATE UNIQUE INDEX uk_amf_business_bas_no ON amf_business (bas_no) WHERE deleted = 0;
+CREATE UNIQUE INDEX uk_amf_business_method_no ON amf_business (method_no) WHERE deleted = 0;
 CREATE INDEX idx_amf_file_business_id ON amf_file (business_id);
 CREATE INDEX idx_amf_file_version_file_id ON amf_file_version (file_id);
 CREATE INDEX idx_amf_file_version_business_id ON amf_file_version (business_id);

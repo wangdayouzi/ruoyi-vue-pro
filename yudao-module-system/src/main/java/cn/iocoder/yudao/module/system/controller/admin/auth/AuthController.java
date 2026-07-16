@@ -15,6 +15,7 @@ import cn.iocoder.yudao.module.system.dal.dataobject.permission.RoleDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.user.AdminUserDO;
 import cn.iocoder.yudao.module.system.enums.logger.LoginLogTypeEnum;
 import cn.iocoder.yudao.module.system.service.auth.AdminAuthService;
+import cn.iocoder.yudao.module.system.service.oauth2.DingTalkOAuthService;
 import cn.iocoder.yudao.module.system.service.permission.MenuService;
 import cn.iocoder.yudao.module.system.service.permission.PermissionService;
 import cn.iocoder.yudao.module.system.service.permission.RoleService;
@@ -27,11 +28,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.annotation.security.PermitAll;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -59,6 +62,9 @@ public class AuthController {
     private PermissionService permissionService;
     @Resource
     private SocialClientService socialClientService;
+
+    @Resource
+    private DingTalkOAuthService dingTalkOAuthService;
 
     @Resource
     private SecurityProperties securityProperties;
@@ -171,6 +177,34 @@ public class AuthController {
     @Operation(summary = "社交快捷登录，使用 code 授权码", description = "适合未登录的用户，但是社交账号已绑定用户")
     public CommonResult<AuthLoginRespVO> socialQuickLogin(@RequestBody @Valid AuthSocialLoginReqVO reqVO) {
         return success(authService.socialLogin(reqVO));
+    }
+
+    // ========== 钉钉新版 OAuth2 登录 ==========
+
+    @GetMapping("/dingtalk/authorize-url")
+    @PermitAll
+    @Operation(summary = "获取钉钉OAuth2授权页URL")
+    public CommonResult<String> dingtalkAuthorizeUrl() {
+        return success(dingTalkOAuthService.buildAuthorizeUrl());
+    }
+
+    @GetMapping("/dingtalk/callback")
+    @PermitAll
+    @Operation(summary = "钉钉OAuth2授权回调")
+    public void dingtalkCallback(@RequestParam("authCode") String authCode,
+                                  @RequestParam(value = "redirect", required = false, defaultValue = "/") String redirect,
+                                  HttpServletResponse response) throws IOException {
+        try {
+            AuthLoginRespVO loginResp = dingTalkOAuthService.handleCallback(authCode);
+            response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + redirect
+                    + "?token=" + loginResp.getAccessToken()
+                    + "&refreshToken=" + loginResp.getRefreshToken()
+                    + "&expiresTime=" + loginResp.getExpiresTime());
+        } catch (Exception e) {
+            log.error("[DingTalkOAuth] 登录失败", e);
+            response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + redirect
+                    + "?error=" + e.getMessage());
+        }
     }
 
 }
