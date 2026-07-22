@@ -101,12 +101,13 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AmfFileVersionDO uploadFile(Long businessId, MultipartFile file, String changeDescription) {
-        return uploadFile(businessId, null, file, changeDescription);
+        return uploadFile(businessId, null, file, null, null, changeDescription);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public AmfFileVersionDO uploadFile(Long businessId, Long fileId, MultipartFile file, String changeDescription) {
+    public AmfFileVersionDO uploadFile(Long businessId, Long fileId, MultipartFile file,
+                                        String versionNo, String effectiveDate, String changeDescription) {
         validateBusinessExists(businessId);
 
         // 存储文件
@@ -115,32 +116,42 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
 
         AmfFileDO fileDO;
         if (fileId != null) {
-            // 指定了文件记录ID：直接使用该记录，不按文件名匹配（允许修改文件名）
+            // 指定了文件记录ID：上传新版本
             fileDO = amfFileMapper.selectById(fileId);
             if (fileDO == null || !fileDO.getBusinessId().equals(businessId)) {
                 throw exception(AMF_FILE_NOT_EXISTS);
             }
-            // 更新文件名（用户可能修改了文件名）
             fileDO.setFileName(originalName);
         } else {
-            // 未指定文件记录ID：按文件名匹配已有文件记录
-            List<AmfFileDO> existingFiles = amfFileMapper.selectListByBusinessId(businessId);
-            fileDO = existingFiles.stream()
-                    .filter(f -> f.getFileName().equals(originalName))
-                    .findFirst().orElse(null);
-
-            if (fileDO == null) {
-                fileDO = new AmfFileDO();
-                fileDO.setBusinessId(businessId);
-                fileDO.setFileName(originalName);
-                fileDO.setFileVersion(0);
-                fileDO.setCreateTime(LocalDateTime.now());
-                amfFileMapper.insert(fileDO);
-            }
+            // 未指定文件记录ID：新建文件记录
+            fileDO = new AmfFileDO();
+            fileDO.setBusinessId(businessId);
+            fileDO.setFileName(originalName);
+            fileDO.setFileVersion("0");
+            fileDO.setCreateTime(LocalDateTime.now());
+            amfFileMapper.insert(fileDO);
         }
 
-        // 版本号递增
-        int newVersion = fileDO.getFileVersion() + 1;
+        // 新建文件初始版本号为空字符串
+        if (fileId == null) {
+            fileDO.setFileVersion("");
+        }
+
+        // 版本号：手动填写或默认"1"
+        // 版本号必须填写
+        if (versionNo == null || versionNo.isEmpty()) {
+            throw exception(AMF_FILE_VERSION_EMPTY);
+        }
+        String newVersion = versionNo;
+
+        // 版本号唯一性校验（上传新版本时）
+        if (fileId != null) {
+            List<AmfFileVersionDO> existingVersions = amfFileVersionMapper.selectListByFileId(fileId);
+            boolean duplicate = existingVersions.stream().anyMatch(v -> newVersion.equals(v.getVersionNo()));
+            if (duplicate) {
+                throw exception(AMF_FILE_VERSION_DUPLICATE);
+            }
+        }
 
         // 创建版本记录
         AmfFileVersionDO versionDO = new AmfFileVersionDO();
@@ -155,10 +166,25 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
         versionDO.setCreateTime(LocalDateTime.now());
         amfFileVersionMapper.insert(versionDO);
 
-        // 更新文件记录的当前版本
+        // 更新文件记录的当前版本和签字生效日期
         fileDO.setFileUrl(fileUrl);
         fileDO.setFileVersion(newVersion);
+        if (effectiveDate != null && !effectiveDate.isEmpty()) {
+            fileDO.setEffectiveDate(java.time.LocalDate.parse(effectiveDate));
+        }
         amfFileMapper.updateById(fileDO);
+
+        // 更新母记录签字生效日期（取所有文件中最新的）
+        if (effectiveDate != null && !effectiveDate.isEmpty()) {
+            AmfBusinessDO business = amfBusinessMapper.selectById(businessId);
+            if (business != null) {
+                java.time.LocalDate newDate = java.time.LocalDate.parse(effectiveDate);
+                if (business.getEffectiveDate() == null || newDate.isAfter(business.getEffectiveDate())) {
+                    business.setEffectiveDate(newDate);
+                    amfBusinessMapper.updateById(business);
+                }
+            }
+        }
 
         return versionDO;
     }

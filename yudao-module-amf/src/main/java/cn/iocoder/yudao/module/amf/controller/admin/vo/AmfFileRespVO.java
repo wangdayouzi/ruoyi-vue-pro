@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.amf.controller.admin.vo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Schema(description = "管理后台 - 文件 Response VO")
@@ -22,7 +23,10 @@ public class AmfFileRespVO {
     private String fileUrl;
 
     @Schema(description = "当前版本号")
-    private Integer fileVersion;
+    private String fileVersion;
+
+    @Schema(description = "签字生效日期")
+    private LocalDate effectiveDate;
 
     @Schema(description = "创建时间")
     private LocalDateTime createTime;

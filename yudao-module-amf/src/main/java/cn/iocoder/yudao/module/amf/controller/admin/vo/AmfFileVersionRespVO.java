@@ -19,7 +19,7 @@ public class AmfFileVersionRespVO {
     private Long businessId;
 
     @Schema(description = "版本号", example = "3")
-    private Integer versionNo;
+    private String versionNo;
 
     @Schema(description = "文件名", example = "分析方法v3.docx")
     private String fileName;

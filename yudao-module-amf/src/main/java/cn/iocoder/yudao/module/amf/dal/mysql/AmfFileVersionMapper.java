@@ -21,13 +21,13 @@ public interface AmfFileVersionMapper extends BaseMapperX<AmfFileVersionDO> {
     default List<AmfFileVersionDO> selectListByBusinessId(Long businessId) {
         return selectList(new LambdaQueryWrapperX<AmfFileVersionDO>()
                 .eq(AmfFileVersionDO::getBusinessId, businessId)
-                .orderByDesc(AmfFileVersionDO::getVersionNo));
+                .orderByDesc(AmfFileVersionDO::getCreateTime));
     }
 
     default List<AmfFileVersionDO> selectListByFileId(Long fileId) {
         return selectList(new LambdaQueryWrapperX<AmfFileVersionDO>()
                 .eq(AmfFileVersionDO::getFileId, fileId)
-                .orderByDesc(AmfFileVersionDO::getVersionNo));
+                .orderByDesc(AmfFileVersionDO::getCreateTime));
     }
 
 }

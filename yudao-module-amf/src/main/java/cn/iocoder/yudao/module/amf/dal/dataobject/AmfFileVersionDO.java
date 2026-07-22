@@ -34,7 +34,7 @@ public class AmfFileVersionDO {
     /**
      * 版本号
      */
-    private Integer versionNo;
+    private String versionNo;
 
     /**
      * 文件名

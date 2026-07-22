@@ -60,7 +60,8 @@ CREATE TABLE amf_file (
     business_id     BIGINT          NOT NULL,
     file_name       VARCHAR(255)    NOT NULL,
     file_url        VARCHAR(500),
-    file_version    INT             DEFAULT 0,
+    file_version    VARCHAR(50)     DEFAULT '',
+    effective_date  DATE,
     tenant_id       BIGINT          DEFAULT 0,
     creator         VARCHAR(64)     DEFAULT '',
     create_time     TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
@@ -70,6 +71,7 @@ COMMENT ON COLUMN amf_file.business_id IS '关联业务单据ID';
 COMMENT ON COLUMN amf_file.file_name IS '文件名';
 COMMENT ON COLUMN amf_file.file_url IS '当前文件URL';
 COMMENT ON COLUMN amf_file.file_version IS '当前版本号';
+COMMENT ON COLUMN amf_file.effective_date IS '签字生效日期';
 COMMENT ON COLUMN amf_file.creator IS '创建者';
 COMMENT ON COLUMN amf_file.create_time IS '创建时间';
 COMMENT ON COLUMN amf_file.tenant_id IS '租户编号';
@@ -79,7 +81,7 @@ CREATE TABLE amf_file_version (
     id                  BIGINT          NOT NULL    DEFAULT nextval('amf_file_version_seq'::regclass) PRIMARY KEY,
     file_id             BIGINT          NOT NULL,
     business_id         BIGINT          NOT NULL,
-    version_no          INT             NOT NULL,
+    version_no          VARCHAR(50)     NOT NULL,
     file_name           VARCHAR(255)    NOT NULL,
     file_url            VARCHAR(500)    NOT NULL,
     file_size           BIGINT          DEFAULT 0,

@@ -17,5 +17,7 @@ public interface ErrorCodeConstants {
     ErrorCode AMF_FILE_NOT_EXISTS = new ErrorCode(1_040_000_002, "文件记录不存在");
     ErrorCode AMF_FILE_VERSION_NOT_EXISTS = new ErrorCode(1_040_001_000, "文件版本记录不存在");
     ErrorCode AMF_FILE_VERSION_NOT_BELONG_TO_BUSINESS = new ErrorCode(1_040_001_001, "文件版本记录不属于该业务单据");
+    ErrorCode AMF_FILE_VERSION_DUPLICATE = new ErrorCode(1_040_001_002, "版本号已存在，请使用其他版本号");
+    ErrorCode AMF_FILE_VERSION_EMPTY = new ErrorCode(1_040_001_003, "版本号不能为空");
 
 }

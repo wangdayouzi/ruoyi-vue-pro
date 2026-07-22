@@ -95,8 +95,10 @@ public class AmfBusinessController {
             @RequestParam("businessId") Long businessId,
             @RequestParam(value = "fileId", required = false) Long fileId,
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "versionNo", required = false) String versionNo,
+            @RequestParam(value = "effectiveDate", required = false) String effectiveDate,
             @RequestParam(value = "changeDescription", required = false) String changeDescription) {
-        AmfFileVersionDO version = amfBusinessService.uploadFile(businessId, fileId, file, changeDescription);
+        AmfFileVersionDO version = amfBusinessService.uploadFile(businessId, fileId, file, versionNo, effectiveDate, changeDescription);
         return success(BeanUtils.toBean(version, AmfFileVersionRespVO.class));
     }
 

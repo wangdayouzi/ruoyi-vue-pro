@@ -72,10 +72,13 @@ public interface AmfBusinessService {
      * @param businessId 业务单据ID
      * @param fileId 已有的文件记录ID（为null时按文件名匹配）
      * @param file 上传的文件
+     * @param versionNo 版本号（null时自动递增）
+     * @param effectiveDate 签字生效日期
      * @param changeDescription 变更说明
      * @return 版本记录
      */
-    AmfFileVersionDO uploadFile(Long businessId, Long fileId, MultipartFile file, String changeDescription);
+    AmfFileVersionDO uploadFile(Long businessId, Long fileId, MultipartFile file,
+                                String versionNo, String effectiveDate, String changeDescription);
 
     /**
      * 获得指定业务单据的文件列表

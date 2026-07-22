@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -30,7 +31,10 @@ public class AmfFileDO {
     private String fileUrl;
 
     /** 当前版本号 */
-    private Integer fileVersion;
+    private String fileVersion;
+
+    /** 签字生效日期 */
+    private LocalDate effectiveDate;
 
     /** 租户编号 */
     private Long tenantId;
