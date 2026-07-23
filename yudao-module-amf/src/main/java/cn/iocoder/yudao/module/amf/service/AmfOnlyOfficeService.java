@@ -1,6 +1,8 @@
 package cn.iocoder.yudao.module.amf.service;
 
+import cn.iocoder.yudao.module.amf.dal.dataobject.AmfFileDO;
 import cn.iocoder.yudao.module.amf.dal.dataobject.AmfFileVersionDO;
+import cn.iocoder.yudao.module.amf.dal.mysql.AmfFileMapper;
 import cn.iocoder.yudao.module.amf.dal.mysql.AmfFileVersionMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -8,14 +10,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.Resource;
-import jakarta.servlet.http.HttpServletRequest;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.MessageDigest;
 import java.util.*;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -31,10 +28,13 @@ import java.net.URL;
 public class AmfOnlyOfficeService {
 
     @Resource
+    private AmfFileStorageService amfFileStorageService;
+
+    @Resource
     private AmfFileVersionMapper amfFileVersionMapper;
 
     @Resource
-    private AmfFileStorageService amfFileStorageService;
+    private AmfFileMapper amfFileMapper;
 
     @Value("${onlyoffice.doc-server-url:http://localhost:8088}")
     private String docServerUrl;
@@ -56,7 +56,6 @@ public class AmfOnlyOfficeService {
             throw new RuntimeException("文件版本记录不存在");
         }
 
-        String filePath = amfFileStorageService.getAbsolutePath(version.getFileUrl());
         String fileName = version.getFileName();
         String fileExt = version.getFileType();
 
@@ -137,18 +136,31 @@ public class AmfOnlyOfficeService {
             return;
         }
 
-        // 从 OnlyOffice Document Server 下载修改后的文件，覆盖原文件
+        // 从 OnlyOffice Document Server 下载修改后的文件
         try {
-            String filePath = amfFileStorageService.getAbsolutePath(version.getFileUrl());
             byte[] fileBytes = downloadFromUrl(downloadUrl);
-            Files.write(Paths.get(filePath), fileBytes);
 
-            // 更新版本记录的文件大小
+            // 重新上传到系统统一文件存储（覆盖旧文件记录）
+            String newFileUrl = amfFileStorageService.reuploadFile(
+                    version.getFileUrl(), fileBytes, version.getFileName());
+
+            // 更新版本记录的 fileUrl
+            version.setFileUrl(newFileUrl);
             version.setFileSize((long) fileBytes.length);
             amfFileVersionMapper.updateById(version);
 
-            log.info("OnlyOffice 保存成功: versionId={}, filePath={}, size={}",
-                    versionId, filePath, fileBytes.length);
+            // 更新文件记录的最新 fileUrl
+            AmfFileDO fileDO = amfFileMapper.selectById(version.getFileId());
+            if (fileDO != null) {
+                fileDO.setFileUrl(newFileUrl);
+                amfFileMapper.updateById(fileDO);
+            }
+
+            // 清除本地缓存，下次从新 URL 下载
+            amfFileStorageService.refreshCache(version.getFileUrl());
+
+            log.info("OnlyOffice 保存成功: versionId={}, newFileUrl={}, size={}",
+                    versionId, newFileUrl, fileBytes.length);
         } catch (Exception e) {
             log.error("OnlyOffice 保存失败: versionId={}, downloadUrl={}", versionId, downloadUrl, e);
         }
@@ -162,6 +174,8 @@ public class AmfOnlyOfficeService {
         if (version == null) {
             throw new RuntimeException("文件版本记录不存在");
         }
+        // 通过 getAbsolutePath 获取文件在本地磁盘的实际路径，再读取文件内容
+        // 文件实际存储在系统文件配置（后台 → 基础设施 → 文件配置）中配的路径下
         String filePath = amfFileStorageService.getAbsolutePath(version.getFileUrl());
         return Files.readAllBytes(Paths.get(filePath));
     }

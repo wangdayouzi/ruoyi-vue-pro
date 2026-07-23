@@ -180,6 +180,16 @@ public class YudaoWebSecurityConfigurerAdapter {
                 continue;
             }
 
+            // Spring Security 的 requestMatchers 使用 Ant 路径匹配，不识别 {xxx} 路径变量语法
+            // 例如 /admin-api/infra/file/{configId}/get/** 中的 {configId} 会被当作字面量匹配，
+            // 需转为 Ant 通配符 *，避免路径变量导致的 404
+            Set<String> converted = new HashSet<>();
+            for (String url : urls) {
+                converted.add(url.replaceAll("\\{[^/]+}", "*"));
+            }
+            urls.clear();
+            urls.addAll(converted);
+
             // 特殊：使用 @RequestMapping 注解，并且未写 method 属性，此时认为都需要免登录
             Set<RequestMethod> methods = entry.getKey().getMethodsCondition().getMethods();
             if (CollUtil.isEmpty(methods)) {
