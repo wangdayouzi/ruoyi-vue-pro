@@ -30,6 +30,7 @@ CREATE TABLE amf_business (
     matrix_type     VARCHAR(200),
     sd              VARCHAR(100),
     effective_date  DATE,
+    sponsor         VARCHAR(200),
     status          SMALLINT        DEFAULT 0,
     tenant_id       BIGINT          DEFAULT 0,
     creator         VARCHAR(64)     DEFAULT '',
@@ -46,6 +47,7 @@ COMMENT ON COLUMN amf_business.test_article IS '测试物';
 COMMENT ON COLUMN amf_business.matrix_type IS '基质类型';
 COMMENT ON COLUMN amf_business.sd IS 'SD';
 COMMENT ON COLUMN amf_business.effective_date IS '签字生效日期';
+COMMENT ON COLUMN amf_business.sponsor IS '申办方';
 COMMENT ON COLUMN amf_business.status IS '状态（0正常 1停用）';
 COMMENT ON COLUMN amf_business.creator IS '创建者';
 COMMENT ON COLUMN amf_business.create_time IS '创建时间';

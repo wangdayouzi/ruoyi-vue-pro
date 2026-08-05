@@ -16,6 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.service.impl.DiffParseFunction;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,6 +26,7 @@ import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.amf.enums.ErrorCodeConstants.*;
+import static cn.iocoder.yudao.module.amf.enums.LogRecordConstants.*;
 
 /**
  * 分析方法文件 - 业务单据 Service 实现类
@@ -48,6 +52,8 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = AMF_BUSINESS_TYPE, subType = AMF_BUSINESS_CREATE_SUB_TYPE, bizNo = "{{#business.id}}",
+            success = AMF_BUSINESS_CREATE_SUCCESS)
     public Long createBusiness(AmfBusinessSaveReqVO createReqVO) {
         // 校验方法编号唯一性
         validateMethodNoUnique(null, createReqVO.getMethodNo());
@@ -55,32 +61,40 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
         // 插入业务单据
         AmfBusinessDO business = BeanUtils.toBean(createReqVO, AmfBusinessDO.class);
         amfBusinessMapper.insert(business);
+        LogRecordContext.putVariable("business", business);
         return business.getId();
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = AMF_BUSINESS_TYPE, subType = AMF_BUSINESS_UPDATE_SUB_TYPE, bizNo = "{{#updateReqVO.id}}",
+            success = AMF_BUSINESS_UPDATE_SUCCESS)
     public void updateBusiness(AmfBusinessSaveReqVO updateReqVO) {
         // 校验存在
-        validateBusinessExists(updateReqVO.getId());
+        AmfBusinessDO oldBusiness = validateBusinessExists(updateReqVO.getId());
         // 校验方法编号唯一性
         validateMethodNoUnique(updateReqVO.getId(), updateReqVO.getMethodNo());
 
         // 更新
         AmfBusinessDO updateObj = BeanUtils.toBean(updateReqVO, AmfBusinessDO.class);
         amfBusinessMapper.updateById(updateObj);
+
+        LogRecordContext.putVariable(DiffParseFunction.OLD_OBJECT, BeanUtils.toBean(oldBusiness, AmfBusinessSaveReqVO.class));
+        LogRecordContext.putVariable("business", oldBusiness);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = AMF_BUSINESS_TYPE, subType = AMF_BUSINESS_DELETE_SUB_TYPE, bizNo = "{{#id}}",
+            success = AMF_BUSINESS_DELETE_SUCCESS)
     public void deleteBusiness(Long id) {
-        validateBusinessExists(id);
+        AmfBusinessDO business = validateBusinessExists(id);
+        LogRecordContext.putVariable("business", business);
         // 删除关联的文件及版本
         List<AmfFileDO> files = amfFileMapper.selectListByBusinessId(id);
         for (AmfFileDO file : files) {
             List<AmfFileVersionDO> versions = amfFileVersionMapper.selectListByFileId(file.getId());
             for (AmfFileVersionDO version : versions) {
-                amfFileStorageService.deleteFile(version.getFileUrl());
                 amfFileVersionMapper.deleteById(version.getId());
             }
             amfFileMapper.deleteById(file.getId());
@@ -106,6 +120,8 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = AMF_FILE_TYPE, subType = AMF_FILE_UPLOAD_SUB_TYPE, bizNo = "{{#businessId}}",
+            success = AMF_FILE_UPLOAD_SUCCESS)
     public AmfFileVersionDO uploadFile(Long businessId, Long fileId, MultipartFile file,
                                         String versionNo, String effectiveDate, String changeDescription) {
         validateBusinessExists(businessId);
@@ -186,6 +202,8 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
             }
         }
 
+        LogRecordContext.putVariable("fileName", originalName);
+        LogRecordContext.putVariable("versionNo", newVersion);
         return versionDO;
     }
 
@@ -201,10 +219,13 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = AMF_FILE_TYPE, subType = AMF_FILE_DELETE_SUB_TYPE, bizNo = "{{#fileId}}",
+            success = AMF_FILE_DELETE_SUCCESS)
     public void deleteFile(Long fileId) {
+        AmfFileDO file = amfFileMapper.selectById(fileId);
+        LogRecordContext.putVariable("fileName", file != null ? file.getFileName() : "");
         List<AmfFileVersionDO> versions = amfFileVersionMapper.selectListByFileId(fileId);
         for (AmfFileVersionDO version : versions) {
-            amfFileStorageService.deleteFile(version.getFileUrl());
             amfFileVersionMapper.deleteById(version.getId());
         }
         amfFileMapper.deleteById(fileId);
@@ -212,13 +233,15 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = AMF_FILE_VERSION_TYPE, subType = AMF_FILE_VERSION_DELETE_SUB_TYPE, bizNo = "{{#versionId}}",
+            success = AMF_FILE_VERSION_DELETE_SUCCESS)
     public void deleteFileVersion(Long versionId) {
         AmfFileVersionDO version = amfFileVersionMapper.selectById(versionId);
         if (version == null) {
             throw exception(AMF_FILE_VERSION_NOT_EXISTS);
         }
-        // 删除文件
-        amfFileStorageService.deleteFile(version.getFileUrl());
+        LogRecordContext.putVariable("fileName", version.getFileName());
+        LogRecordContext.putVariable("versionNo", version.getVersionNo());
         // 删除版本记录
         amfFileVersionMapper.deleteById(versionId);
     }

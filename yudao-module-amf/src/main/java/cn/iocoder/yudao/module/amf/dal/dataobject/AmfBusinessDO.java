@@ -62,6 +62,11 @@ public class AmfBusinessDO extends TenantBaseDO {
     private LocalDate effectiveDate;
 
     /**
+     * 申办方
+     */
+    private String sponsor;
+
+    /**
      * 状态（0正常 1停用）
      */
     private Integer status;

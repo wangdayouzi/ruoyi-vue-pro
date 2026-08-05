@@ -37,6 +37,9 @@ public class AmfBusinessRespVO {
     @Schema(description = "签字生效日期", example = "2024-01-01")
     private LocalDate effectiveDate;
 
+    @Schema(description = "申办方", example = "某药企")
+    private String sponsor;
+
     @Schema(description = "状态（0正常 1停用）", example = "0")
     private Integer status;
 
