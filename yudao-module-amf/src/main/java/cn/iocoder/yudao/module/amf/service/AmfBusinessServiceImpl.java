@@ -244,6 +244,11 @@ public class AmfBusinessServiceImpl implements AmfBusinessService {
         LogRecordContext.putVariable("versionNo", version.getVersionNo());
         // 删除版本记录
         amfFileVersionMapper.deleteById(versionId);
+        // 若无剩余版本，删除文件记录
+        List<AmfFileVersionDO> remaining = amfFileVersionMapper.selectListByFileId(version.getFileId());
+        if (remaining.isEmpty()) {
+            amfFileMapper.deleteById(version.getFileId());
+        }
     }
 
     // ========== 校验方法 ==========
