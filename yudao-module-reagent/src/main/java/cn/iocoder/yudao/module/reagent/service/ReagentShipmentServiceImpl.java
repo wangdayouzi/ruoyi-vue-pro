@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.reagent.service;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
+import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.module.bpm.api.task.BpmProcessTaskApi;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.*;
@@ -48,9 +49,9 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
     private ReagentNoRedisDAO reagentNoRedisDAO;
 
     /**
-     * Flowable 任务节点 Key：全部发货完成
+     * Flowable 任务节点 Key：样品组审核发货（全部发货完成后自动通过该节点）
      */
-    private static final String TASK_SHIPMENT_COMPLETE = "reagent-shipment-complete";
+    private static final String TASK_AUDIT = "reagent-audit";
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -58,13 +59,7 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
         // 1. 校验申请单存在且状态为待发货/部分发货
         ReagentApplyDO apply = validateApplyCanShip(reqVO.getApplyId());
 
-        // 2. 校验物流必填项
-        if (reqVO.getTrackingNumber() == null || reqVO.getTrackingNumber().isBlank()
-                || reqVO.getExpressCompany() == null || reqVO.getExpressCompany().isBlank()) {
-            throw exception(REAGENT_SHIPMENT_LOGISTICS_REQUIRED);
-        }
-
-        // 3. 校验发货明细 & 数量合法性
+        // 2. 校验发货明细 & 数量合法性
         List<ReagentApplyItemDO> applyItems = reagentApplyItemMapper.selectListByApplyId(reqVO.getApplyId());
         for (ReagentShipmentItemVO itemVO : reqVO.getItems()) {
             if (itemVO.getQuantityShipped() == null || itemVO.getQuantityShipped() <= 0) {
@@ -124,13 +119,14 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
             updateApply.setStatus(ReagentApplyServiceImpl.STATUS_COMPLETED);
             reagentApplyMapper.updateById(updateApply);
 
-            // Flowable：全部发货完成，触发流程完成节点
+            // Flowable：全部发货完成，自动完成"样品组审核发货"节点，触发 complete 事件（发货完成邮件）
             if (apply.getProcessInstanceId() != null) {
                 try {
-                    bpmProcessTaskApi.triggerTask(apply.getProcessInstanceId(), TASK_SHIPMENT_COMPLETE);
-                    log.info("[reagent] 申请单 {} 全部发货完成，已触发 Flowable 流程完成", apply.getApplyNo());
+                    bpmProcessTaskApi.completeTaskByKey(apply.getProcessInstanceId(), TASK_AUDIT,
+                            "全部发货完成，自动通过", SecurityFrameworkUtils.getLoginUserId());
+                    log.info("[reagent] 申请单 {} 全部发货完成，已自动完成 Flowable 审核节点", apply.getApplyNo());
                 } catch (Exception e) {
-                    log.error("[reagent] 申请单 {} Flowable 流程完成触发失败", apply.getApplyNo(), e);
+                    log.error("[reagent] 申请单 {} Flowable 审核节点自动完成失败", apply.getApplyNo(), e);
                 }
             }
         } else {
@@ -220,6 +216,19 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
 
     private String generateShipmentNo() {
         return reagentNoRedisDAO.generate(ReagentNoRedisDAO.SHIPMENT_NO_PREFIX);
+    }
+
+    @Override
+    public void updateShipmentLogistics(Long id, String trackingNumber, String expressCompany) {
+        ReagentShipmentDO shipment = reagentShipmentMapper.selectById(id);
+        if (shipment == null) {
+            throw exception(REAGENT_SHIPMENT_NOT_EXISTS);
+        }
+        ReagentShipmentDO update = new ReagentShipmentDO();
+        update.setId(id);
+        update.setTrackingNumber(trackingNumber);
+        update.setExpressCompany(expressCompany);
+        reagentShipmentMapper.updateById(update);
     }
 
 }

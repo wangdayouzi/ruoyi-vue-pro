@@ -25,7 +25,6 @@ public interface ErrorCodeConstants {
 
     // ========== 发货单 (1-050-003-000) ==========
     ErrorCode REAGENT_SHIPMENT_NOT_EXISTS  = new ErrorCode(1_050_003_000, "发货单不存在");
-    ErrorCode REAGENT_SHIPMENT_LOGISTICS_REQUIRED = new ErrorCode(1_050_003_001, "物流信息（快递单号、物流公司）为必填项");
     ErrorCode REAGENT_SHIPMENT_QTY_REQUIRED = new ErrorCode(1_050_003_002, "本次发货数量必须大于0");
 
 }

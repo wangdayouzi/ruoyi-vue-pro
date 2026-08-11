@@ -1,10 +1,10 @@
 package cn.iocoder.yudao.module.reagent.service;
 
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.module.bpm.api.task.BpmProcessInstanceApi;
-import cn.iocoder.yudao.module.bpm.api.task.BpmProcessTaskApi;
 import cn.iocoder.yudao.module.bpm.api.task.dto.BpmProcessInstanceCreateReqDTO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyDO;
@@ -17,6 +17,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import java.util.List;
 
@@ -43,20 +46,12 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
     private BpmProcessInstanceApi bpmProcessInstanceApi;
 
     @Resource
-    private BpmProcessTaskApi bpmProcessTaskApi;
-
-    @Resource
     private ReagentNoRedisDAO reagentNoRedisDAO;
 
     /**
      * Flowable 流程定义 Key
      */
     private static final String PROCESS_DEFINITION_KEY = "reagent-apply";
-
-    /**
-     * Flowable 任务节点 Key
-     */
-    private static final String TASK_REJECT = "reagent-reject";
 
     /**
      * 申请单状态枚举
@@ -132,10 +127,19 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         Long userId = SecurityFrameworkUtils.getLoginUserId();
         if (userId == null) { userId = 1L; }
         try {
+            // 业务字段写入流程变量，供流程监听器/邮件模板使用（create 事件在 processInstanceId 落库前触发，故不能依赖查库）
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("applyNo", StrUtil.nullToEmpty(apply.getApplyNo()));
+            variables.put("receiverUnit", StrUtil.nullToEmpty(apply.getReceiverUnit()));
+            variables.put("receiverName", StrUtil.nullToEmpty(apply.getReceiverName()));
+            variables.put("receiverPhone", StrUtil.nullToEmpty(apply.getReceiverPhone()));
+            variables.put("receiverAddress", StrUtil.nullToEmpty(apply.getReceiverAddress()));
+
             String processInstanceId = bpmProcessInstanceApi.createProcessInstance(userId,
                     new BpmProcessInstanceCreateReqDTO()
                             .setProcessDefinitionKey(PROCESS_DEFINITION_KEY)
-                            .setBusinessKey(id.toString()));
+                            .setBusinessKey(id.toString())
+                            .setVariables(variables));
             apply.setProcessInstanceId(processInstanceId);
             log.info("[reagent] 申请单 {} 已启动 Flowable 流程，实例ID: {}", apply.getApplyNo(), processInstanceId);
         } catch (Exception e) {
@@ -170,16 +174,7 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
             throw exception(REAGENT_APPLY_CANNOT_EDIT);
         }
 
-        // Flowable 流程退回处理：触发 reject 任务节点
-        if (apply.getProcessInstanceId() != null) {
-            try {
-                bpmProcessTaskApi.triggerTask(apply.getProcessInstanceId(), TASK_REJECT);
-                log.info("[reagent] 申请单 {} 已触发 Flowable 退回任务", apply.getApplyNo());
-            } catch (Exception e) {
-                log.error("[reagent] 申请单 {} Flowable 退回任务触发失败", apply.getApplyNo(), e);
-            }
-        }
-
+        // 业务表单侧拒绝/退回：仅更新状态，不依赖 BPM 退回节点（该节点为中间抛出事件，非等待节点）
         apply.setStatus(STATUS_REJECTED);
         apply.setRemark(reqVO.getRemark());
         reagentApplyMapper.updateById(apply);

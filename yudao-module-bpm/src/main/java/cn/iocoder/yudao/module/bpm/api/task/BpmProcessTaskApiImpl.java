@@ -22,4 +22,9 @@ public class BpmProcessTaskApiImpl implements BpmProcessTaskApi {
         bpmTaskService.triggerTask(processInstanceId, taskDefineKey);
     }
 
+    @Override
+    public void completeTaskByKey(String processInstanceId, String taskDefineKey, String reason, Long userId) {
+        bpmTaskService.completeTaskByKey(processInstanceId, taskDefineKey, reason, userId);
+    }
+
 }

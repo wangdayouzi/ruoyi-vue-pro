@@ -406,6 +406,8 @@ class PostgreSQLConvertor(Convertor):
 
         if type == "varchar":
             return f"varchar({size})"
+        if type == "char":
+            return f"char({size})" if size else "char(1)"
         if type in ("int", "int unsigned", "int unsigned zerofill"):
             return "int4"
         if type in ("bigint", "bigint unsigned"):
@@ -519,9 +521,13 @@ BEGIN;
 {inserts_lines}
 COMMIT;
 -- @formatter:on"""
-            match = re.search(r"VALUES \((\d+),", inserts[-1])
-            if match:
-                last_id = int(match.group(1))
+            # 收集所有 INSERT 中每行数据的 id，取最大值 + 1 作为序列起始值
+            ids = []
+            for s in inserts:
+                m = re.search(r"VALUES\s*", s, re.IGNORECASE)
+                ids.extend(int(x) for x in re.findall(r"\((\d+),", s[m.end():] if m else s))
+            if ids:
+                last_id = max(ids)
 
         # 生成 Sequence
         script += (
@@ -676,9 +682,13 @@ CREATE TABLE {table_name} (
 {inserts_lines}
 COMMIT;
 -- @formatter:on"""
-            match = re.search(r"VALUES \((\d+),", inserts[-1])
-            if match:
-                last_id = int(match.group(1))
+            # 收集所有 INSERT 中每行数据的 id，取最大值 + 1 作为序列起始值
+            ids = []
+            for s in inserts:
+                m = re.search(r"VALUES\s*", s, re.IGNORECASE)
+                ids.extend(int(x) for x in re.findall(r"\((\d+),", s[m.end():] if m else s))
+            if ids:
+                last_id = max(ids)
 
         # 生成 Sequence
         script += f"""

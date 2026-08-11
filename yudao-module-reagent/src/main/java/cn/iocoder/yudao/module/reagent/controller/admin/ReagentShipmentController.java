@@ -84,4 +84,12 @@ public class ReagentShipmentController {
         return success(true);
     }
 
+    @PostMapping("/update-logistics")
+    @Operation(summary = "更新发货物流信息（快递单号/物流公司）")
+    @PreAuthorize("@ss.hasPermission('reagent:shipment:create')")
+    public CommonResult<Boolean> updateShipmentLogistics(@Valid @RequestBody ReagentShipmentUpdateLogisticsReqVO reqVO) {
+        reagentShipmentService.updateShipmentLogistics(reqVO.getId(), reqVO.getTrackingNumber(), reqVO.getExpressCompany());
+        return success(true);
+    }
+
 }

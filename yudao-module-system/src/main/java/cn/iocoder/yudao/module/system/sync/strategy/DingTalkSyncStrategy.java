@@ -279,6 +279,9 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
                 dto.setAvatar(result.has("avatar") ? result.get("avatar").asText() : null);
                 dto.setMobile(result.has("mobile") ? result.get("mobile").asText() : null);
                 dto.setEmail(result.has("email") ? result.get("email").asText() : null);
+                // TODO 诊断用日志：确认钉钉接口是否返回了邮箱（排查同步邮箱不生效）
+                log.info("[DingTalk][fetchUserDetail] userId={}, 钉钉返回 email={}, mobile={}",
+                        userId, dto.getEmail(), dto.getMobile());
                 return dto;
             }
             // errcode=88 表示 QPS 限流，需要退避重试

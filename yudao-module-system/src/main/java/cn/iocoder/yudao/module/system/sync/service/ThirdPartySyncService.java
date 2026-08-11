@@ -331,6 +331,9 @@ public class ThirdPartySyncService {
         if (StrUtil.isNotBlank(dto.getMobile())) user.setMobile(dto.getMobile());
         if (StrUtil.isNotBlank(dto.getEmail())) user.setEmail(dto.getEmail());
         if (StrUtil.isNotBlank(dto.getAvatar())) user.setAvatar(dto.getAvatar());
+        // TODO 诊断用日志：确认本次同步邮箱是否有值、是否写入（排查同步邮箱不生效）
+        log.info("[sync][用户更新] userId={}, nickname={}, 待写入邮箱={}, 是否写入={}",
+                userId, dto.getNickname(), dto.getEmail(), StrUtil.isNotBlank(dto.getEmail()));
         // 更新部门
         if (CollUtil.isNotEmpty(dto.getDeptIds())) {
             for (String sourceDeptId : dto.getDeptIds()) {

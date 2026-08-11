@@ -27,4 +27,8 @@ public interface ReagentApplyMapper extends BaseMapperX<ReagentApplyDO> {
         return selectOne(ReagentApplyDO::getApplyNo, applyNo);
     }
 
+    default ReagentApplyDO selectByProcessInstanceId(String processInstanceId) {
+        return selectOne(ReagentApplyDO::getProcessInstanceId, processInstanceId);
+    }
+
 }

@@ -44,7 +44,7 @@ spring:
         master:
           # 生产环境使用 PostgreSQL，连接 Linux 服务器上的数据库
           # 部署时通过环境变量或启动参数覆盖以下配置
-          url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:yudao}?useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&serverTimezone=Asia/Shanghai
+          url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_NAME:yudao}?useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&serverTimezone=Asia/Shanghai&currentSchema=mes,public
           username: ${DB_USERNAME:postgres}
           password: ${DB_PASSWORD:postgres}
         slave: # 从库，可根据自己需要修改

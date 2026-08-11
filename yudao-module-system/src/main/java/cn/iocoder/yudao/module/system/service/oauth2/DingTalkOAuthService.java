@@ -1,7 +1,6 @@
 package cn.iocoder.yudao.module.system.service.oauth2;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
@@ -21,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -68,15 +68,30 @@ public class DingTalkOAuthService {
     }
 
     /** 构建钉钉授权页 URL */
-    public String buildAuthorizeUrl() {
-        String redirect = URLEncoder.encode(properties.getRedirectUri(), StandardCharsets.UTF_8);
+    public String buildAuthorizeUrl(String redirect) {
+        // 将前端重定向地址编码进 state，随 OAuth2 流程原样带回，避免钉钉回调丢失 redirect 参数
+        // （移动端 H5 场景下，redirect 形如 /h5/#/pages-core/auth/login；管理后台为空时默认为 /）
+        String state = StrUtil.blankToDefault(redirect, "/");
+        String redirectUri = URLEncoder.encode(properties.getRedirectUri(), StandardCharsets.UTF_8);
         return AUTHORIZE_URL +
-                "?redirect_uri=" + redirect +
+                "?redirect_uri=" + redirectUri +
                 "&response_type=code" +
                 "&client_id=" + properties.getClientId() +
                 "&scope=openid" +
                 "&prompt=consent" +
-                "&state=" + RandomUtil.randomString(8);
+                "&state=" + URLEncoder.encode(state, StandardCharsets.UTF_8);
+    }
+
+    /** 解析回调 state 参数，得到前端重定向地址；解析失败或为空时，回退到默认值 */
+    public String parseRedirectFromState(String state, String defaultRedirect) {
+        if (StrUtil.isNotBlank(state)) {
+            try {
+                return URLDecoder.decode(state, StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                log.warn("[DingTalkOAuth] state 解析失败: {}", state, e);
+            }
+        }
+        return defaultRedirect;
     }
 
     /** 回调处理：authCode → 用户信息 → 返回登录 token */

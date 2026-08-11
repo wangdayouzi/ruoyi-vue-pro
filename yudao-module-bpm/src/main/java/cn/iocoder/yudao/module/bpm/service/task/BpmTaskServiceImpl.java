@@ -1697,6 +1697,20 @@ public class BpmTaskServiceImpl implements BpmTaskService {
                 () -> runtimeService.trigger(execution.getId()));
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void completeTaskByKey(String processInstanceId, String taskDefineKey, String reason, Long userId) {
+        List<Task> taskList = getRunningTaskListByProcessInstanceId(processInstanceId, null, taskDefineKey);
+        if (CollUtil.isEmpty(taskList)) {
+            log.error("[completeTaskByKey][processInstanceId({}) 定义Key({}) 没有找到任务]", processInstanceId, taskDefineKey);
+            return;
+        }
+        // 单实例/或签：完成第一个运行的任务即可（多实例时由 Flowable 按完成条件自动收尾其余实例）
+        Task task = taskList.get(0);
+        Long assignee = StrUtil.isNotBlank(task.getAssignee()) ? NumberUtils.parseLong(task.getAssignee()) : userId;
+        getSelf().approveTask(assignee, new BpmTaskApproveReqVO().setId(task.getId()).setReason(reason));
+    }
+
     /**
      * 获得自身的代理对象，解决 AOP 生效问题
      *

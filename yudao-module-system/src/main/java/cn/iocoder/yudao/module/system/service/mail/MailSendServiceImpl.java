@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.common.enums.UserTypeEnum;
 import cn.iocoder.yudao.module.system.dal.dataobject.mail.MailAccountDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.mail.MailTemplateDO;
@@ -84,7 +85,12 @@ public class MailSendServiceImpl implements MailSendService {
             bccMails.stream().filter(Validator::isEmail).forEach(bccMailSet::add);
         }
         if (CollUtil.isEmpty(toMailSet)) {
-            throw exception(MAIL_SEND_MAIL_NOT_EXISTS);
+            // 无有效收件人（如用户未配置邮箱）：仍记录一条失败日志，便于在"邮件日志"中追踪
+            ServiceException mailException = exception(MAIL_SEND_MAIL_NOT_EXISTS);
+            Long sendLogId = mailLogService.createMailLog(userId, userType, toMailSet, ccMailSet, bccMailSet,
+                    account, template, StrUtil.EMPTY, templateParams, false);
+            mailLogService.updateMailSendResult(sendLogId, null, mailException);
+            throw mailException;
         }
 
         // 创建发送日志。如果模板被禁用，则不发送短信，只记录日志

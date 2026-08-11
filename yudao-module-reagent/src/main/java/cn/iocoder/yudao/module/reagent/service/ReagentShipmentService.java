@@ -43,4 +43,9 @@ public interface ReagentShipmentService {
      */
     void revokeShipment(Long id);
 
+    /**
+     * 更新发货物流信息（快递单号 / 物流公司）
+     */
+    void updateShipmentLogistics(Long id, String trackingNumber, String expressCompany);
+
 }

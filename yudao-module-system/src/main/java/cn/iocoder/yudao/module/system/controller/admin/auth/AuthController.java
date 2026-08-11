@@ -184,8 +184,9 @@ public class AuthController {
     @GetMapping("/dingtalk/authorize-url")
     @PermitAll
     @Operation(summary = "获取钉钉OAuth2授权页URL")
-    public CommonResult<String> dingtalkAuthorizeUrl() {
-        return success(dingTalkOAuthService.buildAuthorizeUrl());
+    @Parameter(name = "redirect", description = "登录成功后前端重定向路径，如 /h5/#/pages-core/auth/login（移动端 H5 使用；管理后台可不传）")
+    public CommonResult<String> dingtalkAuthorizeUrl(@RequestParam(value = "redirect", required = false) String redirect) {
+        return success(dingTalkOAuthService.buildAuthorizeUrl(redirect));
     }
 
     @GetMapping("/dingtalk/callback")
@@ -193,16 +194,19 @@ public class AuthController {
     @Operation(summary = "钉钉OAuth2授权回调")
     public void dingtalkCallback(@RequestParam("authCode") String authCode,
                                   @RequestParam(value = "redirect", required = false, defaultValue = "/") String redirect,
+                                  @RequestParam(value = "state", required = false) String state,
                                   HttpServletResponse response) throws IOException {
+        // 优先使用 state 中编码的前端重定向地址（移动端 H5 使用），否则回退到 redirect 参数
+        String targetPath = dingTalkOAuthService.parseRedirectFromState(state, redirect);
         try {
             AuthLoginRespVO loginResp = dingTalkOAuthService.handleCallback(authCode);
-            response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + redirect
+            response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + targetPath
                     + "?token=" + loginResp.getAccessToken()
                     + "&refreshToken=" + loginResp.getRefreshToken()
                     + "&expiresTime=" + loginResp.getExpiresTime());
         } catch (Exception e) {
             log.error("[DingTalkOAuth] 登录失败", e);
-            response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + redirect
+            response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + targetPath
                     + "?error=" + e.getMessage());
         }
     }

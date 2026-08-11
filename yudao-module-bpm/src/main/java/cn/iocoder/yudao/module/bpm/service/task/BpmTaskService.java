@@ -217,6 +217,16 @@ public interface BpmTaskService {
     void rejectTask(Long userId, @Valid BpmTaskRejectReqVO reqVO);
 
     /**
+     * 完成指定流程实例 + 任务 Key 的用户任务（自动同意）
+     *
+     * @param processInstanceId 流程实例编号
+     * @param taskDefineKey     任务 Key
+     * @param reason            同意理由
+     * @param userId            当前操作人（任务无办理人时的兜底）
+     */
+    void completeTaskByKey(String processInstanceId, String taskDefineKey, String reason, Long userId);
+
+    /**
      * 将流程任务分配给指定用户
      *
      * @param userId 用户编号
