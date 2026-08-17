@@ -140,6 +140,11 @@
             <artifactId>yudao-module-reagent</artifactId>
             <version>${revision}</version>
         </dependency>
+        <!-- SQL Server JDBC 驱动（试剂标签打印只读数据源使用，mybatis starter 中为 optional 不传递，需在此显式引入） -->
+        <dependency>
+            <groupId>com.microsoft.sqlserver</groupId>
+            <artifactId>mssql-jdbc</artifactId>
+        </dependency>
         <!-- IM 相关模块。默认注释，保证编译速度 -->
 <!--        <dependency>-->
 <!--            <groupId>cn.iocoder.boot</groupId>-->

@@ -76,6 +76,14 @@ spring:
           url: jdbc:mysql://127.0.0.1:3306/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true&nullCatalogMeansCurrent=true
           username: root
           password: 123456
+        sqlserver: # 试剂标签打印 - 只读 SQL Server 数据源（按 BASID 查询）
+          lazy: true # 开启懒加载，保证启动速度
+          url: jdbc:sqlserver://172.16.200.200:1433;DatabaseName=SHJH_Prj;encrypt=false;trustServerCertificate=true
+          driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+          username: sa
+          password: Aa123456
+          druid:
+            validation-query: SELECT 1 # SQL Server 不支持 SELECT 1 FROM DUAL，单独覆盖
 #        tdengine: # IoT 数据库（需要 IoT 物联网再开启噢！）
 #          lazy: true # 开启懒加载，保证启动速度
 #          url: jdbc:TAOS-WS://127.0.0.1:6041/ruoyi_vue_pro?varcharAsString=true&enableAutoReconnect=true # 参见：https://t.zsxq.com/qaX9c，开启 TDengine WebSocket 自动重连

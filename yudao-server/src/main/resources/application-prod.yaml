@@ -52,6 +52,14 @@ spring:
           url: jdbc:postgresql://${SLAVE_DB_HOST:127.0.0.1}:${SLAVE_DB_PORT:5432}/${SLAVE_DB_NAME:yudao}?useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true&serverTimezone=Asia/Shanghai
           username: ${SLAVE_DB_USERNAME:postgres}
           password: ${SLAVE_DB_PASSWORD:postgres}
+        sqlserver: # 试剂标签打印 - 只读 SQL Server 数据源（按 BASID 查询）
+          lazy: true # 开启懒加载，保证启动速度
+          url: jdbc:sqlserver://${PM_DB_HOST:172.16.200.200}:${PM_DB_PORT:1433};DatabaseName=${PM_DB_NAME:SHJH_Prj};encrypt=false;trustServerCertificate=true
+          driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+          username: ${PM_DB_USERNAME:sa}
+          password: ${PM_DB_PASSWORD:Aa123456}
+          druid:
+            validation-query: SELECT 1 # SQL Server 不支持 SELECT 1 FROM DUAL，单独覆盖
 
   # Redis 配置
   data:

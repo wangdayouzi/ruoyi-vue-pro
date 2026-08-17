@@ -55,6 +55,14 @@ spring:
           url: jdbc:mysql://127.0.0.1:3306/ruoyi-vue-pro?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
           username: root
           password: 123456
+        sqlserver: # 试剂标签打印 - 只读 SQL Server 数据源（按 BASID 查询）
+          lazy: true # 开启懒加载，保证启动速度
+          url: jdbc:sqlserver://172.16.200.200:1433;DatabaseName=master;encrypt=false;trustServerCertificate=true
+          driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+          username: sa
+          password: Aa123456
+          druid:
+            validation-query: SELECT 1 # SQL Server 不支持 SELECT 1 FROM DUAL，单独覆盖
 
   # Redis 配置。Redisson 默认的配置足够使用，一般不需要进行调优
   data:
