@@ -211,6 +211,7 @@ docker compose --env-file .env restart server     # 重启后端（仅重启进�
 # ===== 更新 =====
 # 更新后端 JAR 包后（环境变量没变）：
 docker compose --env-file .env restart server
+docker compose --env-file .env restart admin
 
 # 改了 .env 后（环境变量变了，必须重建容器才能生效）：
 docker compose --env-file .env up -d --force-recreate server
