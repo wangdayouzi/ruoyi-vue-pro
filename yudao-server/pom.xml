@@ -45,12 +45,14 @@
 <!--            <artifactId>yudao-module-report</artifactId>-->
 <!--            <version>${revision}</version>-->
 <!--        </dependency>-->
+
         <!-- 工作流。默认注释，保证编译速度 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
             <artifactId>yudao-module-bpm</artifactId>
             <version>${revision}</version>
         </dependency>
+
         <!-- 支付服务。默认注释，保证编译速度 -->
 <!--        <dependency>-->
 <!--            <groupId>cn.iocoder.boot</groupId>-->
@@ -115,6 +117,7 @@
 <!--            <version>${revision}</version>-->
 <!--        </dependency>-->
 
+
         <!-- MES 制造执行系统相关模块 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
@@ -122,12 +125,14 @@
             <version>${revision}</version>
         </dependency>
 
-        <!-- WMS 仓库管理模块 -->
+
+        <!-- WMS 仓库管理模块。默认注释，保证编译速度 -->
 <!--        <dependency>-->
 <!--            <groupId>cn.iocoder.boot</groupId>-->
 <!--            <artifactId>yudao-module-wms</artifactId>-->
 <!--            <version>${revision}</version>-->
 <!--        </dependency>-->
+
         <!-- AMF 分析方法文件管理模块 -->
         <dependency>
             <groupId>cn.iocoder.boot</groupId>
@@ -145,6 +150,23 @@
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
         </dependency>
+
+
+        <!-- HRM 人力资源管理模块。默认注释，保证编译速度 -->
+<!--        <dependency>-->
+<!--            <groupId>cn.iocoder.boot</groupId>-->
+<!--            <artifactId>yudao-module-hrm</artifactId>-->
+<!--            <version>${revision}</version>-->
+<!--        </dependency>-->
+
+        <!-- FMS 财务管理模块。默认注释，保证编译速度 -->
+<!--        <dependency>-->
+<!--            <groupId>cn.iocoder.boot</groupId>-->
+<!--            <artifactId>yudao-module-fms</artifactId>-->
+<!--            <version>${revision}</version>-->
+<!--        </dependency>-->
+
+
         <!-- IM 相关模块。默认注释，保证编译速度 -->
 <!--        <dependency>-->
 <!--            <groupId>cn.iocoder.boot</groupId>-->
