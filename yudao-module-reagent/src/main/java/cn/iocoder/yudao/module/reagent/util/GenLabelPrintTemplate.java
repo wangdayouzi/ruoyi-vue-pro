@@ -23,8 +23,8 @@ public class GenLabelPrintTemplate {
             Drawing<?> drawing = s.createDrawingPatriarch();
 
             // 列宽：A 键列 / B 值列（可自行调整）
-            s.setColumnWidth(0, 4500);
-            s.setColumnWidth(1, 11000);
+            s.setColumnWidth(0, 7000);
+            s.setColumnWidth(1, 12000);
 
             CellStyle title = cs(wb, 16, true, HorizontalAlignment.CENTER);
             CellStyle label = cs(wb, 11, true, HorizontalAlignment.RIGHT);
@@ -33,19 +33,19 @@ public class GenLabelPrintTemplate {
             int r = 0;
 
             // 标题
-            m(s, r, 0, r, 1, "试剂标签", title);
+            m(s, r, 0, r, 1, "Reagent Label", title);
             addComment(s, r, 0, "jx:area(lastCell=\"B10\")", drawing);
             r += 2;
 
-            // 键值对（每行：键 1 格 + 值 1 格）
-            kv(s, r++, label, val, "名称:", "${name}");
+            // 键值对（每行：键 1 格 + 值 1 格，与标签模板一致）
+            kv(s, r++, label, val, "Name:", "${name}");
             kv(s, r++, label, val, "BASID:", "${basId}");
-            kv(s, r++, label, val, "批号:", "${batchNo}");
-            kv(s, r++, label, val, "存储条件:", "${storageCondition}");
-            kv(s, r++, label, val, "过期日期:", "${expireDate}");
-            kv(s, r++, label, val, "接收人:", "${receiverName}");
-            kv(s, r++, label, val, "接收日期:", "${receiveDate}");
-            kv(s, r, label, val, "备注:", "${remark}");
+            kv(s, r++, label, val, "LOT:", "${batchNo}");
+            kv(s, r++, label, val, "Storage condition(unopen):", "${storageCondition}");
+            kv(s, r++, label, val, "Received date:", "${receiveDate}");
+            kv(s, r++, label, val, "Received by:", "${receiverName}");
+            kv(s, r++, label, val, "Exp.Date(unopen):", "${expireDate}");
+            kv(s, r, label, val, "Remark:", "${remark}");
 
             // 打印设置：A4 竖版，宽度缩放到一页
             s.getPrintSetup().setPaperSize(PrintSetup.A4_PAPERSIZE);
