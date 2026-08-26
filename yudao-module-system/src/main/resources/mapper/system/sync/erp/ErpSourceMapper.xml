@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.system.sync.erp.dal.mysql.ErpSourceMapper">
+
+    <!--
+        入库明细行：窗口 + 过滤 + 冗余名称。全部 NOLOCK。
+        性能：sdpm026 按 pm02614 走 IX_sdpm026_pm02614；sdpm027 43k 行小表 join 无压力；
+              整个窗口一次查完，避免逐天反复查。
+    -->
+    <!-- 物料分类全量（sdpm001 行数少整表拉；pm00103=父分类键，顶级为空） -->
+    <select id="selectItemCategory" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemCategoryDTO">
+        SELECT pm00101 AS catKey,
+               pm00102 AS catName,
+               pm00103 AS parentKey
+        FROM dbo.sdpm001 WITH (NOLOCK)
+        WHERE pm00101 IS NOT NULL AND pm00101 != ''
+        ORDER BY pm00101
+    </select>
+
+    <!-- 采购订单明细（sdpm014 → 采购订单剩余量；剩余=采购数量+替代调整−已领用，对齐视图 LastCount）
+         关键：pm01401=订单ID(关联 sdpm013.pm01301)；pm01402=明细行ID(唯一)。曾映射反了导致 join 不上 -->
+    <select id="selectPoLine" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineDTO">
+        SELECT d.pm01401 AS poId,
+               d.pm01402 AS lineId,
+               o.pm01303  AS poCode,
+               o.pm01302  AS orderDate,
+               (SELECT TOP 1 v.pf00302 FROM dbo.sdpd004 c WITH (NOLOCK)
+                 JOIN dbo.sdpf003 v WITH (NOLOCK) ON v.pf00301 = c.pd00404
+                WHERE UPPER(c.pd00401) = UPPER(o.pm01305)) AS vendorName,
+               d.pm01403 AS srcItemId,
+               m.pm00201  AS itemCode,
+               m.pm00202  AS itemName,
+               m.pm00221  AS brand,
+               m.pm00205  AS spec,
+               d.pm01404 AS unitCode,
+               u.pa01302  AS unitName,
+               (SELECT TOP 1 c.pm00102 FROM dbo.sdpm001 c WITH (NOLOCK) WHERE c.pm00101 = m.pm00203) AS itemCategory,
+               d.pm01406 AS qtyOrdered,
+               d.pm01411 AS qtyReceived
+        FROM dbo.sdpm014 d WITH (NOLOCK)
+        -- GUID 大小写不敏感：老库 GUID 大小写不一，UPPER 归一避免 join 不上
+        LEFT JOIN dbo.sdpm013 o WITH (NOLOCK) ON UPPER(o.pm01301) = UPPER(d.pm01401)
+        LEFT JOIN dbo.sdpm002 m WITH (NOLOCK) ON UPPER(m.pm00200) = UPPER(d.pm01403)
+        LEFT JOIN dbo.sdpa013 u WITH (NOLOCK) ON u.pa01301 = d.pm01404
+        -- 订单日期窗口：兼容 yyyy/MM/dd 与 yyyy-MM-dd（统一成 - 后取前10位比较）
+        WHERE LEFT(REPLACE(o.pm01302, '/', '-'), 10) &gt;= #{beginYm}
+          AND LEFT(REPLACE(o.pm01302, '/', '-'), 10) &lt;= #{endYm}
+    </select>
+
+    <select id="selectInbound" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO">
+        SELECT m2.pm02601 AS srcReceiptId,
+               h.pm02702  AS srcLineId,
+               h.pm02712  AS poLineId,
+               m2.pm02603 AS basId,
+               m2.pm02602 AS receiptDate,
+               m2.pm02614 AS [period],
+               m2.pm02623 AS docType,
+               m2.pm02631 AS batchNo,
+               h.pm02725  AS expireDate,
+               h.pm02726  AS storageLocation,
+               h.pm02728  AS [lineNo],
+               h.pm02703  AS srcItemId,
+               m.pm00201  AS itemCode,
+               m.pm00202  AS itemName,
+               m.pm00203  AS catalogNo,
+               m.pm00221  AS brand,
+               m.pm00205  AS spec,
+               (SELECT TOP 1 u.pa01302 FROM dbo.sdpm003 u3 WITH (NOLOCK)
+                 JOIN dbo.sdpa013 u WITH (NOLOCK) ON u.pa01301 = u3.pm00302
+                WHERE UPPER(u3.pm00301) = UPPER(h.pm02703) AND u3.pm00303 = 1) AS unitName,
+               (SELECT TOP 1 c.pm00102 FROM dbo.sdpm001 c WITH (NOLOCK) WHERE c.pm00101 = m.pm00203) AS itemCategory,
+               h.pm02706 * h.pm02705 AS qty,
+               h.pm02707 AS priceTaxIn,
+               h.pm02708 AS amountTaxIn,
+               h.pm02709 AS priceExTax,
+               h.pm02710 AS amountExTax,
+               m2.pm02604 AS vendorId,
+               v.pf00302  AS vendorName,
+               m2.pm02605 AS warehouseId,
+               w.pm00402  AS warehouseName,
+               m2.pm02612 AS poId,
+               (SELECT TOP 1 s.pm01303 FROM dbo.sdpm013 s WITH (NOLOCK) WHERE UPPER(s.pm01301) = UPPER(m2.pm02612)) AS poCode,
+               h.pm02723  AS projectId,
+               pj.pa00102 AS projectName,
+               pj.pa00140 AS projectCode,
+               m2.pm02609 AS applicant,
+               o.pj00402  AS applicantName,
+               m2.pm02616 AS auditor,
+               a.pj00402  AS auditorName
+        FROM dbo.sdpm027 h WITH (NOLOCK)
+        JOIN dbo.sdpm026 m2 WITH (NOLOCK) ON m2.pm02601 = h.pm02701
+        -- GUID 大小写不敏感：老库 GUID 大小写不一，UPPER 归一
+        LEFT JOIN dbo.sdpm002 m WITH (NOLOCK) ON UPPER(m.pm00200) = UPPER(h.pm02703)
+        LEFT JOIN dbo.sdpf003 v WITH (NOLOCK) ON UPPER(v.pf00301) = UPPER(m2.pm02604)
+        LEFT JOIN dbo.sdpm004 w WITH (NOLOCK) ON w.pm00401 = m2.pm02605
+        LEFT JOIN dbo.sdpa001 pj WITH (NOLOCK) ON UPPER(pj.pa00101) = UPPER(h.pm02723)
+        LEFT JOIN dbo.sdpj004 o WITH (NOLOCK) ON UPPER(o.pj00401) = UPPER(m2.pm02609)
+        LEFT JOIN dbo.sdpj004 a WITH (NOLOCK) ON UPPER(a.pj00401) = UPPER(m2.pm02616)
+        WHERE m2.pm02620 = 0
+          AND m2.pm02617 = 1          -- TCheck=1 已审核（只同步已审核的入库单）
+          AND m2.pm02623 IN (1, 6)
+          AND m2.pm02614 &gt;= #{beginYm}
+          AND m2.pm02614 &lt;= #{endYm}
+          AND NOT EXISTS (SELECT 1 FROM dbo.sdpm020 p2 WITH (NOLOCK)
+                          WHERE p2.pm02024 = m2.pm02601 AND p2.pm02024 &lt;&gt; '')
+        ORDER BY m2.pm02614, m2.pm02601, h.pm02728
+    </select>
+
+    <!--
+        领料明细行：窗口 + 过滤 + 冗余名称。全部 NOLOCK。
+        性能：sdpm020 按 pm02016 走 IX_sdpm020_pm02016；整个窗口一次查完。
+    -->
+    <select id="selectRequisition" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpRequisitionDTO">
+        SELECT p.pm02001  AS srcReqId,
+               d.pm02102  AS srcLineId,
+               p.pm02003  AS reqCode,
+               p.pm02002  AS reqDate,
+               p.pm02016  AS [period],
+               d.pm02103  AS srcItemId,
+               m.pm00201  AS itemCode,
+               m.pm00202  AS itemName,
+               d.pm02104  AS qty,
+               d.pm02105  AS price,
+               d.pm02107  AS priceTaxIn,
+               p.pm02004  AS projectId,
+               pj.pa00102 AS projectName,
+               pj.pa00140 AS projectCode,
+               p.pm02008  AS vendorId,
+               v.pf00302  AS vendorName,
+               p.pm02006  AS warehouseId,
+               w.pm00402  AS warehouseName,
+               p.pm02012  AS applicant,
+               o.pj00402  AS applicantName,
+               p.pm02017  AS auditor,
+               a.pj00402  AS auditorName,
+               p.pm02015  AS srcReceiptId,
+               d.pm02108  AS srcLineReceiptId
+        FROM dbo.sdpm021 d WITH (NOLOCK)
+        JOIN dbo.sdpm020 p WITH (NOLOCK) ON p.pm02001 = d.pm02101
+        LEFT JOIN dbo.sdpm002 m WITH (NOLOCK) ON m.pm00200 = d.pm02103
+        LEFT JOIN dbo.sdpa001 pj WITH (NOLOCK) ON pj.pa00101 = p.pm02004
+        LEFT JOIN dbo.sdpf003 v WITH (NOLOCK) ON v.pf00301 = p.pm02008
+        LEFT JOIN dbo.sdpm004 w WITH (NOLOCK) ON w.pm00401 = p.pm02006
+        LEFT JOIN dbo.sdpj004 o WITH (NOLOCK) ON o.pj00401 = p.pm02012
+        LEFT JOIN dbo.sdpj004 a WITH (NOLOCK) ON a.pj00401 = p.pm02017
+        WHERE p.pm02022 = 0
+          AND p.pm02019 = 1
+          AND p.pm02016 &gt;= #{beginYm}
+          AND p.pm02016 &lt;= #{endYm}
+        ORDER BY p.pm02016, p.pm02001, d.pm02102
+    </select>
+
+    <!-- 项目退料明细行：pm02419=1(已审核)，按 pm02416 窗口。表极小，NOLOCK 扫无压力。 -->
+    <select id="selectReturnIn" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpReturnInDTO">
+        SELECT p.pm02401 AS srcRetId,
+               d.pm02502 AS srcLineId,
+               p.pm02403 AS retCode,
+               p.pm02402 AS retDate,
+               p.pm02416 AS [period],
+               d.pm02503 AS srcItemId,
+               m.pm00201 AS itemCode,
+               m.pm00202 AS itemName,
+               d.pm02504 AS qty,
+               d.pm02506 AS amount,
+               p.pm02404 AS projectId,
+               pj.pa00102 AS projectName,
+               p.pm02406 AS warehouseId,
+               w.pm00402 AS warehouseName,
+               p.pm02408 AS vendorId,
+               v.pf00302 AS vendorName,
+               p.pm02412 AS applicant,
+               o.pj00402 AS applicantName,
+               p.pm02417 AS auditor,
+               a.pj00402 AS auditorName,
+               d.pm02507 AS srcLineReceiptId
+        FROM dbo.sdpm025 d WITH (NOLOCK)
+        JOIN dbo.sdpm024 p WITH (NOLOCK) ON p.pm02401 = d.pm02501
+        LEFT JOIN dbo.sdpm002 m WITH (NOLOCK) ON m.pm00200 = d.pm02503
+        LEFT JOIN dbo.sdpa001 pj WITH (NOLOCK) ON pj.pa00101 = p.pm02404
+        LEFT JOIN dbo.sdpm004 w WITH (NOLOCK) ON w.pm00401 = p.pm02406
+        LEFT JOIN dbo.sdpf003 v WITH (NOLOCK) ON v.pf00301 = p.pm02408
+        LEFT JOIN dbo.sdpj004 o WITH (NOLOCK) ON o.pj00401 = p.pm02412
+        LEFT JOIN dbo.sdpj004 a WITH (NOLOCK) ON a.pj00401 = p.pm02417
+        WHERE p.pm02419 = 1
+          AND p.pm02416 BETWEEN #{beginYm} AND #{endYm}
+        ORDER BY p.pm02416, p.pm02401, d.pm02502
+    </select>
+
+    <!-- 采购退货明细行：pm02217=1(采购退货出库)+pm02215=1(已审核)，按 pm02214 窗口。表极小。 -->
+    <select id="selectReturnOut" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpReturnOutDTO">
+        SELECT p.pm02201 AS srcRoId,
+               d.pm02302 AS srcLineId,
+               p.pm02203 AS roCode,
+               p.pm02202 AS roDate,
+               p.pm02214 AS [period],
+               d.pm02303 AS srcItemId,
+               m.pm00201 AS itemCode,
+               m.pm00202 AS itemName,
+               d.pm02304 AS qty,
+               d.pm02305 AS price,
+               p.pm02204 AS vendorId,
+               v.pf00302 AS vendorName,
+               p.pm02205 AS warehouseId,
+               w.pm00402 AS warehouseName,
+               p.pm02212 AS poId,
+               (SELECT TOP 1 s.pm01303 FROM dbo.sdpm013 s WITH (NOLOCK) WHERE s.pm01301 = p.pm02212) AS poCode,
+               p.pm02209 AS applicant,
+               o.pj00402 AS applicantName,
+               p.pm02213 AS auditor,
+               a.pj00402 AS auditorName,
+               d.pm02311 AS srcLineReceiptId
+        FROM dbo.sdpm023 d WITH (NOLOCK)
+        JOIN dbo.sdpm022 p WITH (NOLOCK) ON p.pm02201 = d.pm02301
+        LEFT JOIN dbo.sdpm002 m WITH (NOLOCK) ON m.pm00200 = d.pm02303
+        LEFT JOIN dbo.sdpf003 v WITH (NOLOCK) ON v.pf00301 = p.pm02204
+        LEFT JOIN dbo.sdpm004 w WITH (NOLOCK) ON w.pm00401 = p.pm02205
+        LEFT JOIN dbo.sdpj004 o WITH (NOLOCK) ON o.pj00401 = p.pm02209
+        LEFT JOIN dbo.sdpj004 a WITH (NOLOCK) ON a.pj00401 = p.pm02213
+        WHERE p.pm02217 = 1
+          AND p.pm02215 = 1
+          AND p.pm02214 BETWEEN #{beginYm} AND #{endYm}
+        ORDER BY p.pm02214, p.pm02201, d.pm02302
+    </select>
+
+</mapper>

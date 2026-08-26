@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.mes.dal.mysql.pm.po.MesPmPoMapper">
+
+    <!-- 批量 upsert 采购订单明细：按 line_id 冲突更新 -->
+    <insert id="batchUpsert">
+        INSERT INTO mes_pm_po (
+          po_id, po_code, line_id, order_date, vendor_name, src_item_id, item_code, item_name,
+          brand, spec, unit_code, unit_name, item_category,
+          qty_ordered, qty_received, qty_requisition, qty_return, qty_return_out, remaining_qty, sync_batch, sync_time
+        ) VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.poId}, #{it.poCode}, #{it.lineId}, #{it.orderDate}, #{it.vendorName}, #{it.srcItemId}, #{it.itemCode}, #{it.itemName},
+           #{it.brand}, #{it.spec}, #{it.unitCode}, #{it.unitName}, #{it.itemCategory},
+           #{it.qtyOrdered}, #{it.qtyReceived}, #{it.qtyRequisition}, #{it.qtyReturn}, #{it.qtyReturnOut}, #{it.remainingQty}, #{syncBatch}, now())
+        </foreach>
+        ON CONFLICT (line_id) DO UPDATE SET
+          po_id          = EXCLUDED.po_id,
+          po_code        = EXCLUDED.po_code,
+          order_date     = EXCLUDED.order_date,
+          vendor_name    = EXCLUDED.vendor_name,
+          src_item_id    = EXCLUDED.src_item_id,
+          item_code      = EXCLUDED.item_code,
+          item_name      = EXCLUDED.item_name,
+          brand          = EXCLUDED.brand,
+          spec           = EXCLUDED.spec,
+          unit_code      = EXCLUDED.unit_code,
+          unit_name      = EXCLUDED.unit_name,
+          item_category  = EXCLUDED.item_category,
+          qty_ordered      = EXCLUDED.qty_ordered,
+          qty_received     = EXCLUDED.qty_received,
+          qty_requisition  = EXCLUDED.qty_requisition,
+          qty_return       = EXCLUDED.qty_return,
+          qty_return_out   = EXCLUDED.qty_return_out,
+          remaining_qty    = EXCLUDED.remaining_qty,
+          sync_batch       = EXCLUDED.sync_batch,
+          sync_time        = EXCLUDED.sync_time
+    </insert>
+
+    <!-- 清空采购订单正式表（窗口快照，先清再写） -->
+    <delete id="deleteAll">
+        DELETE FROM mes_pm_po
+    </delete>
+
+</mapper>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.mes.dal.mysql.pm.inbound.MesPmInboundMapper">
+
+    <!-- 批量 upsert 采购入库单主表：按 src_receipt_id 冲突更新 -->
+    <insert id="batchUpsertMaster">
+        INSERT INTO mes_pm_inbound (
+          src_receipt_id, bas_id, receipt_date, period, doc_type,
+          vendor_id, vendor_name, warehouse_id, warehouse_name,
+          po_id, po_code, project_id, project_name, project_code,
+          applicant, applicant_name, auditor, auditor_name,
+          sync_batch, sync_time
+        ) VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.srcReceiptId}, #{it.basId}, #{it.receiptDate}, #{it.period}, #{it.docType},
+           #{it.vendorId}, #{it.vendorName}, #{it.warehouseId}, #{it.warehouseName},
+           #{it.poId}, #{it.poCode}, #{it.projectId}, #{it.projectName}, #{it.projectCode},
+           #{it.applicant}, #{it.applicantName}, #{it.auditor}, #{it.auditorName},
+           #{syncBatch}, now())
+        </foreach>
+        ON CONFLICT (src_receipt_id) DO UPDATE SET
+          bas_id          = EXCLUDED.bas_id,
+          receipt_date    = EXCLUDED.receipt_date,
+          period          = EXCLUDED.period,
+          doc_type        = EXCLUDED.doc_type,
+          vendor_id       = EXCLUDED.vendor_id,
+          vendor_name     = EXCLUDED.vendor_name,
+          warehouse_id    = EXCLUDED.warehouse_id,
+          warehouse_name  = EXCLUDED.warehouse_name,
+          po_id           = EXCLUDED.po_id,
+          po_code         = EXCLUDED.po_code,
+          project_id      = EXCLUDED.project_id,
+          project_name    = EXCLUDED.project_name,
+          project_code    = EXCLUDED.project_code,
+          applicant       = EXCLUDED.applicant,
+          applicant_name  = EXCLUDED.applicant_name,
+          auditor         = EXCLUDED.auditor,
+          auditor_name    = EXCLUDED.auditor_name,
+          sync_batch      = EXCLUDED.sync_batch,
+          sync_time       = EXCLUDED.sync_time
+    </insert>
+
+    <!-- 批量 upsert 采购入库单明细表：按 src_line_id 冲突更新 -->
+    <insert id="batchUpsertLine">
+        INSERT INTO mes_pm_inbound_line (
+          inbound_id, src_receipt_id, src_line_id, src_po_line_id, line_no, src_item_id,
+          item_code, item_name, brand, spec, unit_name, item_category,
+          batch_no, expire_date, storage_location, qty,
+          price_tax_in, amount_tax_in, price_ex_tax, amount_ex_tax,
+          sync_batch, sync_time
+        ) VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.inboundId}, #{it.srcReceiptId}, #{it.srcLineId}, #{it.srcPoLineId}, #{it.lineNo}, #{it.srcItemId},
+           #{it.itemCode}, #{it.itemName}, #{it.brand}, #{it.spec}, #{it.unitName}, #{it.itemCategory},
+           #{it.batchNo}, #{it.expireDate}, #{it.storageLocation}, #{it.qty},
+           #{it.priceTaxIn}, #{it.amountTaxIn}, #{it.priceExTax}, #{it.amountExTax},
+           #{syncBatch}, now())
+        </foreach>
+        ON CONFLICT (src_line_id) DO UPDATE SET
+          inbound_id       = EXCLUDED.inbound_id,
+          src_receipt_id   = EXCLUDED.src_receipt_id,
+          src_po_line_id   = EXCLUDED.src_po_line_id,
+          line_no          = EXCLUDED.line_no,
+          src_item_id      = EXCLUDED.src_item_id,
+          item_code        = EXCLUDED.item_code,
+          item_name        = EXCLUDED.item_name,
+          brand            = EXCLUDED.brand,
+          spec             = EXCLUDED.spec,
+          unit_name        = EXCLUDED.unit_name,
+          item_category    = EXCLUDED.item_category,
+          batch_no         = EXCLUDED.batch_no,
+          expire_date      = EXCLUDED.expire_date,
+          storage_location = EXCLUDED.storage_location,
+          qty              = EXCLUDED.qty,
+          price_tax_in     = EXCLUDED.price_tax_in,
+          amount_tax_in    = EXCLUDED.amount_tax_in,
+          price_ex_tax     = EXCLUDED.price_ex_tax,
+          amount_ex_tax    = EXCLUDED.amount_ex_tax,
+          sync_batch       = EXCLUDED.sync_batch,
+          sync_time        = EXCLUDED.sync_time
+    </insert>
+
+    <select id="selectPageDetail" resultType="cn.iocoder.yudao.module.mes.controller.admin.pm.inbound.vo.MesPmInboundRespVO">
+        SELECT l.id, l.inbound_id AS inboundId, l.src_receipt_id AS srcReceiptId,
+               m.bas_id AS basId, m.receipt_date AS receiptDate, m.period, m.doc_type AS docType,
+               m.vendor_name AS vendorName, m.warehouse_name AS warehouseName, m.po_code AS poCode,
+               m.project_name AS projectName, m.applicant_name AS applicantName, m.auditor_name AS auditorName,
+               l.line_no AS lineNo, l.src_line_id AS srcLineId, l.item_code AS itemCode, l.item_name AS itemName,
+               l.brand, l.spec, l.unit_name AS unitName, l.item_category AS itemCategory,
+               l.batch_no AS batchNo, l.expire_date AS expireDate, l.storage_location AS storageLocation,
+               l.qty, l.price_tax_in AS priceTaxIn, l.amount_tax_in AS amountTaxIn,
+               l.price_ex_tax AS priceExTax, l.amount_ex_tax AS amountExTax, l.sync_time AS syncTime,
+               l.src_po_line_id AS srcPoLineId,
+               po.qty_received AS qtyReceived, po.qty_requisition AS qtyRequisition,
+               po.remaining_qty AS remainingQty
+        FROM mes_pm_inbound_line l
+        INNER JOIN mes_pm_inbound m ON m.id = l.inbound_id
+        LEFT JOIN mes_pm_po po ON UPPER(po.line_id) = UPPER(l.src_po_line_id)
+        <where>
+            <if test="reqVO.basId != null and reqVO.basId != ''">
+                AND m.bas_id LIKE CONCAT('%', #{reqVO.basId}, '%')
+            </if>
+            <if test="reqVO.itemName != null and reqVO.itemName != ''">
+                AND (l.item_code LIKE CONCAT('%', #{reqVO.itemName}, '%')
+                     OR l.item_name LIKE CONCAT('%', #{reqVO.itemName}, '%'))
+            </if>
+            <if test="reqVO.vendorName != null and reqVO.vendorName != ''">
+                AND m.vendor_name LIKE CONCAT('%', #{reqVO.vendorName}, '%')
+            </if>
+            <if test="reqVO.warehouseName != null and reqVO.warehouseName != ''">
+                AND m.warehouse_name LIKE CONCAT('%', #{reqVO.warehouseName}, '%')
+            </if>
+            <if test="reqVO.itemCategory != null and reqVO.itemCategory != ''">
+                AND l.item_category LIKE CONCAT('%', #{reqVO.itemCategory}, '%')
+            </if>
+            <if test="reqVO.batchNo != null and reqVO.batchNo != ''">
+                AND l.batch_no LIKE CONCAT('%', #{reqVO.batchNo}, '%')
+            </if>
+            <if test="reqVO.receiptDate != null and reqVO.receiptDate.length == 2">
+                AND m.receipt_date &gt;= #{reqVO.receiptDate[0]}
+                AND m.receipt_date &lt;= #{reqVO.receiptDate[1]}
+            </if>
+        </where>
+        ORDER BY m.receipt_date DESC, m.id DESC, l.line_no
+    </select>
+
+</mapper>

@@ -80,6 +80,10 @@ public class MesMdItemDO extends BaseDO {
      */
     private Boolean batchFlag;
     /**
+     * 品牌/厂商（老ERP pm00221，独立字段）
+     */
+    private String brand;
+    /**
      * 备注
      */
     private String remark;

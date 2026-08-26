@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>cn.iocoder.boot</groupId>
+        <artifactId>yudao-framework</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>yudao-spring-boot-starter-aspose</artifactId>
+    <packaging>jar</packaging>
+
+    <name>${project.artifactId}</name>
+    <description>Aspose 文档处理拓展（Word / Excel / PDF / Slides）</description>
+    <url>https://github.com/YunaiV/ruoyi-vue-pro</url>
+
+    <dependencies>
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-common</artifactId>
+        </dependency>
+
+        <!-- Spring 核心 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- ========== Aspose 系列（lib 目录本地 jar，system scope） ========== -->
+        <!-- 说明：运行方式与 xiningweb/ruoyi-print 保持一致，jar 放在本模块 lib 目录下，
+             通过 systemPath 直接引用，IDE 可直接运行。
+             注意：Maven 的 system scope 依赖【不传递】到下游模块，且 spring-boot-maven-plugin
+             默认不会把它打进 fat jar。若后续用 `mvn package` 打 yudao-server 运行包，需要在
+             实际使用该 starter 的模块 / yudao-server 里同步声明这几个依赖，并给
+             spring-boot-maven-plugin 配置 <includeSystemScope>true</includeSystemScope>。 -->
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-words</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/aspose-words-25.10-jdk17.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-cells</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/aspose-cells-25.10.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-pdf</artifactId>
+            <version>25.9</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/aspose-pdf-25.9.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-slides</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/lib/aspose-slides-25.10-jdk16.jar</systemPath>
+        </dependency>
+
+        <!-- ZXing 二维码生成（WordTemplateUtils.generateQRCode 使用） -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

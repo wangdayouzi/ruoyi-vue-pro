@@ -63,6 +63,14 @@ spring:
           password: Aa123456
           druid:
             validation-query: SELECT 1 # SQL Server 不支持 SELECT 1 FROM DUAL，单独覆盖
+        stgpm: # 老ERP同步 - staging 中间库（独立 PostgreSQL）
+          lazy: true # 开启懒加载，保证启动速度
+          url: jdbc:postgresql://localhost:5432/yudao_stg_pm?useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true
+          driver-class-name: org.postgresql.Driver
+          username: postgres
+          password: postgres
+          druid:
+            validation-query: SELECT 1
 
   # Redis 配置。Redisson 默认的配置足够使用，一般不需要进行调优
   data:

@@ -84,6 +84,14 @@ spring:
           password: Aa123456
           druid:
             validation-query: SELECT 1 # SQL Server 不支持 SELECT 1 FROM DUAL，单独覆盖
+        stgpm: # 老ERP同步 - staging 中间库（独立 PostgreSQL）
+          lazy: true # 开启懒加载，保证启动速度
+          url: jdbc:postgresql://localhost:5432/yudao_stg_pm?useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true
+          driver-class-name: org.postgresql.Driver
+          username: postgres
+          password: postgres
+          druid:
+            validation-query: SELECT 1
 #        tdengine: # IoT 数据库（需要 IoT 物联网再开启噢！）
 #          lazy: true # 开启懒加载，保证启动速度
 #          url: jdbc:TAOS-WS://127.0.0.1:6041/ruoyi_vue_pro?varcharAsString=true&enableAutoReconnect=true # 参见：https://t.zsxq.com/qaX9c，开启 TDengine WebSocket 自动重连

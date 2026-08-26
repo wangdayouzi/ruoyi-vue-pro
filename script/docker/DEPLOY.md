@@ -52,8 +52,9 @@
 
 ```bash
 # 允许 Docker 容器访问 PostgreSQL
+# 172.16.0.0/12 覆盖所有 docker bridge 网段（172.17/172.18/…/172.31），避免容器实际网段不在 172.17.0.0/16 内时被拒
 sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/18/main/postgresql.conf
-sudo sh -c 'echo "host    all    all    172.17.0.0/16    md5" >> /etc/postgresql/18/main/pg_hba.conf'
+sudo sh -c 'echo "host    all    all    172.16.0.0/12    md5" >> /etc/postgresql/18/main/pg_hba.conf'
 sudo systemctl restart postgresql
 sudo systemctl enable postgresql   # 开机自启
 ```
@@ -158,6 +159,20 @@ DB_PORT=5432
 DB_NAME=xining
 DB_USERNAME=xining
 DB_PASSWORD=your_password
+
+# 老ERP SQL Server（PM 同步源，只读）
+PM_DB_HOST=172.16.200.200
+PM_DB_PORT=1433
+PM_DB_NAME=SHJH_Prj
+PM_DB_USERNAME=sa
+PM_DB_PASSWORD=your_sa_password
+
+# 老ERP同步 staging 中间库（独立 PostgreSQL，需先 CREATE DATABASE yudao_stg_pm）
+STG_PM_DB_HOST=172.17.0.1
+STG_PM_DB_PORT=5432
+STG_PM_DB_NAME=yudao_stg_pm
+STG_PM_DB_USERNAME=postgres
+STG_PM_DB_PASSWORD=G4jdbJyfzmhceBEE
 
 # Redis
 REDIS_HOST=yudao-redis

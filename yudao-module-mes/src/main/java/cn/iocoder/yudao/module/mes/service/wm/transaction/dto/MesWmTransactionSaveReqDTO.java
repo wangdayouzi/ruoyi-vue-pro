@@ -98,6 +98,10 @@ public class MesWmTransactionSaveReqDTO {
      * 入库时间（为空默认当前时间）
      */
     private LocalDateTime receiptTime;
+    /**
+     * ERP 账期/业务日期（老ERP 单据日期，流水展示用；为空则落 null）
+     */
+    private LocalDateTime erpTime;
 
     // ===== 关联 =====
 

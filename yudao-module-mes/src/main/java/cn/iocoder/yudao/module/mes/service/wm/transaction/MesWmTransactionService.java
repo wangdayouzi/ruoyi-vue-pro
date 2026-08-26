@@ -1,5 +1,8 @@
 package cn.iocoder.yudao.module.mes.service.wm.transaction;
 
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.mes.controller.admin.wm.transaction.vo.MesWmTransactionPageReqVO;
+import cn.iocoder.yudao.module.mes.dal.dataobject.wm.transaction.MesWmTransactionDO;
 import cn.iocoder.yudao.module.mes.service.wm.transaction.dto.MesWmTransactionSaveReqDTO;
 import jakarta.validation.Valid;
 
@@ -26,5 +29,21 @@ public interface MesWmTransactionService {
      * @param reqDTOs 事务数据列表
      */
     void createTransactionList(List<MesWmTransactionSaveReqDTO> reqDTOs);
+
+    /**
+     * 获得库存事务流水
+     *
+     * @param id 流水编号
+     * @return 流水
+     */
+    MesWmTransactionDO getTransaction(Long id);
+
+    /**
+     * 获得库存事务流水分页
+     *
+     * @param pageReqVO 分页查询
+     * @return 流水分页
+     */
+    PageResult<MesWmTransactionDO> getTransactionPage(MesWmTransactionPageReqVO pageReqVO);
 
 }

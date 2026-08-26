@@ -23,6 +23,10 @@ public interface MesMdItemTypeMapper extends BaseMapperX<MesMdItemTypeDO> {
                 .orderByAsc(MesMdItemTypeDO::getSort));
     }
 
+    default MesMdItemTypeDO selectByCode(String code) {
+        return selectOne(MesMdItemTypeDO::getCode, code);
+    }
+
     default MesMdItemTypeDO selectByParentIdAndName(Long parentId, String name) {
         return selectOne(MesMdItemTypeDO::getParentId, parentId, MesMdItemTypeDO::getName, name);
     }

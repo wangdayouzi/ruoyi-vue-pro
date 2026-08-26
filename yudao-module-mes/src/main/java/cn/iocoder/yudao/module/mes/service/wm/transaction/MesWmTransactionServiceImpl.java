@@ -4,13 +4,20 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
+import cn.iocoder.yudao.module.mes.controller.admin.wm.transaction.vo.MesWmTransactionPageReqVO;
 import cn.iocoder.yudao.module.mes.dal.dataobject.md.item.MesMdItemDO;
+import cn.iocoder.yudao.module.mes.dal.dataobject.md.item.MesMdItemTypeDO;
 import cn.iocoder.yudao.module.mes.dal.dataobject.wm.batch.MesWmBatchDO;
 import cn.iocoder.yudao.module.mes.dal.dataobject.wm.materialstock.MesWmMaterialStockDO;
 import cn.iocoder.yudao.module.mes.dal.dataobject.wm.transaction.MesWmTransactionDO;
 import cn.iocoder.yudao.module.mes.dal.dataobject.wm.warehouse.MesWmWarehouseAreaDO;
 import cn.iocoder.yudao.module.mes.dal.dataobject.wm.warehouse.MesWmWarehouseDO;
 import cn.iocoder.yudao.module.mes.dal.dataobject.wm.warehouse.MesWmWarehouseLocationDO;
+import cn.iocoder.yudao.module.mes.dal.mysql.md.item.MesMdItemMapper;
+import cn.iocoder.yudao.module.mes.dal.mysql.md.item.MesMdItemTypeMapper;
+import cn.iocoder.yudao.module.mes.dal.mysql.wm.batch.MesWmBatchMapper;
 import cn.iocoder.yudao.module.mes.dal.mysql.wm.transaction.MesWmTransactionMapper;
 import cn.iocoder.yudao.module.mes.enums.wm.MesWmTransactionTypeEnum;
 import cn.iocoder.yudao.module.mes.service.md.item.MesMdItemService;
@@ -27,9 +34,11 @@ import org.springframework.validation.annotation.Validated;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertSet;
 import static cn.iocoder.yudao.module.mes.enums.ErrorCodeConstants.*;
 
 /**
@@ -43,6 +52,15 @@ public class MesWmTransactionServiceImpl implements MesWmTransactionService {
     private MesWmTransactionMapper transactionMapper;
 
     @Resource
+    private MesWmBatchMapper batchMapper;
+
+    @Resource
+    private MesMdItemMapper itemMapper;
+
+    @Resource
+    private MesMdItemTypeMapper itemTypeMapper;
+
+    @Resource
     private MesWmMaterialStockService materialStockService;
     @Resource
     private MesWmBatchService batchService;
@@ -54,6 +72,65 @@ public class MesWmTransactionServiceImpl implements MesWmTransactionService {
     private MesWmWarehouseLocationService locationService;
     @Resource
     private MesWmWarehouseAreaService areaService;
+
+    @Override
+    public MesWmTransactionDO getTransaction(Long id) {
+        return transactionMapper.selectById(id);
+    }
+
+    @Override
+    public PageResult<MesWmTransactionDO> getTransactionPage(MesWmTransactionPageReqVO pageReqVO) {
+        // 1) 分类（id 或 名称模糊）→ 分类 id → 物料 id 集合
+        Collection<Long> itemIds = null;
+        if (pageReqVO.getItemTypeId() != null || StrUtil.isNotBlank(pageReqVO.getItemTypeName())) {
+            List<MesMdItemTypeDO> types = itemTypeMapper.selectList(new LambdaQueryWrapperX<MesMdItemTypeDO>()
+                    .eqIfPresent(MesMdItemTypeDO::getId, pageReqVO.getItemTypeId())
+                    .likeIfPresent(MesMdItemTypeDO::getName, pageReqVO.getItemTypeName()));
+            Collection<Long> typeIds = convertSet(types, MesMdItemTypeDO::getId);
+            if (CollUtil.isEmpty(typeIds)) {
+                return PageResult.empty();
+            }
+            List<MesMdItemDO> items = itemMapper.selectList(new LambdaQueryWrapperX<MesMdItemDO>()
+                    .in(MesMdItemDO::getItemTypeId, typeIds));
+            itemIds = convertSet(items, MesMdItemDO::getId);
+            if (CollUtil.isEmpty(itemIds)) {
+                return PageResult.empty();
+            }
+        }
+        // 1.1) 物料编码/名称 模糊 → 物料 id 集合（与分类取交集）
+        if (StrUtil.isNotBlank(pageReqVO.getItemName())) {
+            List<MesMdItemDO> items = itemMapper.selectList(new LambdaQueryWrapperX<MesMdItemDO>()
+                    .like(MesMdItemDO::getName, pageReqVO.getItemName())
+                    .or()
+                    .like(MesMdItemDO::getCode, pageReqVO.getItemName()));
+            Collection<Long> matched = convertSet(items, MesMdItemDO::getId);
+            if (CollUtil.isEmpty(matched)) {
+                return PageResult.empty();
+            }
+            itemIds = itemIds == null ? matched : CollUtil.intersection(itemIds, matched);
+        }
+        // 2) 原批号(lot_number) → 批次 id 集合
+        Collection<Long> batchIds = null;
+        if (StrUtil.isNotBlank(pageReqVO.getLotNumber())) {
+            List<MesWmBatchDO> batches = batchMapper.selectList(new LambdaQueryWrapperX<MesWmBatchDO>()
+                    .like(MesWmBatchDO::getLotNumber, pageReqVO.getLotNumber()));
+            batchIds = convertSet(batches, MesWmBatchDO::getId);
+            if (CollUtil.isEmpty(batchIds)) {
+                return PageResult.empty();
+            }
+        }
+        // 3) 供应商 → 批次 id 集合（流水表没有供应商列，从批次带出）
+        Collection<Long> vendorBatchIds = null;
+        if (pageReqVO.getVendorId() != null) {
+            List<MesWmBatchDO> batches = batchMapper.selectList(new LambdaQueryWrapperX<MesWmBatchDO>()
+                    .eq(MesWmBatchDO::getVendorId, pageReqVO.getVendorId()));
+            vendorBatchIds = convertSet(batches, MesWmBatchDO::getId);
+            if (CollUtil.isEmpty(vendorBatchIds)) {
+                return PageResult.empty();
+            }
+        }
+        return transactionMapper.selectPage(pageReqVO, itemIds, batchIds, vendorBatchIds);
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -92,6 +169,7 @@ public class MesWmTransactionServiceImpl implements MesWmTransactionService {
                 .warehouseId(reqDTO.getWarehouseId()).locationId(reqDTO.getLocationId()).areaId(reqDTO.getAreaId())
                 .bizType(reqDTO.getBizType()).bizId(reqDTO.getBizId()).bizCode(reqDTO.getBizCode()).bizLineId(reqDTO.getBizLineId())
                 .materialStockId(materialStock.getId()).relatedTransactionId(reqDTO.getRelatedTransactionId())
+                .erpTime(reqDTO.getErpTime()).receiptTime(reqDTO.getReceiptTime())
                 .build();
         transactionMapper.insert(transaction);
         return transaction.getId();

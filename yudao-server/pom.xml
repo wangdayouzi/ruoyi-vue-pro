@@ -151,6 +151,42 @@
             <artifactId>mssql-jdbc</artifactId>
         </dependency>
 
+        <!-- Aspose 文档处理 starter（Word / Excel / PDF / Slides） -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-aspose</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <!-- Aspose jar 为 system scope，不向依赖方传递，需在此同步声明（指向 starter 的 lib 目录） -->
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-words</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../yudao-framework/yudao-spring-boot-starter-aspose/lib/aspose-words-25.10-jdk17.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-cells</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../yudao-framework/yudao-spring-boot-starter-aspose/lib/aspose-cells-25.10.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-pdf</artifactId>
+            <version>25.9</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../yudao-framework/yudao-spring-boot-starter-aspose/lib/aspose-pdf-25.9.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-slides</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../yudao-framework/yudao-spring-boot-starter-aspose/lib/aspose-slides-25.10-jdk16.jar</systemPath>
+        </dependency>
+
 
         <!-- HRM 人力资源管理模块。默认注释，保证编译速度 -->
 <!--        <dependency>-->
@@ -210,6 +246,10 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <!-- 将 system scope 的 aspose jar 也打入 fat jar -->
+                    <includeSystemScope>true</includeSystemScope>
+                </configuration>
             </plugin>
         </plugins>
     </build>

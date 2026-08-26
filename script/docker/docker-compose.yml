@@ -53,6 +53,16 @@ services:
       DB_NAME: ${DB_NAME:-yudao}
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      PM_DB_HOST: ${PM_DB_HOST:-172.16.200.200}
+      PM_DB_PORT: ${PM_DB_PORT:-1433}
+      PM_DB_NAME: ${PM_DB_NAME:-SHJH_Prj}
+      PM_DB_USERNAME: ${PM_DB_USERNAME:-sa}
+      PM_DB_PASSWORD: ${PM_DB_PASSWORD:-Aa123456}
+      STG_PM_DB_HOST: ${STG_PM_DB_HOST:-host.docker.internal}
+      STG_PM_DB_PORT: ${STG_PM_DB_PORT:-5432}
+      STG_PM_DB_NAME: ${STG_PM_DB_NAME:-yudao_stg_pm}
+      STG_PM_DB_USERNAME: ${STG_PM_DB_USERNAME:-postgres}
+      STG_PM_DB_PASSWORD: ${STG_PM_DB_PASSWORD:-postgres}
       REDIS_HOST: ${REDIS_HOST:-yudao-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}

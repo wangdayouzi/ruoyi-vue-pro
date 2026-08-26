@@ -111,6 +111,18 @@ public class MesWmBatchDO extends BaseDO {
      */
     private String lotNumber;
     /**
+     * 来源入库明细行号 pm02702（ERP 同步用，领料按此定位批次）
+     */
+    private String srcLineNo;
+    /**
+     * BAS号/采购收货入库单单号 pm02603（ERP 同步用，独立字段）
+     */
+    private String basId;
+    /**
+     * 存放位置 pm02726（ERP 同步用，独立字段）
+     */
+    private String storageLocation;
+    /**
      * 质量状态
      */
     private Integer qualityStatus;

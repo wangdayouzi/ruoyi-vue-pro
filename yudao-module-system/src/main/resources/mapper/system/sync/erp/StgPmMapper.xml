@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.system.sync.erp.dal.mysql.StgPmMapper">
+
+    <!-- 批量 upsert 入库行：按 (src_receipt_id, line_no) 冲突更新 -->
+    <insert id="batchUpsertInbound">
+        INSERT INTO stg_pm_inbound (
+          src_receipt_id, src_line_id, src_po_line_id, bas_id, receipt_date, period, doc_type, batch_no, expire_date,
+          storage_location, line_no, src_item_id, item_code, item_name, catalog_no, brand, spec, unit_name, item_category,
+          qty, price_tax_in, amount_tax_in, price_ex_tax, amount_ex_tax,
+          vendor_id, vendor_name, warehouse_id, warehouse_name, po_id, po_code,
+          project_id, project_name, project_code, applicant, applicant_name, auditor, auditor_name,
+          sync_batch
+        ) VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.srcReceiptId}, #{it.srcLineId}, #{it.poLineId}, #{it.basId}, #{it.receiptDate}, #{it.period}, #{it.docType}, #{it.batchNo}, #{it.expireDate},
+           #{it.storageLocation}, #{it.lineNo}, #{it.srcItemId}, #{it.itemCode}, #{it.itemName}, #{it.catalogNo}, #{it.brand}, #{it.spec}, #{it.unitName}, #{it.itemCategory},
+           #{it.qty}, #{it.priceTaxIn}, #{it.amountTaxIn}, #{it.priceExTax}, #{it.amountExTax},
+           #{it.vendorId}, #{it.vendorName}, #{it.warehouseId}, #{it.warehouseName}, #{it.poId}, #{it.poCode},
+           #{it.projectId}, #{it.projectName}, #{it.projectCode}, #{it.applicant}, #{it.applicantName}, #{it.auditor}, #{it.auditorName},
+           #{syncBatch})
+        </foreach>
+        ON CONFLICT (src_line_id) DO UPDATE SET
+          src_receipt_id   = EXCLUDED.src_receipt_id,
+          src_po_line_id   = EXCLUDED.src_po_line_id,
+          bas_id           = EXCLUDED.bas_id,
+          receipt_date     = EXCLUDED.receipt_date,
+          period           = EXCLUDED.period,
+          doc_type         = EXCLUDED.doc_type,
+          batch_no         = EXCLUDED.batch_no,
+          expire_date      = EXCLUDED.expire_date,
+          storage_location = EXCLUDED.storage_location,
+          line_no          = EXCLUDED.line_no,
+          src_item_id      = EXCLUDED.src_item_id,
+          item_code        = EXCLUDED.item_code,
+          item_name        = EXCLUDED.item_name,
+          catalog_no       = EXCLUDED.catalog_no,
+          brand            = EXCLUDED.brand,
+          spec             = EXCLUDED.spec,
+          unit_name        = EXCLUDED.unit_name,
+          item_category    = EXCLUDED.item_category,
+          qty              = EXCLUDED.qty,
+          price_tax_in     = EXCLUDED.price_tax_in,
+          amount_tax_in    = EXCLUDED.amount_tax_in,
+          price_ex_tax     = EXCLUDED.price_ex_tax,
+          amount_ex_tax    = EXCLUDED.amount_ex_tax,
+          vendor_id        = EXCLUDED.vendor_id,
+          vendor_name      = EXCLUDED.vendor_name,
+          warehouse_id     = EXCLUDED.warehouse_id,
+          warehouse_name   = EXCLUDED.warehouse_name,
+          po_id            = EXCLUDED.po_id,
+          po_code          = EXCLUDED.po_code,
+          project_id       = EXCLUDED.project_id,
+          project_name     = EXCLUDED.project_name,
+          project_code     = EXCLUDED.project_code,
+          applicant        = EXCLUDED.applicant,
+          applicant_name   = EXCLUDED.applicant_name,
+          auditor          = EXCLUDED.auditor,
+          auditor_name     = EXCLUDED.auditor_name,
+          sync_batch       = EXCLUDED.sync_batch,
+          sync_time        = now()
+    </insert>
+
+    <!-- 批量 upsert 领料行：按 (src_req_id, src_line_id) 冲突更新 -->
+    <insert id="batchUpsertRequisition">
+        INSERT INTO stg_pm_requisition (
+          src_req_id, src_line_id, req_code, req_date, period, src_item_id, item_code, item_name,
+          qty, price, price_tax_in, project_id, project_name, project_code,
+          vendor_id, vendor_name, warehouse_id, warehouse_name,
+          applicant, applicant_name, auditor, auditor_name,
+          src_receipt_id, src_line_receipt_id, sync_batch
+        ) VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.srcReqId}, #{it.srcLineId}, #{it.reqCode}, #{it.reqDate}, #{it.period}, #{it.srcItemId}, #{it.itemCode}, #{it.itemName},
+           #{it.qty}, #{it.price}, #{it.priceTaxIn}, #{it.projectId}, #{it.projectName}, #{it.projectCode},
+           #{it.vendorId}, #{it.vendorName}, #{it.warehouseId}, #{it.warehouseName},
+           #{it.applicant}, #{it.applicantName}, #{it.auditor}, #{it.auditorName},
+           #{it.srcReceiptId}, #{it.srcLineReceiptId}, #{syncBatch})
+        </foreach>
+        ON CONFLICT (src_req_id, src_line_id) DO UPDATE SET
+          src_line_id        = EXCLUDED.src_line_id,
+          req_code           = EXCLUDED.req_code,
+          req_date           = EXCLUDED.req_date,
+          period             = EXCLUDED.period,
+          src_item_id        = EXCLUDED.src_item_id,
+          item_code          = EXCLUDED.item_code,
+          item_name          = EXCLUDED.item_name,
+          qty                = EXCLUDED.qty,
+          price              = EXCLUDED.price,
+          price_tax_in       = EXCLUDED.price_tax_in,
+          project_id         = EXCLUDED.project_id,
+          project_name       = EXCLUDED.project_name,
+          project_code       = EXCLUDED.project_code,
+          vendor_id          = EXCLUDED.vendor_id,
+          vendor_name        = EXCLUDED.vendor_name,
+          warehouse_id       = EXCLUDED.warehouse_id,
+          warehouse_name     = EXCLUDED.warehouse_name,
+          applicant          = EXCLUDED.applicant,
+          applicant_name     = EXCLUDED.applicant_name,
+          auditor            = EXCLUDED.auditor,
+          auditor_name       = EXCLUDED.auditor_name,
+          src_receipt_id     = EXCLUDED.src_receipt_id,
+          src_line_receipt_id= EXCLUDED.src_line_receipt_id,
+          sync_batch         = EXCLUDED.sync_batch,
+          sync_time          = now()
+    </insert>
+
+    <!-- 同步日志 -->
+    <insert id="insertSyncLog">
+        INSERT INTO stg_pm_sync_log (sync_batch, backfill_days, status)
+        VALUES (#{syncBatch}, #{backfillDays}, 'RUNNING')
+    </insert>
+
+    <update id="updateSyncLogSuccess">
+        UPDATE stg_pm_sync_log
+        SET end_time = now(), result = #{result}::jsonb, status = 'SUCCESS'
+        WHERE sync_batch = #{syncBatch}
+    </update>
+
+    <update id="updateSyncLogFail">
+        UPDATE stg_pm_sync_log
+        SET end_time = now(), error_msg = #{errorMsg}, status = 'FAIL'
+        WHERE sync_batch = #{syncBatch}
+    </update>
+
+    <!-- 批量 upsert 退料行：按 (src_ret_id, src_line_id) 冲突更新 -->
+    <insert id="batchUpsertReturnIn">
+        INSERT INTO stg_pm_return_in (
+          src_ret_id, src_line_id, ret_code, ret_date, period, src_item_id, item_code, item_name,
+          qty, amount, project_id, project_name, warehouse_id, warehouse_name,
+          vendor_id, vendor_name, applicant, applicant_name, auditor, auditor_name,
+          src_line_receipt_id, sync_batch
+        ) VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.srcRetId}, #{it.srcLineId}, #{it.retCode}, #{it.retDate}, #{it.period}, #{it.srcItemId}, #{it.itemCode}, #{it.itemName},
+           #{it.qty}, #{it.amount}, #{it.projectId}, #{it.projectName}, #{it.warehouseId}, #{it.warehouseName},
+           #{it.vendorId}, #{it.vendorName}, #{it.applicant}, #{it.applicantName}, #{it.auditor}, #{it.auditorName},
+           #{it.srcLineReceiptId}, #{syncBatch})
+        </foreach>
+        ON CONFLICT (src_ret_id, src_line_id) DO UPDATE SET
+          src_line_id        = EXCLUDED.src_line_id,
+          ret_code           = EXCLUDED.ret_code,
+          ret_date           = EXCLUDED.ret_date,
+          period             = EXCLUDED.period,
+          src_item_id        = EXCLUDED.src_item_id,
+          item_code          = EXCLUDED.item_code,
+          item_name          = EXCLUDED.item_name,
+          qty                = EXCLUDED.qty,
+          amount             = EXCLUDED.amount,
+          project_id         = EXCLUDED.project_id,
+          project_name       = EXCLUDED.project_name,
+          warehouse_id       = EXCLUDED.warehouse_id,
+          warehouse_name     = EXCLUDED.warehouse_name,
+          vendor_id          = EXCLUDED.vendor_id,
+          vendor_name        = EXCLUDED.vendor_name,
+          applicant          = EXCLUDED.applicant,
+          applicant_name     = EXCLUDED.applicant_name,
+          auditor            = EXCLUDED.auditor,
+          auditor_name       = EXCLUDED.auditor_name,
+          src_line_receipt_id= EXCLUDED.src_line_receipt_id,
+          sync_batch         = EXCLUDED.sync_batch,
+          sync_time          = now()
+    </insert>
+
+    <!-- 批量 upsert 采购退货行：按 (src_ro_id, src_line_id) 冲突更新 -->
+    <insert id="batchUpsertReturnOut">
+        INSERT INTO stg_pm_return_out (
+          src_ro_id, src_line_id, ro_code, ro_date, period, src_item_id, item_code, item_name,
+          qty, price, vendor_id, vendor_name, warehouse_id, warehouse_name,
+          po_id, po_code, applicant, applicant_name, auditor, auditor_name,
+          src_line_receipt_id, sync_batch
+        ) VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.srcRoId}, #{it.srcLineId}, #{it.roCode}, #{it.roDate}, #{it.period}, #{it.srcItemId}, #{it.itemCode}, #{it.itemName},
+           #{it.qty}, #{it.price}, #{it.vendorId}, #{it.vendorName}, #{it.warehouseId}, #{it.warehouseName},
+           #{it.poId}, #{it.poCode}, #{it.applicant}, #{it.applicantName}, #{it.auditor}, #{it.auditorName},
+           #{it.srcLineReceiptId}, #{syncBatch})
+        </foreach>
+        ON CONFLICT (src_ro_id, src_line_id) DO UPDATE SET
+          src_line_id        = EXCLUDED.src_line_id,
+          ro_code            = EXCLUDED.ro_code,
+          ro_date            = EXCLUDED.ro_date,
+          period             = EXCLUDED.period,
+          src_item_id        = EXCLUDED.src_item_id,
+          item_code          = EXCLUDED.item_code,
+          item_name          = EXCLUDED.item_name,
+          qty                = EXCLUDED.qty,
+          price              = EXCLUDED.price,
+          vendor_id          = EXCLUDED.vendor_id,
+          vendor_name        = EXCLUDED.vendor_name,
+          warehouse_id       = EXCLUDED.warehouse_id,
+          warehouse_name     = EXCLUDED.warehouse_name,
+          po_id              = EXCLUDED.po_id,
+          po_code            = EXCLUDED.po_code,
+          applicant          = EXCLUDED.applicant,
+          applicant_name     = EXCLUDED.applicant_name,
+          auditor            = EXCLUDED.auditor,
+          auditor_name       = EXCLUDED.auditor_name,
+          src_line_receipt_id= EXCLUDED.src_line_receipt_id,
+          sync_batch         = EXCLUDED.sync_batch,
+          sync_time          = now()
+    </insert>
+
+    <!-- 批量 upsert 物料分类：按 cat_key 冲突更新（含父分类键） -->
+    <insert id="batchUpsertItemCategory">
+        INSERT INTO stg_pm_item_category (cat_key, cat_name, parent_key, sync_batch)
+        VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.catKey}, #{it.catName}, #{it.parentKey}, #{syncBatch})
+        </foreach>
+        ON CONFLICT (cat_key) DO UPDATE SET
+          cat_name   = EXCLUDED.cat_name,
+          parent_key = EXCLUDED.parent_key,
+          sync_batch = EXCLUDED.sync_batch,
+          sync_time  = now()
+    </insert>
+
+    <!-- 批量 upsert 采购订单明细：按 line_id 冲突更新（含剩余量） -->
+    <insert id="batchUpsertPoLine">
+        INSERT INTO stg_pm_po_line (
+          po_id, po_code, line_id, order_date, vendor_name, src_item_id, item_code, item_name,
+          brand, spec, unit_code, unit_name, item_category,
+          qty_ordered, qty_received, sync_batch
+        ) VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.poId}, #{it.poCode}, #{it.lineId}, #{it.orderDate}, #{it.vendorName}, #{it.srcItemId}, #{it.itemCode}, #{it.itemName},
+           #{it.brand}, #{it.spec}, #{it.unitCode}, #{it.unitName}, #{it.itemCategory},
+           #{it.qtyOrdered}, #{it.qtyReceived}, #{syncBatch})
+        </foreach>
+        ON CONFLICT (line_id) DO UPDATE SET
+          po_id          = EXCLUDED.po_id,
+          po_code        = EXCLUDED.po_code,
+          order_date     = EXCLUDED.order_date,
+          vendor_name    = EXCLUDED.vendor_name,
+          src_item_id    = EXCLUDED.src_item_id,
+          item_code      = EXCLUDED.item_code,
+          item_name      = EXCLUDED.item_name,
+          brand          = EXCLUDED.brand,
+          spec           = EXCLUDED.spec,
+          unit_code      = EXCLUDED.unit_code,
+          unit_name      = EXCLUDED.unit_name,
+          item_category  = EXCLUDED.item_category,
+          qty_ordered    = EXCLUDED.qty_ordered,
+          qty_received   = EXCLUDED.qty_received,
+          sync_batch     = EXCLUDED.sync_batch,
+          sync_time      = now()
+    </insert>
+
+    <!-- 读取全部采购订单明细（落地正式表用，幂等） -->
+    <select id="selectPoLineAll" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineDTO">
+        SELECT line_id AS lineId, po_id AS poId, po_code AS poCode, order_date AS orderDate, vendor_name AS vendorName,
+               src_item_id AS srcItemId, item_code AS itemCode, item_name AS itemName,
+               brand, spec, unit_code AS unitCode, unit_name AS unitName, item_category AS itemCategory,
+               qty_ordered AS qtyOrdered, qty_received AS qtyReceived
+        FROM stg_pm_po_line
+        ORDER BY po_code, line_id
+    </select>
+
+    <!-- 按订单行聚合 领用数量：领料(src_line_receipt_id=入库行) → 入库行(src_po_line_id=订单行) -->
+    <select id="selectRequisitionQtyByPoLine" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineQtyDTO">
+        SELECT i.src_po_line_id AS poLineId, SUM(r.qty) AS qty
+        FROM stg_pm_requisition r
+        JOIN stg_pm_inbound i ON UPPER(i.src_line_id) = UPPER(r.src_line_receipt_id)
+        WHERE i.src_po_line_id IS NOT NULL AND i.src_po_line_id &lt;&gt; ''
+        GROUP BY i.src_po_line_id
+    </select>
+
+    <!-- 按订单行聚合 退料数量：退料(src_line_receipt_id=领料行) → 领料行(src_line_id) → 领料(src_line_receipt_id=入库行) → 订单行 -->
+    <select id="selectReturnInQtyByPoLine" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineQtyDTO">
+        SELECT i.src_po_line_id AS poLineId, SUM(ret.qty) AS qty
+        FROM stg_pm_return_in ret
+        JOIN stg_pm_requisition r ON UPPER(r.src_line_id) = UPPER(ret.src_line_receipt_id)
+        JOIN stg_pm_inbound i ON UPPER(i.src_line_id) = UPPER(r.src_line_receipt_id)
+        WHERE i.src_po_line_id IS NOT NULL AND i.src_po_line_id &lt;&gt; ''
+        GROUP BY i.src_po_line_id
+    </select>
+
+    <!-- 按订单行聚合 采购退货数量：采购退货(src_line_receipt_id=入库行) → 订单行 -->
+    <select id="selectReturnOutQtyByPoLine" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineQtyDTO">
+        SELECT i.src_po_line_id AS poLineId, SUM(ro.qty) AS qty
+        FROM stg_pm_return_out ro
+        JOIN stg_pm_inbound i ON UPPER(i.src_line_id) = UPPER(ro.src_line_receipt_id)
+        WHERE i.src_po_line_id IS NOT NULL AND i.src_po_line_id &lt;&gt; ''
+        GROUP BY i.src_po_line_id
+    </select>
+
+    <!-- 清空采购订单明细（窗口快照，先清再写） -->
+    <delete id="deleteAllPoLine">
+        DELETE FROM stg_pm_po_line
+    </delete>
+
+    <!-- ============ 阶段2 推送：读取待推送行（pushed=0） ============ -->
+
+    <select id="selectInboundForPush" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO">
+        SELECT id AS stagingId, src_receipt_id AS srcReceiptId, src_line_id AS srcLineId, bas_id AS basId,
+               receipt_date AS receiptDate, period, doc_type AS docType, batch_no AS batchNo,
+               expire_date AS expireDate, storage_location AS storageLocation, line_no AS lineNo,
+               src_item_id AS srcItemId, item_code AS itemCode, item_name AS itemName, catalog_no AS catalogNo,
+               brand, spec, unit_name AS unitName, item_category AS itemCategory, qty, price_tax_in AS priceTaxIn, amount_tax_in AS amountTaxIn,
+               price_ex_tax AS priceExTax, amount_ex_tax AS amountExTax, vendor_id AS vendorId, vendor_name AS vendorName,
+               warehouse_id AS warehouseId, warehouse_name AS warehouseName, po_id AS poId, po_code AS poCode,
+               project_id AS projectId, project_name AS projectName, project_code AS projectCode,
+               applicant, applicant_name AS applicantName, auditor, auditor_name AS auditorName
+        FROM stg_pm_inbound
+        WHERE pushed = 0
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectInboundAll" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO">
+        SELECT id AS stagingId, src_receipt_id AS srcReceiptId, src_line_id AS srcLineId, src_po_line_id AS poLineId, bas_id AS basId,
+               receipt_date AS receiptDate, period, doc_type AS docType, batch_no AS batchNo,
+               expire_date AS expireDate, storage_location AS storageLocation, line_no AS lineNo,
+               src_item_id AS srcItemId, item_code AS itemCode, item_name AS itemName, catalog_no AS catalogNo,
+               brand, spec, unit_name AS unitName, item_category AS itemCategory, qty, price_tax_in AS priceTaxIn, amount_tax_in AS amountTaxIn,
+               price_ex_tax AS priceExTax, amount_ex_tax AS amountExTax, vendor_id AS vendorId, vendor_name AS vendorName,
+               warehouse_id AS warehouseId, warehouse_name AS warehouseName, po_id AS poId, po_code AS poCode,
+               project_id AS projectId, project_name AS projectName, project_code AS projectCode,
+               applicant, applicant_name AS applicantName, auditor, auditor_name AS auditorName
+        FROM stg_pm_inbound
+        ORDER BY src_receipt_id, line_no
+    </select>
+
+    <select id="selectItemCategoryDistinct" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO">
+        SELECT DISTINCT catalog_no AS catalogNo, item_code AS itemCode, item_category AS itemCategory
+        FROM stg_pm_inbound
+        WHERE item_category IS NOT NULL AND item_category &lt;&gt; ''
+    </select>
+
+    <select id="selectRequisitionForPush" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpRequisitionDTO">
+        SELECT id AS stagingId, src_req_id AS srcReqId, src_line_id AS srcLineId, req_code AS reqCode,
+               req_date AS reqDate, period, src_item_id AS srcItemId, item_code AS itemCode, item_name AS itemName,
+               qty, price, price_tax_in AS priceTaxIn, project_id AS projectId, project_name AS projectName,
+               project_code AS projectCode, vendor_id AS vendorId, vendor_name AS vendorName,
+               warehouse_id AS warehouseId, warehouse_name AS warehouseName, applicant, applicant_name AS applicantName,
+               auditor, auditor_name AS auditorName, src_receipt_id AS srcReceiptId, src_line_receipt_id AS srcLineReceiptId
+        FROM stg_pm_requisition
+        WHERE pushed = 0
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectReturnInForPush" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpReturnInDTO">
+        SELECT id AS stagingId, src_ret_id AS srcRetId, src_line_id AS srcLineId, ret_code AS retCode,
+               ret_date AS retDate, period, src_item_id AS srcItemId, item_code AS itemCode, item_name AS itemName,
+               qty, amount, project_id AS projectId, project_name AS projectName, warehouse_id AS warehouseId,
+               warehouse_name AS warehouseName, vendor_id AS vendorId, vendor_name AS vendorName,
+               applicant, applicant_name AS applicantName, auditor, auditor_name AS auditorName,
+               src_line_receipt_id AS srcLineReceiptId
+        FROM stg_pm_return_in
+        WHERE pushed = 0
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectReturnOutForPush" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpReturnOutDTO">
+        SELECT id AS stagingId, src_ro_id AS srcRoId, src_line_id AS srcLineId, ro_code AS roCode,
+               ro_date AS roDate, period, src_item_id AS srcItemId, item_code AS itemCode, item_name AS itemName,
+               qty, price, vendor_id AS vendorId, vendor_name AS vendorName, warehouse_id AS warehouseId,
+               warehouse_name AS warehouseName, po_id AS poId, po_code AS poCode, applicant, applicant_name AS applicantName,
+               auditor, auditor_name AS auditorName, src_line_receipt_id AS srcLineReceiptId
+        FROM stg_pm_return_out
+        WHERE pushed = 0
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectItemCategoryForPush" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemCategoryDTO">
+        SELECT id AS stagingId, cat_key AS catKey, cat_name AS catName, parent_key AS parentKey
+        FROM stg_pm_item_category
+        WHERE pushed = 0
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <!-- ============ 阶段2 推送：标记已推送 ============ -->
+
+    <update id="markInboundPushed">
+        UPDATE stg_pm_inbound SET pushed = 1, push_batch = #{pushBatch}, push_time = now()
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="markRequisitionPushed">
+        UPDATE stg_pm_requisition SET pushed = 1, push_batch = #{pushBatch}, push_time = now()
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="markReturnInPushed">
+        UPDATE stg_pm_return_in SET pushed = 1, push_batch = #{pushBatch}, push_time = now()
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="markReturnOutPushed">
+        UPDATE stg_pm_return_out SET pushed = 1, push_batch = #{pushBatch}, push_time = now()
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="markItemCategoryPushed">
+        UPDATE stg_pm_item_category SET pushed = 1, push_batch = #{pushBatch}, push_time = now()
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <!-- ============ 阶段2 推送：日志 ============ -->
+
+    <insert id="insertPushLog">
+        INSERT INTO stg_pm_push_log (push_batch, status) VALUES (#{pushBatch}, 'RUNNING')
+    </insert>
+
+    <update id="updatePushLogSuccess">
+        UPDATE stg_pm_push_log
+        SET end_time = now(), result = #{result}::jsonb, status = 'SUCCESS'
+        WHERE push_batch = #{pushBatch}
+    </update>
+
+    <update id="updatePushLogFail">
+        UPDATE stg_pm_push_log
+        SET end_time = now(), error_msg = #{errorMsg}, status = 'FAIL'
+        WHERE push_batch = #{pushBatch}
+    </update>
+
+</mapper>

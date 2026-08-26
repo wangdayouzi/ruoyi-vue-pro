@@ -60,6 +60,14 @@ spring:
           password: ${PM_DB_PASSWORD:Aa123456}
           druid:
             validation-query: SELECT 1 # SQL Server 不支持 SELECT 1 FROM DUAL，单独覆盖
+        stgpm: # 老ERP同步 - staging 中间库（独立 PostgreSQL）
+          lazy: true # 开启懒加载，保证启动速度
+          url: jdbc:postgresql://${STG_PM_DB_HOST:127.0.0.1}:${STG_PM_DB_PORT:5432}/${STG_PM_DB_NAME:yudao_stg_pm}?useUnicode=true&characterEncoding=UTF-8&allowMultiQueries=true
+          driver-class-name: org.postgresql.Driver
+          username: ${STG_PM_DB_USERNAME:postgres}
+          password: ${STG_PM_DB_PASSWORD:postgres}
+          druid:
+            validation-query: SELECT 1
 
   # Redis 配置
   data:
