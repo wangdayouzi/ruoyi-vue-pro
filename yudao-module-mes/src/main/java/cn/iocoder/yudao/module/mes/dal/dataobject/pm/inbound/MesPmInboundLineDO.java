@@ -77,6 +77,10 @@ public class MesPmInboundLineDO {
      */
     private String itemCategory;
     /**
+     * 物料分类键 pm00203（→sdpm001.pm00101；试剂"10子树"过滤用）
+     */
+    private String categoryKey;
+    /**
      * 批号 pm02631
      */
     private String batchNo;
@@ -92,6 +96,14 @@ public class MesPmInboundLineDO {
      * 接收数量 pm02706*pm02705
      */
     private BigDecimal qty;
+    /**
+     * 批次剩余数量 = 接收 − 领用 + 退料 − 采购退货（按入库明细行聚合）
+     */
+    private BigDecimal remainingQty;
+    /**
+     * 批次领用数量（按入库明细行聚合：从该批领走多少）
+     */
+    private BigDecimal qtyRequisition;
     /**
      * 含税单价 pm02707
      */

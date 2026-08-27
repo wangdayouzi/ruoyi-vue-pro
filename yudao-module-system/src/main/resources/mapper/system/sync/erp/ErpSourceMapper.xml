@@ -47,6 +47,23 @@
           AND LEFT(REPLACE(o.pm01302, '/', '-'), 10) &lt;= #{endYm}
     </select>
 
+    <!-- 物料主档按编码点查（sdpm002；基础数据按需补缺，只查缺失编码，量小） -->
+    <select id="selectItemsByCodes" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemDTO">
+        SELECT m.pm00200 AS srcItemId,
+               m.pm00201 AS itemCode,
+               m.pm00202 AS itemName,
+               m.pm00205 AS spec,
+               m.pm00221 AS brand,
+               m.pm00203 AS categoryKey,
+               (SELECT TOP 1 c.pm00102 FROM dbo.sdpm001 c WITH (NOLOCK) WHERE c.pm00101 = m.pm00203) AS categoryName,
+               (SELECT TOP 1 u.pa01302 FROM dbo.sdpm003 u3 WITH (NOLOCK)
+                 JOIN dbo.sdpa013 u WITH (NOLOCK) ON u.pa01301 = u3.pm00302
+                WHERE UPPER(u3.pm00301) = UPPER(m.pm00200) AND u3.pm00303 = 1) AS unitName
+        FROM dbo.sdpm002 m WITH (NOLOCK)
+        WHERE m.pm00201 IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">#{code}</foreach>
+    </select>
+
     <select id="selectInbound" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO">
         SELECT m2.pm02601 AS srcReceiptId,
                h.pm02702  AS srcLineId,

@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.system.sync.erp.service;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.iocoder.yudao.module.system.sync.erp.dal.mysql.ErpSourceMapper;
 import cn.iocoder.yudao.module.system.sync.erp.dal.mysql.StgPmMapper;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO;
@@ -151,12 +152,61 @@ public class ErpSyncService {
         if (CollUtil.isEmpty(list)) {
             return 0;
         }
-        list.forEach(this::cleanInbound);
+        list.forEach(dto -> {
+            cleanInbound(dto);
+            dto.setDataHash(computeInboundHash(dto)); // 数据指纹：老系统改动检测用
+        });
         for (int i = 0; i < list.size(); i += BATCH_SIZE) {
             int end = Math.min(i + BATCH_SIZE, list.size());
             stgPmMapper.batchUpsertInbound(list.subList(i, end), syncBatch);
         }
         return list.size();
+    }
+
+    /** 行数据指纹：业务字段拼接后 MD5（不含幂等键 src_line_id；staging 变更时置 pushed=0 触发重推） */
+    private String computeInboundHash(ErpInboundDTO d) {
+        StringBuilder sb = new StringBuilder(256);
+        appendHash(sb, d.getSrcReceiptId());
+        appendHash(sb, d.getPoLineId());
+        appendHash(sb, d.getBasId());
+        appendHash(sb, d.getReceiptDate());
+        appendHash(sb, d.getPeriod());
+        appendHash(sb, d.getDocType());
+        appendHash(sb, d.getBatchNo());
+        appendHash(sb, d.getExpireDate());
+        appendHash(sb, d.getStorageLocation());
+        appendHash(sb, d.getLineNo());
+        appendHash(sb, d.getSrcItemId());
+        appendHash(sb, d.getItemCode());
+        appendHash(sb, d.getItemName());
+        appendHash(sb, d.getCatalogNo());
+        appendHash(sb, d.getBrand());
+        appendHash(sb, d.getSpec());
+        appendHash(sb, d.getUnitName());
+        appendHash(sb, d.getItemCategory());
+        appendHash(sb, d.getQty());
+        appendHash(sb, d.getPriceTaxIn());
+        appendHash(sb, d.getAmountTaxIn());
+        appendHash(sb, d.getPriceExTax());
+        appendHash(sb, d.getAmountExTax());
+        appendHash(sb, d.getVendorId());
+        appendHash(sb, d.getVendorName());
+        appendHash(sb, d.getWarehouseId());
+        appendHash(sb, d.getWarehouseName());
+        appendHash(sb, d.getPoId());
+        appendHash(sb, d.getPoCode());
+        appendHash(sb, d.getProjectId());
+        appendHash(sb, d.getProjectName());
+        appendHash(sb, d.getProjectCode());
+        appendHash(sb, d.getApplicant());
+        appendHash(sb, d.getApplicantName());
+        appendHash(sb, d.getAuditor());
+        appendHash(sb, d.getAuditorName());
+        return DigestUtil.md5Hex(sb.toString());
+    }
+
+    private void appendHash(StringBuilder sb, Object v) {
+        sb.append(v == null ? "" : v).append('|');
     }
 
     private int syncRequisition(Long syncBatch, String beginYm, String endYm) {

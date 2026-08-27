@@ -26,14 +26,18 @@ import cn.iocoder.yudao.module.mes.dal.mysql.wm.warehouse.MesWmWarehouseMapper;
 import cn.iocoder.yudao.module.mes.enums.wm.MesWmTransactionTypeEnum;
 import cn.iocoder.yudao.module.mes.service.wm.transaction.MesWmTransactionService;
 import cn.iocoder.yudao.module.mes.service.wm.transaction.dto.MesWmTransactionSaveReqDTO;
+import cn.iocoder.yudao.module.system.sync.erp.dal.mysql.ErpSourceMapper;
 import cn.iocoder.yudao.module.system.sync.erp.dal.mysql.StgPmMapper;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemCategoryDTO;
+import cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineQtyDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpRequisitionDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpReturnInDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpReturnOutDTO;
+import cn.iocoder.yudao.module.system.sync.erp.dto.ErpUnitDTO;
+import cn.iocoder.yudao.module.system.sync.erp.dto.ErpVendorDTO;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -45,10 +49,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -86,6 +92,8 @@ public class ErpPushServiceImpl implements ErpPushService {
 
     @Resource
     private StgPmMapper stgPmMapper; // system 模块，读 staging（mes→system 依赖成立）
+    @Resource
+    private ErpSourceMapper erpSourceMapper; // system 模块，老库 sdpm002 点查（基础数据按需补缺）
 
     @Resource
     private MesMdItemMapper mesMdItemMapper;
@@ -126,19 +134,150 @@ public class ErpPushServiceImpl implements ErpPushService {
         stgPmMapper.insertPushLog(pushBatch);
         log.info("[erp-push][{}] 开始，limit={}", pushBatch, limit);
         try {
-            // 已精简：阶段2 只做 采购入库单 + 采购订单 落地（staging → 正式表）
+            // 已精简：阶段2 只做 基础数据 + 采购入库单 + 采购订单 落地（staging → 正式表）
             // 原 MES 库存/流水推送、领料/退料/退货 已停用（方法保留，需要时再启用）
+            int masterCount = landMasterData(pushBatch);
             int inboundMaster = landInbound(pushBatch);
             int poLines = landPo(pushBatch);
-            String result = "{\"inboundMaster\":" + inboundMaster + ",\"poLines\":" + poLines + "}";
+            String result = "{\"master\":" + masterCount + ",\"inboundMaster\":" + inboundMaster + ",\"poLines\":" + poLines + "}";
             stgPmMapper.updatePushLogSuccess(pushBatch, result);
             log.info("[erp-push][{}] 完成 {}", pushBatch, result);
-            return "采购入库单主表 " + inboundMaster + " 张，采购订单明细 " + poLines + " 行";
+            return "基础数据 " + masterCount + " 条，采购入库单主表 " + inboundMaster + " 张，采购订单明细 " + poLines + " 行";
         } catch (Exception e) {
             log.error("[erp-push][{}] 失败", pushBatch, e);
             stgPmMapper.updatePushLogFail(pushBatch, e.getMessage());
             return "失败: " + e.getMessage();
         }
+    }
+
+    /**
+     * 基础数据按需补缺：staging 业务数据 → mes 主数据表（分类/物料/供应商/单位）
+     * <p>
+     * 物料只补"业务用到但 mes_md_item 缺失"的编码，从老库 sdpm002 点查后插入（不覆盖已有）；
+     * 分类/供应商/单位 从 staging 业务数据去重按需建。不碰批次/库存/流水。
+     */
+    private int landMasterData(Long pushBatch) {
+        int types = landItemTypes();
+        int items = landItems();
+        int vendors = landVendors();
+        int units = landUnits();
+        log.info("[erp-push][{}] 基础数据落地：分类 {}，物料 {}，供应商 {}，单位 {}", pushBatch, types, items, vendors, units);
+        return types + items + vendors + units;
+    }
+
+    /** 分类全量落地：staging stg_pm_item_category → mes_md_item_type（含父级层级） */
+    private int landItemTypes() {
+        List<ErpItemCategoryDTO> cats = stgPmMapper.selectItemCategoryAll();
+        if (CollUtil.isEmpty(cats)) {
+            return 0;
+        }
+        Map<String, Long> idByKey = new HashMap<>();
+        // 第一遍：按分类键建/更新（父级先置根）
+        for (ErpItemCategoryDTO c : cats) {
+            if (StrUtil.isBlank(c.getCatKey())) {
+                continue;
+            }
+            MesMdItemTypeDO exist = mesMdItemTypeMapper.selectByCode(c.getCatKey());
+            Long id;
+            if (exist == null) {
+                MesMdItemTypeDO t = MesMdItemTypeDO.builder()
+                        .code(c.getCatKey()).name(StrUtil.blankToDefault(c.getCatName(), c.getCatKey()))
+                        .parentId(MesMdItemTypeDO.PARENT_ID_ROOT).itemOrProduct("ITEM").sort(0).status(0)
+                        .build();
+                mesMdItemTypeMapper.insert(t);
+                id = t.getId();
+            } else {
+                id = exist.getId();
+                if (StrUtil.isNotBlank(c.getCatName()) && !Objects.equals(exist.getName(), c.getCatName())) {
+                    MesMdItemTypeDO patch = new MesMdItemTypeDO();
+                    patch.setId(id);
+                    patch.setName(c.getCatName());
+                    mesMdItemTypeMapper.updateById(patch);
+                }
+            }
+            idByKey.put(c.getCatKey(), id);
+        }
+        // 第二遍：补父级
+        for (ErpItemCategoryDTO c : cats) {
+            if (StrUtil.isBlank(c.getCatKey()) || StrUtil.isBlank(c.getParentKey())) {
+                continue;
+            }
+            Long childId = idByKey.get(c.getCatKey());
+            Long parentId = idByKey.get(c.getParentKey());
+            if (childId == null || parentId == null) {
+                continue;
+            }
+            MesMdItemTypeDO exist = mesMdItemTypeMapper.selectById(childId);
+            if (exist != null && !Objects.equals(exist.getParentId(), parentId)) {
+                MesMdItemTypeDO patch = new MesMdItemTypeDO();
+                patch.setId(childId);
+                patch.setParentId(parentId);
+                mesMdItemTypeMapper.updateById(patch);
+            }
+        }
+        return cats.size();
+    }
+
+    /** 物料按需补缺：业务用到的编码 − mes_md_item 已有 → 老库 sdpm002 点查 → resolveItem 插入 */
+    private int landItems() {
+        List<ErpItemDTO> bizCodes = stgPmMapper.selectDistinctItemCodes();
+        if (CollUtil.isEmpty(bizCodes)) {
+            return 0;
+        }
+        Set<String> existing = new HashSet<>(mesMdItemMapper.selectCodeList());
+        List<String> missing = bizCodes.stream()
+                .map(ErpItemDTO::getItemCode)
+                .filter(StrUtil::isNotBlank)
+                .filter(code -> !existing.contains(code))
+                .distinct()
+                .collect(Collectors.toList());
+        if (CollUtil.isEmpty(missing)) {
+            return 0;
+        }
+        int created = 0;
+        for (List<String> batch : CollUtil.split(missing, 500)) {
+            List<ErpItemDTO> items = erpSourceMapper.selectItemsByCodes(batch);
+            for (ErpItemDTO it : items) {
+                Long itemId = resolveItem(it.getItemCode(), it.getItemName(), it.getSpec(),
+                        it.getCategoryKey(), it.getBrand(), it.getUnitName(), it.getCategoryName());
+                if (itemId != null) {
+                    created++;
+                }
+            }
+        }
+        log.info("[erp-push] 物料按需补缺：业务编码 {} 个，缺失 {} 个，老库点查新建 {} 条",
+                bizCodes.size(), missing.size(), created);
+        return created;
+    }
+
+    /** 供应商按需建：staging 入库单去重 (vendor_id, vendor_name) → mes_md_vendor */
+    private int landVendors() {
+        List<ErpVendorDTO> list = stgPmMapper.selectDistinctVendors();
+        if (CollUtil.isEmpty(list)) {
+            return 0;
+        }
+        int ok = 0;
+        for (ErpVendorDTO v : list) {
+            if (resolveVendor(v.getVendorId(), v.getVendorName()) != null) {
+                ok++;
+            }
+        }
+        return ok;
+    }
+
+    /** 单位按需建：staging 入库单去重 unit_name → mes_md_unit_measure */
+    private int landUnits() {
+        List<ErpUnitDTO> list = stgPmMapper.selectDistinctUnits();
+        if (CollUtil.isEmpty(list)) {
+            return 0;
+        }
+        int ok = 0;
+        for (ErpUnitDTO u : list) {
+            if (resolveUnit(u.getUnitName()) != null) {
+                ok++;
+            }
+        }
+        return ok;
     }
 
     /**
@@ -199,6 +338,19 @@ public class ErpPushServiceImpl implements ErpPushService {
         return map;
     }
 
+    /** 批次级聚合结果 → srcLineId(大写归1) → qty 映射 */
+    private Map<String, BigDecimal> toLineQtyMap(List<ErpPoLineQtyDTO> list) {
+        Map<String, BigDecimal> map = new HashMap<>();
+        if (CollUtil.isNotEmpty(list)) {
+            for (ErpPoLineQtyDTO it : list) {
+                if (StrUtil.isNotBlank(it.getSrcLineId())) {
+                    map.merge(normKey(it.getSrcLineId()), nvl(it.getQty()), BigDecimal::add);
+                }
+            }
+        }
+        return map;
+    }
+
     private static String normKey(String s) {
         return s == null ? "" : s.trim().toUpperCase();
     }
@@ -250,7 +402,10 @@ public class ErpPushServiceImpl implements ErpPushService {
                 masterIdMap.put(m.getSrcReceiptId(), m.getId());
             }
         }
-        // 3) 明细
+        // 3) 明细（批次剩余 = 接收 − 领用 + 退料 − 采购退货，按入库明细行 src_line_id 聚合）
+        Map<String, BigDecimal> reqByLine = toLineQtyMap(stgPmMapper.selectRequisitionQtyByLine());
+        Map<String, BigDecimal> retInByLine = toLineQtyMap(stgPmMapper.selectReturnInQtyByLine());
+        Map<String, BigDecimal> retOutByLine = toLineQtyMap(stgPmMapper.selectReturnOutQtyByLine());
         List<MesPmInboundLineDO> lines = new ArrayList<>();
         for (ErpInboundDTO row : rows) {
             if (StrUtil.isBlank(row.getSrcReceiptId()) || StrUtil.isBlank(row.getSrcLineId())) {
@@ -260,14 +415,21 @@ public class ErpPushServiceImpl implements ErpPushService {
             if (inboundId == null) {
                 continue;
             }
+            String lineKey = normKey(row.getSrcLineId());
+            BigDecimal remaining = nvl(row.getQty())
+                    .subtract(nvl(reqByLine.get(lineKey)))
+                    .add(nvl(retInByLine.get(lineKey)))
+                    .subtract(nvl(retOutByLine.get(lineKey)));
             lines.add(MesPmInboundLineDO.builder()
                     .inboundId(inboundId).srcReceiptId(row.getSrcReceiptId()).srcLineId(row.getSrcLineId())
                     .srcPoLineId(row.getPoLineId())
                     .lineNo(row.getLineNo())
                     .srcItemId(row.getSrcItemId()).itemCode(row.getItemCode()).itemName(row.getItemName())
                     .brand(row.getBrand()).spec(row.getSpec()).unitName(row.getUnitName()).itemCategory(row.getItemCategory())
+                    .categoryKey(row.getCatalogNo())
                     .batchNo(row.getBatchNo()).expireDate(row.getExpireDate()).storageLocation(row.getStorageLocation())
-                    .qty(row.getQty()).priceTaxIn(row.getPriceTaxIn()).amountTaxIn(row.getAmountTaxIn())
+                    .qty(row.getQty()).remainingQty(remaining).qtyRequisition(nvl(reqByLine.get(lineKey)))
+                    .priceTaxIn(row.getPriceTaxIn()).amountTaxIn(row.getAmountTaxIn())
                     .priceExTax(row.getPriceExTax()).amountExTax(row.getAmountExTax())
                     .syncBatch(pushBatch).syncTime(LocalDateTime.now())
                     .build());

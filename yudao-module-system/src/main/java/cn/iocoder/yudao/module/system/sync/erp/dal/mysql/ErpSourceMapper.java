@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.system.sync.erp.dal.mysql;
 
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemCategoryDTO;
+import cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpRequisitionDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpReturnInDTO;
@@ -60,5 +61,12 @@ public interface ErpSourceMapper {
      * 按订单日期窗口拉取采购订单明细（sdpm014→sdpm013.pm01302 订单日期；剩余=采购+替代−已领用）
      */
     List<ErpPoLineDTO> selectPoLine(@Param("beginYm") String beginYm, @Param("endYm") String endYm);
+
+    /**
+     * 物料主档按编码点查（sdpm002，基础数据按需补缺用；只查缺失编码，量小）
+     *
+     * @param codes 物料编码集合（pm00201）
+     */
+    List<ErpItemDTO> selectItemsByCodes(@Param("codes") List<String> codes);
 
 }

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.reagent.dal.mysql.ReagentFlatSourceMapper">
+
+    <!-- 正式库入库单明细：明细 join 主表取 入库单号/供应商/仓库；剩余数量取明细行批次级 remaining_qty；
+         仅同步 宁波试剂仓库 / 上海试剂仓库 两个仓库（如要改仓库，改下面 IN 列表即可） -->
+    <select id="selectInboundLineForFlat" resultType="cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentInboundFlatDTO">
+        SELECT l.src_line_id       AS srcLineId,
+               l.src_receipt_id    AS srcReceiptId,
+               m.bas_id            AS basId,
+               m.vendor_name       AS vendorName,
+               m.warehouse_name    AS warehouseName,
+               l.item_code         AS itemCode,
+               l.item_name         AS itemName,
+               l.spec              AS spec,
+               l.batch_no          AS batchNo,
+               l.expire_date       AS expireDate,
+               l.qty               AS qty,
+               l.remaining_qty     AS amountLeft,
+               l.storage_location  AS storageLocation,
+               l.item_category     AS itemCategory,
+               l.category_key      AS categoryKey
+        FROM mes_pm_inbound_line l
+        JOIN mes_pm_inbound m ON m.src_receipt_id = l.src_receipt_id
+        WHERE l.category_key IS NOT NULL AND l.category_key &lt;&gt; ''
+          AND m.warehouse_name IN ('宁波试剂仓库', '上海试剂仓库')
+        <if test="lastSyncTime != null">
+          AND l.sync_time &gt; #{lastSyncTime}
+        </if>
+    </select>
+
+    <!-- 物料分类树（mes_md_item_type）：id / code(分类键) / parent_id / name(关键词识别) -->
+    <select id="selectItemTypeTree" resultType="cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentItemTypeTreeDTO">
+        SELECT id, code, parent_id AS parentId, name
+        FROM mes_md_item_type
+        WHERE code IS NOT NULL AND code &lt;&gt; ''
+    </select>
+
+</mapper>

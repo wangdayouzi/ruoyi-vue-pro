@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.controller.admin;
 
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
@@ -7,8 +8,7 @@ import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyDO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyItemDO;
 import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentApplyItemMapper;
-import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentBaseLotMapper;
-import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentBaseMapper;
+import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentBaseFlatMapper;
 import cn.iocoder.yudao.module.reagent.service.ReagentApplyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -41,10 +41,7 @@ public class ReagentApplyController {
     private ReagentApplyItemMapper reagentApplyItemMapper;
 
     @Resource
-    private ReagentBaseMapper reagentBaseMapper;
-
-    @Resource
-    private ReagentBaseLotMapper reagentBaseLotMapper;
+    private ReagentBaseFlatMapper reagentBaseFlatMapper; // 老ERP扁平表（详情补温度/位置/规格）
 
     @GetMapping("/page")
     @Operation(summary = "获得申请单分页")
@@ -66,16 +63,17 @@ public class ReagentApplyController {
         List<ReagentApplyItemVO> itemVOs = BeanUtils.toBean(items, ReagentApplyItemVO.class);
         for (ReagentApplyItemVO vo : itemVOs) {
             if (vo.getBasId() != null) {
-                var base = reagentBaseMapper.selectByBasId(vo.getBasId());
-                if (base != null) {
-                    vo.setStorageTemp(base.getStorageTemp());
-                    vo.setStorageLocation(base.getStorageLocation());
-                    // 联查批号获取 content（复用上面的 base，避免重复查询）
-                    if (vo.getLotNo() != null) {
-                        var lot = reagentBaseLotMapper.selectByBaseIdAndLotNo(base.getId(), vo.getLotNo());
-                        if (lot != null) {
-                            vo.setContent(lot.getContent());
-                        }
+                // 申请明细改为文本落库（可手改）；扁平表仅作空值回填，手动值优先
+                var flat = reagentBaseFlatMapper.selectByReagentCodeAndLotNo(vo.getBasId(), vo.getLotNo());
+                if (flat != null) {
+                    if (StrUtil.isBlank(vo.getStorageTemp())) {
+                        vo.setStorageTemp(flat.getStorageTemp());
+                    }
+                    if (StrUtil.isBlank(vo.getStorageLocation())) {
+                        vo.setStorageLocation(flat.getStorageLocation());
+                    }
+                    if (StrUtil.isBlank(vo.getContent())) {
+                        vo.setContent(flat.getSpec());
                     }
                 }
             }

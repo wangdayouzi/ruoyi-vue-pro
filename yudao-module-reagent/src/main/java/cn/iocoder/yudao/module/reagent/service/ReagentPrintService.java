@@ -34,9 +34,7 @@ public class ReagentPrintService {
     @Resource
     private ReagentApplyItemMapper reagentApplyItemMapper;
     @Resource
-    private ReagentBaseMapper reagentBaseMapper;
-    @Resource
-    private ReagentBaseLotMapper reagentBaseLotMapper;
+    private ReagentBaseFlatMapper reagentBaseFlatMapper; // 老ERP同步扁平表（供应商补全等）
     @Resource
     private AdminUserApi adminUserApi;
 
@@ -184,6 +182,11 @@ public class ReagentPrintService {
                 .orElse("");
     }
 
+    /** null → 空串 */
+    private static String nvl(String v) {
+        return v == null ? "" : v;
+    }
+
     /**
      * 将发货明细转为模板渲染用的 Map 列表，同时联查试剂基础数据补全字段
      */
@@ -206,25 +209,19 @@ public class ReagentPrintService {
             String vendor = "";
             String basId = "";
             String storageTemp = "";
-            if (ai != null && ai.getBasId() != null) {
-                basId = ai.getBasId();
-                ReagentBaseDO base = reagentBaseMapper.selectByBasId(ai.getBasId());
-                if (base != null) {
-                    reagentName = base.getReagentName() != null ? base.getReagentName() : "";
-                    vendor = base.getVendor() != null ? base.getVendor() : "";
-                    storageTemp = base.getStorageTemp() != null ? base.getStorageTemp() : "";
-                }
-            }
-
             String content = "";
             String expirationDate = "";
-            if (ai != null && ai.getBasId() != null && si.getLotNo() != null) {
-                ReagentBaseDO base = reagentBaseMapper.selectByBasId(ai.getBasId());
-                if (base != null) {
-                    ReagentBaseLotDO lot = reagentBaseLotMapper.selectByBaseIdAndLotNo(base.getId(), si.getLotNo());
-                    if (lot != null) {
-                        content = lot.getContent() != null ? lot.getContent() : "";
-                        expirationDate = PrintUtil.fmtDate(lot.getExpirationDate());
+            if (ai != null) {
+                basId = nvl(ai.getBasId());
+                reagentName = nvl(ai.getReagentName());
+                expirationDate = ai.getExpirationDate() != null ? PrintUtil.fmtDate(ai.getExpirationDate()) : "";
+                if (ai.getBasId() != null) {
+                    // 供应商/储存温度/规格 明细未存列，从老ERP扁平表按(试剂编号,批号)查补全
+                    ReagentBaseFlatDO flat = reagentBaseFlatMapper.selectByReagentCodeAndLotNo(ai.getBasId(), si.getLotNo());
+                    if (flat != null) {
+                        vendor = nvl(flat.getVendor());
+                        storageTemp = nvl(flat.getStorageTemp());
+                        content = nvl(flat.getSpec());
                     }
                 }
             }

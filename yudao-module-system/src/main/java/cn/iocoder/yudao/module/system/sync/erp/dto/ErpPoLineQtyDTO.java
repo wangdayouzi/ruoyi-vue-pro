@@ -14,6 +14,8 @@ public class ErpPoLineQtyDTO {
 
     /** 采购订单明细行ID（pm01402 / stg_pm_inbound.src_po_line_id） */
     private String poLineId;
+    /** 入库明细行ID（pm02702 / stg_pm_inbound.src_line_id，批次级聚合用） */
+    private String srcLineId;
     /** 聚合数量 */
     private BigDecimal qty;
 

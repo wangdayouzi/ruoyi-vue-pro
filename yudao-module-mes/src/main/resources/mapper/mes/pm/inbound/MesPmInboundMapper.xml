@@ -44,15 +44,15 @@
     <insert id="batchUpsertLine">
         INSERT INTO mes_pm_inbound_line (
           inbound_id, src_receipt_id, src_line_id, src_po_line_id, line_no, src_item_id,
-          item_code, item_name, brand, spec, unit_name, item_category,
-          batch_no, expire_date, storage_location, qty,
+          item_code, item_name, brand, spec, unit_name, item_category, category_key,
+          batch_no, expire_date, storage_location, qty, remaining_qty, qty_requisition,
           price_tax_in, amount_tax_in, price_ex_tax, amount_ex_tax,
           sync_batch, sync_time
         ) VALUES
         <foreach collection="list" item="it" separator=",">
           (#{it.inboundId}, #{it.srcReceiptId}, #{it.srcLineId}, #{it.srcPoLineId}, #{it.lineNo}, #{it.srcItemId},
-           #{it.itemCode}, #{it.itemName}, #{it.brand}, #{it.spec}, #{it.unitName}, #{it.itemCategory},
-           #{it.batchNo}, #{it.expireDate}, #{it.storageLocation}, #{it.qty},
+           #{it.itemCode}, #{it.itemName}, #{it.brand}, #{it.spec}, #{it.unitName}, #{it.itemCategory}, #{it.categoryKey},
+           #{it.batchNo}, #{it.expireDate}, #{it.storageLocation}, #{it.qty}, #{it.remainingQty}, #{it.qtyRequisition},
            #{it.priceTaxIn}, #{it.amountTaxIn}, #{it.priceExTax}, #{it.amountExTax},
            #{syncBatch}, now())
         </foreach>
@@ -68,10 +68,13 @@
           spec             = EXCLUDED.spec,
           unit_name        = EXCLUDED.unit_name,
           item_category    = EXCLUDED.item_category,
+          category_key     = EXCLUDED.category_key,
           batch_no         = EXCLUDED.batch_no,
           expire_date      = EXCLUDED.expire_date,
           storage_location = EXCLUDED.storage_location,
           qty              = EXCLUDED.qty,
+          remaining_qty    = EXCLUDED.remaining_qty,
+          qty_requisition  = EXCLUDED.qty_requisition,
           price_tax_in     = EXCLUDED.price_tax_in,
           amount_tax_in    = EXCLUDED.amount_tax_in,
           price_ex_tax     = EXCLUDED.price_ex_tax,
@@ -91,8 +94,8 @@
                l.qty, l.price_tax_in AS priceTaxIn, l.amount_tax_in AS amountTaxIn,
                l.price_ex_tax AS priceExTax, l.amount_ex_tax AS amountExTax, l.sync_time AS syncTime,
                l.src_po_line_id AS srcPoLineId,
-               po.qty_received AS qtyReceived, po.qty_requisition AS qtyRequisition,
-               po.remaining_qty AS remainingQty
+               po.qty_received AS qtyReceived, l.qty_requisition AS qtyRequisition,
+               l.remaining_qty AS remainingQty
         FROM mes_pm_inbound_line l
         INNER JOIN mes_pm_inbound m ON m.id = l.inbound_id
         LEFT JOIN mes_pm_po po ON UPPER(po.line_id) = UPPER(l.src_po_line_id)

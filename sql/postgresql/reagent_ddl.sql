@@ -155,7 +155,10 @@ CREATE TABLE reagent_apply_item (
     bas_id            VARCHAR(64)     NOT NULL,
     reagent_name      VARCHAR(128)    NOT NULL,
     cat_no            VARCHAR(64),
+    content           VARCHAR(255),
     lot_no            VARCHAR(64),
+    storage_temp      VARCHAR(32),
+    storage_location  VARCHAR(500),
     expiration_date   TIMESTAMP,
     requested_qty     INT4            NOT NULL    DEFAULT 1,
     shipped_qty_total INT4            NOT NULL    DEFAULT 0,
@@ -171,9 +174,12 @@ COMMENT ON COLUMN reagent_apply_item.id                  IS '主键编号';
 COMMENT ON COLUMN reagent_apply_item.apply_id            IS '关联 reagent_apply.id';
 COMMENT ON COLUMN reagent_apply_item.bas_id              IS '试剂编号';
 COMMENT ON COLUMN reagent_apply_item.reagent_name        IS '试剂名称（冗余）';
-COMMENT ON COLUMN reagent_apply_item.cat_no              IS '货号（冗余）';
-COMMENT ON COLUMN reagent_apply_item.lot_no              IS '批号';
-COMMENT ON COLUMN reagent_apply_item.expiration_date     IS '过期日期（选择批号联动带出）';
+COMMENT ON COLUMN reagent_apply_item.cat_no              IS '货号（冗余，可手改）';
+COMMENT ON COLUMN reagent_apply_item.content             IS '规格/浓度（文本，可手改）';
+COMMENT ON COLUMN reagent_apply_item.lot_no              IS '批号（可手改）';
+COMMENT ON COLUMN reagent_apply_item.storage_temp        IS '储存温度（文本，可手改）';
+COMMENT ON COLUMN reagent_apply_item.storage_location    IS '储存位置（文本，可手改）';
+COMMENT ON COLUMN reagent_apply_item.expiration_date     IS '过期日期（选择批号联动带出，可手改）';
 COMMENT ON COLUMN reagent_apply_item.requested_qty       IS '需求总数量';
 COMMENT ON COLUMN reagent_apply_item.shipped_qty_total   IS '已累计发货数量（每次发货后累加）';
 COMMENT ON COLUMN reagent_apply_item.creator             IS '创建者';
@@ -182,6 +188,14 @@ COMMENT ON COLUMN reagent_apply_item.updater             IS '更新者';
 COMMENT ON COLUMN reagent_apply_item.update_time         IS '更新时间';
 COMMENT ON COLUMN reagent_apply_item.deleted             IS '是否删除';
 COMMENT ON COLUMN reagent_apply_item.tenant_id           IS '租户编号';
+
+-- 兼容已建表（幂等）：补齐可手改文本字段
+ALTER TABLE reagent_apply_item ADD COLUMN IF NOT EXISTS content          VARCHAR(255);
+ALTER TABLE reagent_apply_item ADD COLUMN IF NOT EXISTS storage_temp     VARCHAR(32);
+ALTER TABLE reagent_apply_item ADD COLUMN IF NOT EXISTS storage_location VARCHAR(500);
+COMMENT ON COLUMN reagent_apply_item.content          IS '规格/浓度（文本，可手改）';
+COMMENT ON COLUMN reagent_apply_item.storage_temp     IS '储存温度（文本，可手改）';
+COMMENT ON COLUMN reagent_apply_item.storage_location IS '储存位置（文本，可手改）';
 
 -- 2.5 发货单主表（支持 1 对 N 分批发货）
 CREATE TABLE reagent_shipment (

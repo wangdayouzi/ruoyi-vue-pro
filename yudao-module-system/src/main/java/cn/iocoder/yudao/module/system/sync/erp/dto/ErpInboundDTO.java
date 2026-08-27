@@ -89,4 +89,7 @@ public class ErpInboundDTO {
     /** 审核人名称 pj00402 */
     private String auditorName;
 
+    /** 行数据指纹（业务字段 MD5；变更检测用，见 ErpSyncService.computeInboundHash） */
+    private String dataHash;
+
 }

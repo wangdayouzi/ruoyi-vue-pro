@@ -40,6 +40,15 @@ public class ReagentApplyItemDO extends BaseDO {
     /** 批号 */
     private String lotNo;
 
+    /** 规格/浓度（文本，可手改） */
+    private String content;
+
+    /** 储存温度（文本，可手改） */
+    private String storageTemp;
+
+    /** 储存位置（文本，可手改） */
+    private String storageLocation;
+
     /** 过期日期 */
     private LocalDateTime expirationDate;
 

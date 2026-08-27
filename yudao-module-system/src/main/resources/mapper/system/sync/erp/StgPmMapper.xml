@@ -10,7 +10,7 @@
           qty, price_tax_in, amount_tax_in, price_ex_tax, amount_ex_tax,
           vendor_id, vendor_name, warehouse_id, warehouse_name, po_id, po_code,
           project_id, project_name, project_code, applicant, applicant_name, auditor, auditor_name,
-          sync_batch
+          sync_batch, data_hash
         ) VALUES
         <foreach collection="list" item="it" separator=",">
           (#{it.srcReceiptId}, #{it.srcLineId}, #{it.poLineId}, #{it.basId}, #{it.receiptDate}, #{it.period}, #{it.docType}, #{it.batchNo}, #{it.expireDate},
@@ -18,7 +18,7 @@
            #{it.qty}, #{it.priceTaxIn}, #{it.amountTaxIn}, #{it.priceExTax}, #{it.amountExTax},
            #{it.vendorId}, #{it.vendorName}, #{it.warehouseId}, #{it.warehouseName}, #{it.poId}, #{it.poCode},
            #{it.projectId}, #{it.projectName}, #{it.projectCode}, #{it.applicant}, #{it.applicantName}, #{it.auditor}, #{it.auditorName},
-           #{syncBatch})
+           #{syncBatch}, #{it.dataHash})
         </foreach>
         ON CONFLICT (src_line_id) DO UPDATE SET
           src_receipt_id   = EXCLUDED.src_receipt_id,
@@ -58,7 +58,11 @@
           auditor          = EXCLUDED.auditor,
           auditor_name     = EXCLUDED.auditor_name,
           sync_batch       = EXCLUDED.sync_batch,
-          sync_time        = now()
+          sync_time        = now(),
+          data_hash        = EXCLUDED.data_hash,
+          -- 数据变了 → 置 pushed=0 触发重推；没变保持原 pushed
+          pushed = CASE WHEN stg_pm_inbound.data_hash IS DISTINCT FROM EXCLUDED.data_hash
+                        THEN 0 ELSE stg_pm_inbound.pushed END
     </insert>
 
     <!-- 批量 upsert 领料行：按 (src_req_id, src_line_id) 冲突更新 -->
@@ -282,6 +286,66 @@
         JOIN stg_pm_inbound i ON UPPER(i.src_line_id) = UPPER(ro.src_line_receipt_id)
         WHERE i.src_po_line_id IS NOT NULL AND i.src_po_line_id &lt;&gt; ''
         GROUP BY i.src_po_line_id
+    </select>
+
+    <!-- 按入库明细行聚合 领用数量（批次级：领料 pm02108 命中入库行 → 该批领走多少） -->
+    <select id="selectRequisitionQtyByLine" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineQtyDTO">
+        SELECT i.src_line_id AS srcLineId, SUM(r.qty) AS qty
+        FROM stg_pm_requisition r
+        JOIN stg_pm_inbound i ON UPPER(i.src_line_id) = UPPER(r.src_line_receipt_id)
+        WHERE i.src_line_id IS NOT NULL AND i.src_line_id &lt;&gt; ''
+        GROUP BY i.src_line_id
+    </select>
+
+    <!-- 按入库明细行聚合 退料数量（批次级：退料→领料行→入库行） -->
+    <select id="selectReturnInQtyByLine" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineQtyDTO">
+        SELECT i.src_line_id AS srcLineId, SUM(ret.qty) AS qty
+        FROM stg_pm_return_in ret
+        JOIN stg_pm_requisition r ON UPPER(r.src_line_id) = UPPER(ret.src_line_receipt_id)
+        JOIN stg_pm_inbound i ON UPPER(i.src_line_id) = UPPER(r.src_line_receipt_id)
+        WHERE i.src_line_id IS NOT NULL AND i.src_line_id &lt;&gt; ''
+        GROUP BY i.src_line_id
+    </select>
+
+    <!-- 按入库明细行聚合 采购退货数量（批次级：采购退货直接命中入库行） -->
+    <select id="selectReturnOutQtyByLine" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineQtyDTO">
+        SELECT i.src_line_id AS srcLineId, SUM(ro.qty) AS qty
+        FROM stg_pm_return_out ro
+        JOIN stg_pm_inbound i ON UPPER(i.src_line_id) = UPPER(ro.src_line_receipt_id)
+        WHERE i.src_line_id IS NOT NULL AND i.src_line_id &lt;&gt; ''
+        GROUP BY i.src_line_id
+    </select>
+
+    <!-- ============ 基础数据按需补缺：读取（阶段2 落地前） ============ -->
+
+    <!-- 全部物料分类（staging 已有全量，落地 mes_md_item_type 用） -->
+    <select id="selectItemCategoryAll" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemCategoryDTO">
+        SELECT cat_key AS catKey, cat_name AS catName, parent_key AS parentKey
+        FROM stg_pm_item_category
+        ORDER BY cat_key
+    </select>
+
+    <!-- 业务用到的物料编码（入库单 ∪ 采购订单 去重） -->
+    <select id="selectDistinctItemCodes" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemDTO">
+        SELECT item_code AS itemCode FROM stg_pm_inbound
+        WHERE item_code IS NOT NULL AND item_code &lt;&gt; ''
+        UNION
+        SELECT item_code AS itemCode FROM stg_pm_po_line
+        WHERE item_code IS NOT NULL AND item_code &lt;&gt; ''
+    </select>
+
+    <!-- 业务用到的供应商（入库单 vendor_id/vendor_name 去重） -->
+    <select id="selectDistinctVendors" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpVendorDTO">
+        SELECT DISTINCT vendor_id AS vendorId, vendor_name AS vendorName
+        FROM stg_pm_inbound
+        WHERE vendor_id IS NOT NULL AND vendor_id &lt;&gt; ''
+    </select>
+
+    <!-- 业务用到的单位（入库单 unit_name 去重） -->
+    <select id="selectDistinctUnits" resultType="cn.iocoder.yudao.module.system.sync.erp.dto.ErpUnitDTO">
+        SELECT DISTINCT unit_name AS unitName
+        FROM stg_pm_inbound
+        WHERE unit_name IS NOT NULL AND unit_name &lt;&gt; ''
     </select>
 
     <!-- 清空采购订单明细（窗口快照，先清再写） -->

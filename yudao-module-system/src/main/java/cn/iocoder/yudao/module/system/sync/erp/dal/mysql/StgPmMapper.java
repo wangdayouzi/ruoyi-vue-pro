@@ -2,7 +2,10 @@ package cn.iocoder.yudao.module.system.sync.erp.dal.mysql;
 
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpInboundDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemCategoryDTO;
+import cn.iocoder.yudao.module.system.sync.erp.dto.ErpItemDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineDTO;
+import cn.iocoder.yudao.module.system.sync.erp.dto.ErpUnitDTO;
+import cn.iocoder.yudao.module.system.sync.erp.dto.ErpVendorDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpPoLineQtyDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpRequisitionDTO;
 import cn.iocoder.yudao.module.system.sync.erp.dto.ErpReturnInDTO;
@@ -57,6 +60,29 @@ public interface StgPmMapper {
 
     /** 按订单行聚合 采购退货数量（staging：采购退货→入库行→订单行） */
     List<ErpPoLineQtyDTO> selectReturnOutQtyByPoLine();
+
+    /** 按入库明细行聚合 领用数量（批次级：领料 pm02108→入库行） */
+    List<ErpPoLineQtyDTO> selectRequisitionQtyByLine();
+
+    /** 按入库明细行聚合 退料数量（批次级：退料→领料行→入库行） */
+    List<ErpPoLineQtyDTO> selectReturnInQtyByLine();
+
+    /** 按入库明细行聚合 采购退货数量（批次级：采购退货→入库行） */
+    List<ErpPoLineQtyDTO> selectReturnOutQtyByLine();
+
+    /* ---------------- 基础数据按需补缺（阶段2 落地前读取） ---------------- */
+
+    /** 读取全部物料分类（staging 已有全量，落地 mes_md_item_type 用） */
+    List<ErpItemCategoryDTO> selectItemCategoryAll();
+
+    /** 业务用到的物料编码（入库单 ∪ 采购订单 去重；判断 mes_md_item 缺失用） */
+    List<ErpItemDTO> selectDistinctItemCodes();
+
+    /** 业务用到的供应商（入库单 vendor_id/vendor_name 去重；按需建 mes_md_vendor） */
+    List<ErpVendorDTO> selectDistinctVendors();
+
+    /** 业务用到的单位（入库单 unit_name 去重；按需建 mes_md_unit_measure） */
+    List<ErpUnitDTO> selectDistinctUnits();
 
     /* ---------------- 阶段2 推送读取/标记 ---------------- */
 
