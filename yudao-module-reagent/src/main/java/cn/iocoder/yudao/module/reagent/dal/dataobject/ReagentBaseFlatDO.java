@@ -39,6 +39,9 @@ public class ReagentBaseFlatDO extends TenantBaseDO {
     /** 供应商 */
     private String vendor;
 
+    /** 品牌 pm00221 */
+    private String brand;
+
     /** 仓库名（主表 pm00402） */
     private String warehouse;
 

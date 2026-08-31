@@ -7,11 +7,14 @@ import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatPageRe
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatRespVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatSaveReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatSimplePageReqVO;
+import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentReceiptReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentBaseFlatDO;
 import cn.iocoder.yudao.module.reagent.service.ReagentBaseFlatService;
+import cn.iocoder.yudao.module.reagent.service.ReagentReceiptService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -34,6 +37,8 @@ public class ReagentBaseFlatController {
 
     @Resource
     private ReagentBaseFlatService reagentBaseFlatService;
+    @Resource
+    private ReagentReceiptService reagentReceiptService;
 
     @GetMapping("/page")
     @Operation(summary = "获得试剂基础数据(扁平)分页")
@@ -56,7 +61,7 @@ public class ReagentBaseFlatController {
     @PreAuthorize("@ss.hasPermission('reagent:base:query')")
     public CommonResult<PageResult<ReagentBaseFlatRespVO>> getReagentBaseFlatSimpleList(
             @Valid ReagentBaseFlatSimplePageReqVO reqVO) {
-        PageResult<ReagentBaseFlatDO> pageResult = reagentBaseFlatService.getReagentBaseFlatSimplePage(reqVO, reqVO.getKeyword());
+        PageResult<ReagentBaseFlatDO> pageResult = reagentBaseFlatService.getReagentBaseFlatSimplePage(reqVO);
         return success(BeanUtils.toBean(pageResult, ReagentBaseFlatRespVO.class));
     }
 
@@ -66,6 +71,13 @@ public class ReagentBaseFlatController {
     public CommonResult<Boolean> deleteReagentBaseFlat(@RequestParam("id") Long id) {
         reagentBaseFlatService.deleteReagentBaseFlat(id);
         return success(true);
+    }
+
+    @PostMapping("/generate-receipt")
+    @Operation(summary = "生成生物试剂接收单（填充试剂信息，下载 docx）")
+    @PreAuthorize("@ss.hasPermission('reagent:base:query')")
+    public void generateReceipt(@Valid @RequestBody ReagentReceiptReqVO reqVO, HttpServletResponse response) throws Exception {
+        reagentReceiptService.generateReceipt(reqVO, response);
     }
 
 }

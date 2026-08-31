@@ -40,6 +40,13 @@ public class ReagentShipmentHandlerMailListener implements TaskListener {
 
     @Override
     public void notify(DelegateTask delegateTask) {
+        // 仅"任务创建"事件发信：Flowable 创建任务且已指定办理人时会依次触发 create → assignment，
+        // 若设计器把监听器同时挂在 create+assignment（或重复挂载）会导致一封申请发两封邮件。
+        // 此处按业务本意"任务创建时通知"守卫，只允许 create 事件发送。
+        if (!"create".equals(delegateTask.getEventName())) {
+            log.info("[reagent-mail] 跳过非 create 事件（{}），避免重复通知. taskId={}", delegateTask.getEventName(), delegateTask.getId());
+            return;
+        }
         log.info("[reagent-mail] 发货任务创建，触发邮件通知. taskId={}, processInstanceId={}, taskName={}",
                 delegateTask.getId(), delegateTask.getProcessInstanceId(), delegateTask.getName());
 

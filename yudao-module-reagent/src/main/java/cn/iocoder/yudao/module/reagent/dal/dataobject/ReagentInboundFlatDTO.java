@@ -20,6 +20,8 @@ public class ReagentInboundFlatDTO {
     private String basId;
     /** 供应商名称（主表） */
     private String vendorName;
+    /** 品牌 pm00221 */
+    private String brand;
     /** 仓库名称（主表 pm00402） */
     private String warehouseName;
     /** 物料编码 pm00201 */

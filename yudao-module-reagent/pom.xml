@@ -87,5 +87,41 @@
             <artifactId>jxls-poi</artifactId>
             <version>3.1.0</version>
         </dependency>
+
+        <!-- Aspose：生物试剂接收单 docx 模板填充 -->
+        <dependency>
+            <groupId>cn.iocoder.boot</groupId>
+            <artifactId>yudao-spring-boot-starter-aspose</artifactId>
+            <version>${revision}</version>
+        </dependency>
+        <!-- Aspose jar 为 system scope，不向依赖方传递，需在此同步声明（指向 starter 的 lib 目录） -->
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-words</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../yudao-framework/yudao-spring-boot-starter-aspose/lib/aspose-words-25.10-jdk17.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-cells</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../yudao-framework/yudao-spring-boot-starter-aspose/lib/aspose-cells-25.10.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-pdf</artifactId>
+            <version>25.9</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../yudao-framework/yudao-spring-boot-starter-aspose/lib/aspose-pdf-25.9.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.aspose</groupId>
+            <artifactId>aspose-slides</artifactId>
+            <version>25.10</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/../yudao-framework/yudao-spring-boot-starter-aspose/lib/aspose-slides-25.10-jdk16.jar</systemPath>
+        </dependency>
     </dependencies>
 </project>

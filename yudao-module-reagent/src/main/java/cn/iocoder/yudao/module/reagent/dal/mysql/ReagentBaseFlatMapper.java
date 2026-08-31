@@ -7,6 +7,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatPageReqVO;
+import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatSimplePageReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentBaseFlatDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -29,19 +30,24 @@ public interface ReagentBaseFlatMapper extends BaseMapperX<ReagentBaseFlatDO> {
                 .likeIfPresent(ReagentBaseFlatDO::getReagentName, reqVO.getReagentName())
                 .likeIfPresent(ReagentBaseFlatDO::getCatNo, reqVO.getCatNo())
                 .likeIfPresent(ReagentBaseFlatDO::getItemCategory, reqVO.getItemCategory())
+                .likeIfPresent(ReagentBaseFlatDO::getWarehouse, reqVO.getWarehouse())
+                .likeIfPresent(ReagentBaseFlatDO::getVendor, reqVO.getVendor())
+                .likeIfPresent(ReagentBaseFlatDO::getBrand, reqVO.getBrand())
                 .eqIfPresent(ReagentBaseFlatDO::getStatus, reqVO.getStatus())
                 .orderByDesc(ReagentBaseFlatDO::getSyncTime)
                 .orderByDesc(ReagentBaseFlatDO::getId));
     }
 
-    /** 分页简易搜索（申请单选批号用；匹配 入库单号/试剂编号/试剂名称/货号） */
-    default PageResult<ReagentBaseFlatDO> selectSimplePage(PageParam reqVO, String keyword) {
+    /** 分页简易搜索（申请单选批号用；关键词 + 仓库） */
+    default PageResult<ReagentBaseFlatDO> selectSimplePage(ReagentBaseFlatSimplePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ReagentBaseFlatDO>()
-                .and(StrUtil.isNotBlank(keyword), w -> w
-                        .like(ReagentBaseFlatDO::getBasId, keyword)
-                        .or().like(ReagentBaseFlatDO::getReagentCode, keyword)
-                        .or().like(ReagentBaseFlatDO::getReagentName, keyword)
-                        .or().like(ReagentBaseFlatDO::getCatNo, keyword))
+                .likeIfPresent(ReagentBaseFlatDO::getWarehouse, reqVO.getWarehouse())
+                .and(StrUtil.isNotBlank(reqVO.getKeyword()), w -> w
+                        .like(ReagentBaseFlatDO::getBasId, reqVO.getKeyword())
+                        .or().like(ReagentBaseFlatDO::getReagentCode, reqVO.getKeyword())
+                        .or().like(ReagentBaseFlatDO::getReagentName, reqVO.getKeyword())
+                        .or().like(ReagentBaseFlatDO::getCatNo, reqVO.getKeyword())
+                        .or().like(ReagentBaseFlatDO::getBrand, reqVO.getKeyword()))
                 .orderByDesc(ReagentBaseFlatDO::getSyncTime)
                 .orderByDesc(ReagentBaseFlatDO::getId));
     }

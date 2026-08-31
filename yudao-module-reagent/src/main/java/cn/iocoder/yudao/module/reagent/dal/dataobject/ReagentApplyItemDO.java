@@ -31,8 +31,17 @@ public class ReagentApplyItemDO extends BaseDO {
     /** 试剂编号 */
     private String basId;
 
+    /** BAS号/采购入库单号 pm02603（选择弹窗带入） */
+    private String basNo;
+
     /** 试剂名称 */
     private String reagentName;
+
+    /** 供应商（选择弹窗带入，可手改） */
+    private String vendor;
+
+    /** 品牌（选择弹窗带入，可手改） */
+    private String brand;
 
     /** 货号 */
     private String catNo;

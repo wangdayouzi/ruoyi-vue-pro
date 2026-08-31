@@ -86,6 +86,7 @@ public class ReagentBaseFlatSyncServiceImpl implements ReagentBaseFlatSyncServic
                     .reagentCode(StrUtil.trimToNull(r.getItemCode()))
                     .reagentName(StrUtil.trimToNull(r.getItemName()))
                     .vendor(StrUtil.trimToNull(r.getVendorName()))
+                    .brand(StrUtil.trimToNull(r.getBrand()))
                     .warehouse(StrUtil.trimToNull(r.getWarehouseName()))
                     .catNo(cleanCatNo(r.getSpec()))
                     .spec(StrUtil.trimToNull(r.getSpec()))

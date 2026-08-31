@@ -34,8 +34,6 @@ public class ReagentPrintService {
     @Resource
     private ReagentApplyItemMapper reagentApplyItemMapper;
     @Resource
-    private ReagentBaseFlatMapper reagentBaseFlatMapper; // 老ERP同步扁平表（供应商补全等）
-    @Resource
     private AdminUserApi adminUserApi;
 
     /**
@@ -187,6 +185,17 @@ public class ReagentPrintService {
         return v == null ? "" : v;
     }
 
+    /** 过期日期：null / 1970 空值（历史脏数据把空日期存成了 1970-01-01） → 空串 */
+    private static String fmtExpireDate(java.time.LocalDateTime d) {
+        if (d == null) {
+            return "";
+        }
+        if (d.getYear() <= 1970) {
+            return "";
+        }
+        return PrintUtil.fmtDate(d);
+    }
+
     /**
      * 将发货明细转为模板渲染用的 Map 列表，同时联查试剂基础数据补全字段
      */
@@ -200,7 +209,7 @@ public class ReagentPrintService {
             applyItemMap.put(ai.getId(), ai);
         }
 
-        // 合并相同试剂（basId + lotNo 相同则累加数量）
+        // 合并相同试剂（试剂编号+批号+货号+规格+储存温度+供应商 相同则累加数量）
         Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
         for (ReagentShipmentItemDO si : shipmentItems) {
             ReagentApplyItemDO ai = applyItemMap.get(si.getApplyItemId());
@@ -211,25 +220,20 @@ public class ReagentPrintService {
             String storageTemp = "";
             String content = "";
             String expirationDate = "";
+            String catNo = "";
             if (ai != null) {
                 basId = nvl(ai.getBasId());
                 reagentName = nvl(ai.getReagentName());
-                expirationDate = ai.getExpirationDate() != null ? PrintUtil.fmtDate(ai.getExpirationDate()) : "";
-                if (ai.getBasId() != null) {
-                    // 供应商/储存温度/规格 明细未存列，从老ERP扁平表按(试剂编号,批号)查补全
-                    ReagentBaseFlatDO flat = reagentBaseFlatMapper.selectByReagentCodeAndLotNo(ai.getBasId(), si.getLotNo());
-                    if (flat != null) {
-                        vendor = nvl(flat.getVendor());
-                        storageTemp = nvl(flat.getStorageTemp());
-                        content = nvl(flat.getSpec());
-                    }
-                }
+                vendor = nvl(ai.getVendor());
+                storageTemp = nvl(ai.getStorageTemp());
+                content = nvl(ai.getContent());
+                catNo = nvl(ai.getCatNo());
+                expirationDate = fmtExpireDate(ai.getExpirationDate());
             }
 
-            String catNo = ai != null ? ai.getCatNo() : "";
             String lotNo = PrintUtil.fmtBlk(si.getLotNo());
-            // 合并 key：试剂编号 + 批号
-            String mergeKey = basId + "|" + lotNo;
+            // 合并 key：试剂编号 + 批号 + 货号 + 规格 + 储存温度 + 供应商（实际填写内容一致才合并）
+            String mergeKey = basId + "|" + lotNo + "|" + catNo + "|" + content + "|" + storageTemp + "|" + vendor;
 
             Map<String, Object> row = merged.get(mergeKey);
             if (row == null) {

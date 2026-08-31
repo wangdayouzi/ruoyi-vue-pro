@@ -153,8 +153,11 @@ CREATE TABLE reagent_apply_item (
     id                BIGINT          NOT NULL    DEFAULT nextval('reagent_apply_item_seq'::regclass) PRIMARY KEY,
     apply_id          BIGINT          NOT NULL,
     bas_id            VARCHAR(64)     NOT NULL,
+    bas_no            VARCHAR(64),
     reagent_name      VARCHAR(128)    NOT NULL,
     cat_no            VARCHAR(64),
+    vendor            VARCHAR(255),
+    brand             VARCHAR(255),
     content           VARCHAR(255),
     lot_no            VARCHAR(64),
     storage_temp      VARCHAR(32),
@@ -173,8 +176,11 @@ COMMENT ON TABLE  reagent_apply_item                    IS '试剂申请明细�
 COMMENT ON COLUMN reagent_apply_item.id                  IS '主键编号';
 COMMENT ON COLUMN reagent_apply_item.apply_id            IS '关联 reagent_apply.id';
 COMMENT ON COLUMN reagent_apply_item.bas_id              IS '试剂编号';
+COMMENT ON COLUMN reagent_apply_item.bas_no               IS 'BAS号/采购入库单号 pm02603（选择弹窗带入）';
 COMMENT ON COLUMN reagent_apply_item.reagent_name        IS '试剂名称（冗余）';
 COMMENT ON COLUMN reagent_apply_item.cat_no              IS '货号（冗余，可手改）';
+COMMENT ON COLUMN reagent_apply_item.vendor               IS '供应商（选择弹窗带入，可手改）';
+COMMENT ON COLUMN reagent_apply_item.brand                IS '品牌（选择弹窗带入，可手改）';
 COMMENT ON COLUMN reagent_apply_item.content             IS '规格/浓度（文本，可手改）';
 COMMENT ON COLUMN reagent_apply_item.lot_no              IS '批号（可手改）';
 COMMENT ON COLUMN reagent_apply_item.storage_temp        IS '储存温度（文本，可手改）';

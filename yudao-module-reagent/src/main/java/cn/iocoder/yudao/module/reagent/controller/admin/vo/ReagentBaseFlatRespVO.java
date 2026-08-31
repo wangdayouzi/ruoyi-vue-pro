@@ -26,7 +26,8 @@ public class ReagentBaseFlatRespVO {
 
     @Schema(description = "供应商")
     private String vendor;
-
+    @Schema(description = "品牌")
+    private String brand;
     @Schema(description = "仓库名")
     private String warehouse;
 

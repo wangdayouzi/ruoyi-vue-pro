@@ -1,10 +1,10 @@
 package cn.iocoder.yudao.module.reagent.service;
 
-import cn.iocoder.yudao.framework.common.pojo.PageParam;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatPageReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatSaveReqVO;
+import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatSimplePageReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentBaseFlatDO;
 import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentBaseFlatMapper;
 import jakarta.annotation.Resource;
@@ -38,8 +38,8 @@ public class ReagentBaseFlatServiceImpl implements ReagentBaseFlatService {
     }
 
     @Override
-    public PageResult<ReagentBaseFlatDO> getReagentBaseFlatSimplePage(PageParam pageReqVO, String keyword) {
-        return reagentBaseFlatMapper.selectSimplePage(pageReqVO, keyword);
+    public PageResult<ReagentBaseFlatDO> getReagentBaseFlatSimplePage(ReagentBaseFlatSimplePageReqVO reqVO) {
+        return reagentBaseFlatMapper.selectSimplePage(reqVO);
     }
 
     @Override

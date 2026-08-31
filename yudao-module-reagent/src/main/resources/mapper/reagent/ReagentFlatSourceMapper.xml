@@ -12,6 +12,7 @@
                m.warehouse_name    AS warehouseName,
                l.item_code         AS itemCode,
                l.item_name         AS itemName,
+               l.brand             AS brand,
                l.spec              AS spec,
                l.batch_no          AS batchNo,
                l.expire_date       AS expireDate,

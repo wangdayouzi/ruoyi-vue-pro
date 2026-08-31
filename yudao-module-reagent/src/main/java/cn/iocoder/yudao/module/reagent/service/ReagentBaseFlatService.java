@@ -1,9 +1,9 @@
 package cn.iocoder.yudao.module.reagent.service;
 
-import cn.iocoder.yudao.framework.common.pojo.PageParam;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatPageReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatSaveReqVO;
+import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentBaseFlatSimplePageReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentBaseFlatDO;
 
 /**
@@ -24,9 +24,9 @@ public interface ReagentBaseFlatService {
     void updateReagentBaseFlat(ReagentBaseFlatSaveReqVO updateReqVO);
 
     /**
-     * 试剂基础数据(扁平)简易分页（申请单选批号用，关键词搜索）
+     * 试剂基础数据(扁平)简易分页（申请单选批号用，关键词+仓库搜索）
      */
-    PageResult<ReagentBaseFlatDO> getReagentBaseFlatSimplePage(PageParam pageReqVO, String keyword);
+    PageResult<ReagentBaseFlatDO> getReagentBaseFlatSimplePage(ReagentBaseFlatSimplePageReqVO reqVO);
 
     /**
      * 删除试剂基础数据(扁平)（物理删除，重新同步可恢复）

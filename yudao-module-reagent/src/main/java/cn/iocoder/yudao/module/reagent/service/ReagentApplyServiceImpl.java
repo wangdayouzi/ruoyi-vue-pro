@@ -73,10 +73,10 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         apply.setApplyNo(applyNo);
         apply.setStatus(STATUS_DRAFT);
         // 发货方默认值
-        apply.setConsignorUnit(defaultIfBlank(apply.getConsignorUnit(), "精翰生物"));
-        apply.setConsignorAddress(defaultIfBlank(apply.getConsignorAddress(), "上海市浦东新区张江高科技园区XXX号"));
-        apply.setConsignorName(defaultIfBlank(apply.getConsignorName(), "仓库管理员"));
-        apply.setConsignorPhone(defaultIfBlank(apply.getConsignorPhone(), "021-XXXXXXXX"));
+        apply.setConsignorUnit(defaultIfBlank(apply.getConsignorUnit(), "上海精翰生物科技有限公司"));
+        apply.setConsignorAddress(defaultIfBlank(apply.getConsignorAddress(), "上海市浦东新区加枫路8号5楼"));
+        apply.setConsignorName(defaultIfBlank(apply.getConsignorName(), "样品管理组"));
+        apply.setConsignorPhone(defaultIfBlank(apply.getConsignorPhone(), "021-50833588-526"));
         reagentApplyMapper.insert(apply);
 
         // 保存明细

@@ -28,6 +28,15 @@ public class ReagentBaseFlatPageReqVO extends PageParam {
     @Schema(description = "分类名，模糊匹配")
     private String itemCategory;
 
+    @Schema(description = "仓库名称，模糊匹配")
+    private String warehouse;
+
+    @Schema(description = "供应商，模糊匹配")
+    private String vendor;
+
+    @Schema(description = "品牌，模糊匹配")
+    private String brand;
+
     @Schema(description = "状态：0正常, 1停用")
     private Integer status;
 

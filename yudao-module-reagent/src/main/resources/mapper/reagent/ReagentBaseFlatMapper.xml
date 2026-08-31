@@ -5,13 +5,13 @@
     <!-- 批量 upsert 试剂基础数据(扁平)：按 src_line_id 幂等；storage_temp 不进更新（手工维护不被同步覆盖） -->
     <insert id="batchUpsertFlat">
         INSERT INTO reagent_base_flat
-          (bas_id, reagent_code, reagent_name, vendor, warehouse, cat_no, spec, lot_no, expire_date,
+          (bas_id, reagent_code, reagent_name, vendor, brand, warehouse, cat_no, spec, lot_no, expire_date,
            amount_left, storage_location, item_category, category_key,
            src_line_id, src_receipt_id, status, sync_batch, sync_time,
            tenant_id, creator, create_time, updater, update_time, deleted)
         VALUES
         <foreach collection="list" item="it" separator=",">
-          (#{it.basId}, #{it.reagentCode}, #{it.reagentName}, #{it.vendor}, #{it.warehouse}, #{it.catNo}, #{it.spec}, #{it.lotNo}, #{it.expireDate},
+          (#{it.basId}, #{it.reagentCode}, #{it.reagentName}, #{it.vendor}, #{it.brand}, #{it.warehouse}, #{it.catNo}, #{it.spec}, #{it.lotNo}, #{it.expireDate},
            #{it.amountLeft}, #{it.storageLocation}, #{it.itemCategory}, #{it.categoryKey},
            #{it.srcLineId}, #{it.srcReceiptId}, #{it.status}, #{it.syncBatch}, now(),
            1, 'sync', now(), 'sync', now(), 0)
@@ -21,6 +21,7 @@
           reagent_code = EXCLUDED.reagent_code,
           reagent_name = EXCLUDED.reagent_name,
           vendor = EXCLUDED.vendor,
+          brand = EXCLUDED.brand,
           warehouse = EXCLUDED.warehouse,
           cat_no = EXCLUDED.cat_no,
           spec = EXCLUDED.spec,

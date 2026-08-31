@@ -16,4 +16,7 @@ public class ReagentBaseFlatSimplePageReqVO extends PageParam {
     @Schema(description = "关键词：匹配 入库单号/试剂编号/试剂名称/货号")
     private String keyword;
 
+    @Schema(description = "仓库名称，模糊匹配")
+    private String warehouse;
+
 }
