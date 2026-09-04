@@ -24,7 +24,11 @@ final class ReagentMailParamsHelper {
      * 模板参数白名单：仅业务字段，避免把全部流程变量塞进 system_mail_log.template_params（varchar(255)）导致超长
      */
     private static final String[] TEMPLATE_PARAM_KEYS = {
-            "applyNo", "receiverUnit", "receiverName", "receiverPhone", "receiverAddress"
+            "applyNo", "applicant", "region",
+            "receiverUnit", "receiverName", "receiverPhone", "receiverAddress",
+            "consignorUnit", "consignorAddress", "consignorName", "consignorPhone",
+            "freightSettlement", "projectNo", "transportTemp", "hasTempLogger",
+            "plannedShipDate", "note"
     };
 
     /**

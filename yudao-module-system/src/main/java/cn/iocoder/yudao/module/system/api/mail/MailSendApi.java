@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.system.api.mail;
 
+import cn.iocoder.yudao.module.system.api.mail.dto.MailSendSingleReqDTO;
 import cn.iocoder.yudao.module.system.api.mail.dto.MailSendSingleToUserReqDTO;
 
 import jakarta.validation.Valid;
@@ -30,5 +31,13 @@ public interface MailSendApi {
      * @return 发送日志编号
      */
     Long sendSingleMailToMember(@Valid MailSendSingleToUserReqDTO reqDTO);
+
+    /**
+     * 发送单条邮件到指定邮箱（不依赖系统用户，如区域发货人邮箱）
+     *
+     * @param reqDTO 发送请求
+     * @return 发送日志编号
+     */
+    Long sendSingleMail(@Valid MailSendSingleReqDTO reqDTO);
 
 }

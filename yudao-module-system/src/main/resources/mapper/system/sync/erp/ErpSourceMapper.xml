@@ -115,11 +115,9 @@
         LEFT JOIN dbo.sdpj004 a WITH (NOLOCK) ON UPPER(a.pj00401) = UPPER(m2.pm02616)
         WHERE m2.pm02620 = 0
           AND m2.pm02617 = 1          -- TCheck=1 已审核（只同步已审核的入库单）
-          AND m2.pm02623 IN (1, 6)
+          AND m2.pm02623 IN (1, 6)    -- 调拨出入(10/11) 不在此列，天然排除
           AND m2.pm02614 &gt;= #{beginYm}
           AND m2.pm02614 &lt;= #{endYm}
-          AND NOT EXISTS (SELECT 1 FROM dbo.sdpm020 p2 WITH (NOLOCK)
-                          WHERE p2.pm02024 = m2.pm02601 AND p2.pm02024 &lt;&gt; '')
         ORDER BY m2.pm02614, m2.pm02601, h.pm02728
     </select>
 

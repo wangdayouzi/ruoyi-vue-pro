@@ -16,6 +16,9 @@ public class ReagentReceiptReqVO {
     @Schema(description = "供应商")
     private String vendor;
 
+    @Schema(description = "品牌")
+    private String brand;
+
     @Schema(description = "接收日期")
     private String receiveDate;
 

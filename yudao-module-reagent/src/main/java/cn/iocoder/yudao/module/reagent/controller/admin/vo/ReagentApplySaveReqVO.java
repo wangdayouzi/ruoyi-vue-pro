@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -31,6 +32,9 @@ public class ReagentApplySaveReqVO {
 
     @Schema(description = "发货联系电话", example = "021-XXXXXXXX")
     private String consignorPhone;
+
+    @Schema(description = "发货区域：上海 / 宁波（选地址按钮写入，邮件按区域定向）", example = "上海")
+    private String region;
 
     // ========== 接收方信息（项目组填写，必填） ==========
     @Schema(description = "接收方单位", requiredMode = Schema.RequiredMode.REQUIRED, example = "复旦大学医学院")
@@ -63,6 +67,12 @@ public class ReagentApplySaveReqVO {
 
     @Schema(description = "是否放置温度记录仪：0否, 1是", example = "1")
     private Integer hasTempLogger;
+
+    @Schema(description = "计划运出日期", example = "2026-09-05")
+    private LocalDateTime plannedShipDate;
+
+    @Schema(description = "备注")
+    private String note;
 
     // ========== 申请明细 ==========
     @Schema(description = "申请明细列表")

@@ -103,6 +103,7 @@ CREATE TABLE reagent_apply (
     consignor_address   VARCHAR(256)    NOT NULL    DEFAULT '上海市浦东新区张江高科技园区XXX号',
     consignor_name      VARCHAR(64)     NOT NULL    DEFAULT '仓库管理员',
     consignor_phone     VARCHAR(32)     NOT NULL    DEFAULT '021-XXXXXXXX',
+    region              VARCHAR(16),    -- 发货区域：上海/宁波（前端选地址按钮写入，邮件按区域定向）
     receiver_unit       VARCHAR(128)    NOT NULL,
     receiver_address    VARCHAR(256)    NOT NULL,
     receiver_name       VARCHAR(64)     NOT NULL,
@@ -129,6 +130,7 @@ COMMENT ON COLUMN reagent_apply.consignor_unit           IS '发货方单位';
 COMMENT ON COLUMN reagent_apply.consignor_address        IS '发货方地址';
 COMMENT ON COLUMN reagent_apply.consignor_name           IS '发货联系人';
 COMMENT ON COLUMN reagent_apply.consignor_phone          IS '发货联系电话';
+COMMENT ON COLUMN reagent_apply.region                   IS '发货区域：上海/宁波（前端选地址按钮写入，邮件按区域定向）';
 COMMENT ON COLUMN reagent_apply.receiver_unit            IS '接收方单位';
 COMMENT ON COLUMN reagent_apply.receiver_address         IS '接收方地址';
 COMMENT ON COLUMN reagent_apply.receiver_name            IS '接收联系人';

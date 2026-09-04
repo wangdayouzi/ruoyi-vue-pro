@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 /**
  * 试剂申请主表 DO
  *
@@ -37,6 +39,9 @@ public class ReagentApplyDO extends BaseDO {
 
     /** 发货联系电话 */
     private String consignorPhone;
+
+    /** 发货区域：上海 / 宁波（前端选地址按钮写入，邮件按区域定向） */
+    private String region;
 
     /** 接收方单位 */
     private String receiverUnit;
@@ -70,5 +75,11 @@ public class ReagentApplyDO extends BaseDO {
 
     /** 是否放置温度记录仪 */
     private Integer hasTempLogger;
+
+    /** 计划运出日期 */
+    private LocalDateTime plannedShipDate;
+
+    /** 备注 */
+    private String note;
 
 }

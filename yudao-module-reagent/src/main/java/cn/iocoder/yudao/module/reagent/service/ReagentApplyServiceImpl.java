@@ -12,6 +12,8 @@ import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyItemDO;
 import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentApplyItemMapper;
 import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentApplyMapper;
 import cn.iocoder.yudao.module.reagent.dal.redis.no.ReagentNoRedisDAO;
+import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
+import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ import org.springframework.validation.annotation.Validated;
 import java.util.HashMap;
 import java.util.Map;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -48,6 +51,11 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
     @Resource
     private ReagentNoRedisDAO reagentNoRedisDAO;
 
+    @Resource
+    private AdminUserApi adminUserApi;
+
+    private static final DateTimeFormatter APPLY_DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     /**
      * Flowable 流程定义 Key
      */
@@ -73,10 +81,10 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         apply.setApplyNo(applyNo);
         apply.setStatus(STATUS_DRAFT);
         // 发货方默认值
-        apply.setConsignorUnit(defaultIfBlank(apply.getConsignorUnit(), "上海精翰生物科技有限公司"));
-        apply.setConsignorAddress(defaultIfBlank(apply.getConsignorAddress(), "上海市浦东新区加枫路8号5楼"));
+        apply.setConsignorUnit(defaultIfBlank(apply.getConsignorUnit(), "精翰样品管理组"));
+        apply.setConsignorAddress(defaultIfBlank(apply.getConsignorAddress(), "上海市浦东新区(上海)自由贸易试验区加枫路8号7层A32"));
         apply.setConsignorName(defaultIfBlank(apply.getConsignorName(), "样品管理组"));
-        apply.setConsignorPhone(defaultIfBlank(apply.getConsignorPhone(), "021-50833588-526"));
+        apply.setConsignorPhone(defaultIfBlank(apply.getConsignorPhone(), "18117369294"));
         reagentApplyMapper.insert(apply);
 
         // 保存明细
@@ -134,6 +142,20 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
             variables.put("receiverName", StrUtil.nullToEmpty(apply.getReceiverName()));
             variables.put("receiverPhone", StrUtil.nullToEmpty(apply.getReceiverPhone()));
             variables.put("receiverAddress", StrUtil.nullToEmpty(apply.getReceiverAddress()));
+            // 发货区域（上海/宁波）：create 邮件监听器据此选择写死的发货处理人邮箱
+            variables.put("region", StrUtil.nullToEmpty(apply.getRegion()));
+            // 申请人（提单人昵称）+ 发货方/基础信息：邮件模板预留 {{applicant}}、{{consignorUnit}} 等变量
+            variables.put("applicant", resolveApplicant(apply.getCreator()));
+            variables.put("consignorUnit", StrUtil.nullToEmpty(apply.getConsignorUnit()));
+            variables.put("consignorAddress", StrUtil.nullToEmpty(apply.getConsignorAddress()));
+            variables.put("consignorName", StrUtil.nullToEmpty(apply.getConsignorName()));
+            variables.put("consignorPhone", StrUtil.nullToEmpty(apply.getConsignorPhone()));
+            variables.put("freightSettlement", StrUtil.nullToEmpty(apply.getFreightSettlement()));
+            variables.put("projectNo", StrUtil.nullToEmpty(apply.getProjectNo()));
+            variables.put("transportTemp", StrUtil.nullToEmpty(apply.getTransportTemp()));
+            variables.put("hasTempLogger", apply.getHasTempLogger() == null ? "" : apply.getHasTempLogger().toString());
+            variables.put("plannedShipDate", apply.getPlannedShipDate() == null ? "" : apply.getPlannedShipDate().format(APPLY_DATE_FMT));
+            variables.put("note", StrUtil.nullToEmpty(apply.getNote()));
 
             String processInstanceId = bpmProcessInstanceApi.createProcessInstance(userId,
                     new BpmProcessInstanceCreateReqDTO()
@@ -150,6 +172,28 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         // 更新状态为待发货
         apply.setStatus(STATUS_PENDING_SHIP);
         reagentApplyMapper.updateById(apply);
+    }
+
+    /**
+     * 申请人 = 提单人（申请单创建人）昵称；查不到用户时回退用户 ID
+     */
+    private String resolveApplicant(String creator) {
+        if (StrUtil.isBlank(creator)) {
+            return "";
+        }
+        try {
+            AdminUserRespDTO user = adminUserApi.getUser(Long.parseLong(creator));
+            if (user != null) {
+                return StrUtil.blankToDefault(user.getNickname(), creator);
+            }
+            return creator;
+        } catch (NumberFormatException e) {
+            return creator;
+        } catch (Exception e) {
+            // 查询用户失败不影响提单/流程启动，回退用户 ID
+            log.warn("[reagent] 解析申请人昵称失败 creator={}", creator, e);
+            return creator;
+        }
     }
 
     @Override

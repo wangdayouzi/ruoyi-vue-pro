@@ -32,6 +32,9 @@ public class ReagentApplyRespVO {
     @Schema(description = "发货联系电话", example = "021-XXXXXXXX")
     private String consignorPhone;
 
+    @Schema(description = "发货区域：上海 / 宁波（选地址按钮写入，邮件按区域定向）", example = "上海")
+    private String region;
+
     // ========== 接收方信息 ==========
     @Schema(description = "接收方单位", example = "复旦大学医学院")
     private String receiverUnit;
@@ -66,11 +69,20 @@ public class ReagentApplyRespVO {
     @Schema(description = "是否放置温度记录仪：0否, 1是", example = "1")
     private Integer hasTempLogger;
 
+    @Schema(description = "计划运出日期")
+    private LocalDateTime plannedShipDate;
+
+    @Schema(description = "备注")
+    private String note;
+
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
 
     @Schema(description = "创建者")
     private String creator;
+
+    @Schema(description = "创建者昵称")
+    private String creatorName;
 
     // ========== 关联明细 ==========
     @Schema(description = "申请明细列表")

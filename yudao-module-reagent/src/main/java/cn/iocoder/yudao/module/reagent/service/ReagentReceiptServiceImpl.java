@@ -32,6 +32,7 @@ public class ReagentReceiptServiceImpl implements ReagentReceiptService {
         values.put("{{name}}", nvl(reqVO.getName()));
         values.put("{{basId}}", nvl(reqVO.getBasId()));
         values.put("{{vendor}}", nvl(reqVO.getVendor()));
+        values.put("{{brand}}", nvl(reqVO.getBrand()));
         values.put("{{receiveDate}}", nvl(reqVO.getReceiveDate()));
         values.put("{{qty}}", nvl(reqVO.getQty()));
         values.put("{{contentPerUnit}}", nvl(reqVO.getContentPerUnit()));

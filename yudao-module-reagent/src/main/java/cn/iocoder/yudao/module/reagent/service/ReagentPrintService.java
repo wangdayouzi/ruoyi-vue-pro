@@ -216,15 +216,19 @@ public class ReagentPrintService {
 
             String reagentName = "";
             String vendor = "";
+            String brand = "";
             String basId = "";
+            String basNo = "";
             String storageTemp = "";
             String content = "";
             String expirationDate = "";
             String catNo = "";
             if (ai != null) {
                 basId = nvl(ai.getBasId());
+                basNo = nvl(ai.getBasNo());
                 reagentName = nvl(ai.getReagentName());
                 vendor = nvl(ai.getVendor());
+                brand = nvl(ai.getBrand());
                 storageTemp = nvl(ai.getStorageTemp());
                 content = nvl(ai.getContent());
                 catNo = nvl(ai.getCatNo());
@@ -232,15 +236,17 @@ public class ReagentPrintService {
             }
 
             String lotNo = PrintUtil.fmtBlk(si.getLotNo());
-            // 合并 key：试剂编号 + 批号 + 货号 + 规格 + 储存温度 + 供应商（实际填写内容一致才合并）
-            String mergeKey = basId + "|" + lotNo + "|" + catNo + "|" + content + "|" + storageTemp + "|" + vendor;
+            // 合并 key：BAS号 + 试剂编号 + 批号 + 货号 + 规格 + 储存温度 + 供应商 + 品牌（实际填写内容一致才合并）
+            String mergeKey = basNo + "|" + basId + "|" + lotNo + "|" + catNo + "|" + content + "|" + storageTemp + "|" + vendor + "|" + brand;
 
             Map<String, Object> row = merged.get(mergeKey);
             if (row == null) {
                 row = new LinkedHashMap<>();
                 row.put("reagentName", reagentName);
                 row.put("basId", basId);
+                row.put("basNo", basNo);
                 row.put("vendor", vendor);
+                row.put("brand", brand);
                 row.put("content", PrintUtil.fmtBlk(content));
                 row.put("catNo", PrintUtil.fmtBlk(catNo));
                 row.put("lotNo", lotNo);

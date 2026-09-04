@@ -1,8 +1,10 @@
 package cn.iocoder.yudao.module.reagent.controller.admin;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.framework.common.util.collection.MapUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyDO;
@@ -10,6 +12,8 @@ import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyItemDO;
 import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentApplyItemMapper;
 import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentBaseFlatMapper;
 import cn.iocoder.yudao.module.reagent.service.ReagentApplyService;
+import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
+import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,8 +24,10 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
+import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertSet;
 
 /**
  * 试剂申请单 Controller
@@ -43,12 +49,23 @@ public class ReagentApplyController {
     @Resource
     private ReagentBaseFlatMapper reagentBaseFlatMapper; // 老ERP扁平表（详情补温度/位置/规格）
 
+    @Resource
+    private AdminUserApi adminUserApi;
+
     @GetMapping("/page")
     @Operation(summary = "获得申请单分页")
     @PreAuthorize("@ss.hasPermission('reagent:apply:query')")
     public CommonResult<PageResult<ReagentApplyRespVO>> getApplyPage(@Valid ReagentApplyPageReqVO pageReqVO) {
         PageResult<ReagentApplyDO> pageResult = reagentApplyService.getApplyPage(pageReqVO);
-        return success(BeanUtils.toBean(pageResult, ReagentApplyRespVO.class));
+        PageResult<ReagentApplyRespVO> respResult = BeanUtils.toBean(pageResult, ReagentApplyRespVO.class);
+        // 创建人昵称（userId → nickname）
+        if (CollUtil.isNotEmpty(respResult.getList())) {
+            Map<Long, AdminUserRespDTO> userMap = adminUserApi.getUserMap(
+                    convertSet(respResult.getList(), vo -> Long.parseLong(vo.getCreator())));
+            respResult.getList().forEach(vo -> MapUtils.findAndThen(userMap, Long.parseLong(vo.getCreator()),
+                    user -> vo.setCreatorName(user.getNickname())));
+        }
+        return success(respResult);
     }
 
     @GetMapping("/get")

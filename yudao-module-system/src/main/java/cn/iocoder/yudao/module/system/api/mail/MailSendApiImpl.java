@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.system.api.mail;
 
+import cn.iocoder.yudao.module.system.api.mail.dto.MailSendSingleReqDTO;
 import cn.iocoder.yudao.module.system.api.mail.dto.MailSendSingleToUserReqDTO;
 import cn.iocoder.yudao.module.system.service.mail.MailSendService;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,12 @@ public class MailSendApiImpl implements MailSendApi {
         return mailSendService.sendSingleMailToMember(reqDTO.getUserId(),
                 reqDTO.getToMails(), reqDTO.getCcMails(), reqDTO.getBccMails(),
                 reqDTO.getTemplateCode(), reqDTO.getTemplateParams(), reqDTO.getAttachments());
+    }
+
+    @Override
+    public Long sendSingleMail(MailSendSingleReqDTO reqDTO) {
+        return mailSendService.sendSingleMail(reqDTO.getToMails(), null, null, null, null,
+                reqDTO.getTemplateCode(), reqDTO.getTemplateParams());
     }
 
 }

@@ -82,33 +82,33 @@ INSERT INTO system_menu (id, name, permission, type, sort, parent_id, path, icon
 SELECT (SELECT COALESCE(MAX(id), 0) FROM system_menu) + 2, '工具管理', 'infra:toolbox-tool:list', 2, 1,
        (SELECT id FROM system_menu WHERE name = 'IT 工具箱' AND deleted = 0),
        'tool', 'ep:box', 'infra/toolboxTool/index', 'InfraToolboxTool', 0, true, true, true, '1', CURRENT_TIMESTAMP, '1', CURRENT_TIMESTAMP, 0
-WHERE NOT EXISTS (SELECT 1 FROM system_menu WHERE name = '工具管理' AND deleted = 0);
+WHERE NOT EXISTS (SELECT 1 FROM system_menu WHERE component = 'infra/toolboxTool/index' AND deleted = 0);
 
 -- 按钮：工具查询
 INSERT INTO system_menu (id, name, permission, type, sort, parent_id, path, icon, component, component_name, status, visible, keep_alive, always_show, creator, create_time, updater, update_time, deleted)
 SELECT (SELECT COALESCE(MAX(id), 0) FROM system_menu) + 3, '工具查询', 'infra:toolbox-tool:query', 3, 1,
-       (SELECT id FROM system_menu WHERE name = '工具管理' AND deleted = 0),
+       (SELECT id FROM system_menu WHERE component = 'infra/toolboxTool/index' AND deleted = 0),
        '', '', '', '', 0, true, true, true, '1', CURRENT_TIMESTAMP, '1', CURRENT_TIMESTAMP, 0
 WHERE NOT EXISTS (SELECT 1 FROM system_menu WHERE permission = 'infra:toolbox-tool:query' AND deleted = 0);
 
 -- 按钮：工具新增
 INSERT INTO system_menu (id, name, permission, type, sort, parent_id, path, icon, component, component_name, status, visible, keep_alive, always_show, creator, create_time, updater, update_time, deleted)
 SELECT (SELECT COALESCE(MAX(id), 0) FROM system_menu) + 4, '工具新增', 'infra:toolbox-tool:create', 3, 2,
-       (SELECT id FROM system_menu WHERE name = '工具管理' AND deleted = 0),
+       (SELECT id FROM system_menu WHERE component = 'infra/toolboxTool/index' AND deleted = 0),
        '', '', '', '', 0, true, true, true, '1', CURRENT_TIMESTAMP, '1', CURRENT_TIMESTAMP, 0
 WHERE NOT EXISTS (SELECT 1 FROM system_menu WHERE permission = 'infra:toolbox-tool:create' AND deleted = 0);
 
 -- 按钮：工具修改
 INSERT INTO system_menu (id, name, permission, type, sort, parent_id, path, icon, component, component_name, status, visible, keep_alive, always_show, creator, create_time, updater, update_time, deleted)
 SELECT (SELECT COALESCE(MAX(id), 0) FROM system_menu) + 5, '工具修改', 'infra:toolbox-tool:update', 3, 3,
-       (SELECT id FROM system_menu WHERE name = '工具管理' AND deleted = 0),
+       (SELECT id FROM system_menu WHERE component = 'infra/toolboxTool/index' AND deleted = 0),
        '', '', '', '', 0, true, true, true, '1', CURRENT_TIMESTAMP, '1', CURRENT_TIMESTAMP, 0
 WHERE NOT EXISTS (SELECT 1 FROM system_menu WHERE permission = 'infra:toolbox-tool:update' AND deleted = 0);
 
 -- 按钮：工具删除
 INSERT INTO system_menu (id, name, permission, type, sort, parent_id, path, icon, component, component_name, status, visible, keep_alive, always_show, creator, create_time, updater, update_time, deleted)
 SELECT (SELECT COALESCE(MAX(id), 0) FROM system_menu) + 6, '工具删除', 'infra:toolbox-tool:delete', 3, 4,
-       (SELECT id FROM system_menu WHERE name = '工具管理' AND deleted = 0),
+       (SELECT id FROM system_menu WHERE component = 'infra/toolboxTool/index' AND deleted = 0),
        '', '', '', '', 0, true, true, true, '1', CURRENT_TIMESTAMP, '1', CURRENT_TIMESTAMP, 0
 WHERE NOT EXISTS (SELECT 1 FROM system_menu WHERE permission = 'infra:toolbox-tool:delete' AND deleted = 0);
 

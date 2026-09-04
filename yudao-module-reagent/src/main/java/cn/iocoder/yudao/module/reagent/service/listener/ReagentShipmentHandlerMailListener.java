@@ -4,13 +4,10 @@ import cn.iocoder.yudao.module.reagent.service.ReagentMailSendService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.flowable.engine.delegate.TaskListener;
-import org.flowable.identitylink.api.IdentityLink;
 import org.flowable.task.service.delegate.DelegateTask;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 发货任务创建时邮件通知发货处理人 — 挂载在"发货" UserTask 的任务监听器上
@@ -20,9 +17,13 @@ import java.util.Set;
  *   事件：create（任务创建时触发，即提交后进入发货环节）
  *   委托表达式：${reagentShipmentHandlerMailListener}
  *
- * 收件人来源：任务本身的办理人/候选人（流程节点上配置的人），无需单独维护人员名单。
- *   - 候选人策略 = 指定成员：取 {@link DelegateTask#getAssignee()}
- *   - 候选人策略 = 指定角色/部门/岗位：取 {@link DelegateTask#getCandidates()} 展开后的候选人
+ * 收件人：按申请单发货方区域（上海/宁波）写死的两个发货处理人邮箱，不再按任务候选人群发。
+ *
+ * 注意：create 事件在 processInstanceId 落库前触发，绝不能按流程实例 ID 回表查申请单（会查不到而漏发）；
+ * 发货区域改从提交申请时写入的流程变量 region 读取。
+ *
+ * 另：发货节点配置为会签多实例（样品组每个成员一个并行审核任务、任一通过即完成），
+ * 每个成员任务 create 都会触发本监听器，故需去重，保证每张申请单只发一封。
  *
  * @author yudao
  */
@@ -34,6 +35,14 @@ public class ReagentShipmentHandlerMailListener implements TaskListener {
      * 邮件模板编号，需在"系统管理 → 邮件管理 → 邮件模板"中配置
      */
     private static final String TEMPLATE_CODE = "reagent-shipment-notify-handler";
+
+    /** 上海 / 宁波 发货处理人邮箱（写死） */
+    private static final String MAIL_SHANGHAI = "jhsh_sample@accurantbio.com";
+//    private static final String MAIL_NINGBO = "xnnb_sample@accurantbio.com";
+    private static final String MAIL_NINGBO = "dayou.wang@accurantbio.com";
+
+    /** 发送打标流程变量：同流程实例只发一封（会签/异常重试兜底） */
+    private static final String VAR_MAIL_SENT = "reagentShipmentHandlerMailSent";
 
     @Resource
     private ReagentMailSendService reagentMailSendService;
@@ -50,43 +59,38 @@ public class ReagentShipmentHandlerMailListener implements TaskListener {
         log.info("[reagent-mail] 发货任务创建，触发邮件通知. taskId={}, processInstanceId={}, taskName={}",
                 delegateTask.getId(), delegateTask.getProcessInstanceId(), delegateTask.getName());
 
-        // ========== 1. 收集收件人：办理人 + 候选人 ==========
-        Set<Long> userIds = new LinkedHashSet<>();
-        // 1.1 单办理人（候选人策略 = 指定成员）
-        if (delegateTask.getAssignee() != null) {
-            try {
-                userIds.add(Long.valueOf(delegateTask.getAssignee()));
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        // 1.2 候选人（策略 = 指定角色/部门/岗位时，会展开成候选人）
-        for (IdentityLink link : delegateTask.getCandidates()) {
-            if (link.getUserId() != null) {
-                try {
-                    userIds.add(Long.valueOf(link.getUserId()));
-                } catch (NumberFormatException ignored) {
-                }
-            }
-        }
-        if (userIds.isEmpty()) {
-            log.warn("[reagent-mail] 发货任务 {} 未解析到办理人/候选人，跳过邮件发送", delegateTask.getId());
+        // 会签多实例去重：样品组每个成员一个并行审核任务、各自触发 create。只让第一个成员
+        // （loopCounter=0）发信，其余跳过，保证每张申请单只发一封。
+        Integer loopCounter = (Integer) delegateTask.getVariable("loopCounter");
+        if (loopCounter != null && loopCounter > 0) {
+            log.info("[reagent-mail] 会签成员 loopCounter={}，已由首个成员通知，跳过. taskId={}", loopCounter, delegateTask.getId());
             return;
         }
-        log.info("[reagent-mail] 待通知的发货处理人列表 userIds={}", userIds);
+        // 发送打标兜底（覆盖非多实例/异常重试场景）：同流程实例只发一封
+        if (Boolean.TRUE.equals(delegateTask.getVariable(VAR_MAIL_SENT))) {
+            log.info("[reagent-mail] 本流程实例已通知过发货处理人，跳过重复. taskId={}", delegateTask.getId());
+            return;
+        }
 
-        // ========== 2. 组装模板参数（仅业务白名单字段） ==========
+        // 收件人由流程变量 region（前端选择的发货区域：上海/宁波）决定。
+        // create 事件早于 processInstanceId 落库，不能回表查申请单，故从流程变量读取。
+        String region = (String) delegateTask.getVariable("region");
+        boolean ningbo = "宁波".equals(region);
+        String toMail = ningbo ? MAIL_NINGBO : MAIL_SHANGHAI;
+        log.info("[reagent-mail] 申请单 {} 区域={}，通知邮箱={}", delegateTask.getVariable("applyNo"),
+                ningbo ? "宁波" : "上海", toMail);
+
+        // 组装模板参数（仅业务白名单字段，从流程变量取）
         Map<String, Object> params = ReagentMailParamsHelper.buildTemplateParams(delegateTask);
 
-        // ========== 3. 逐个发邮件（userId 自动加载对应 Admin 的邮箱） ==========
-        for (Long userId : userIds) {
-            try {
-                reagentMailSendService.sendSingleMailToAdmin(userId, TEMPLATE_CODE, params);
-                log.info("[reagent-mail] 发货通知邮件已发送，收件人: {}", userId);
-            } catch (Exception e) {
-                log.error("[reagent-mail] 发送失败，userId: {}", userId, e);
-            }
+        try {
+            reagentMailSendService.sendSingleMailToAddress(toMail, TEMPLATE_CODE, params);
+            // 发送成功后打标，供会签后续成员/异常重试场景跳过重复发送
+            delegateTask.setVariable(VAR_MAIL_SENT, Boolean.TRUE);
+            log.info("[reagent-mail] 发货通知邮件已发送，收件人: {}", toMail);
+        } catch (Exception e) {
+            log.error("[reagent-mail] 发送失败，toMail: {}", toMail, e);
         }
-        log.info("[reagent-mail] 发货任务通知邮件全部处理完成，收件人列表 userIds={}", userIds);
     }
 
 }
