@@ -135,6 +135,7 @@ public class ReagentPrintService {
             builder.put("consignorAddress", apply.getConsignorAddress());
             builder.put("consignorName", apply.getConsignorName());
             builder.put("consignorPhone", apply.getConsignorPhone());
+            builder.put("consignorEmail", apply.getConsignorEmail());
             builder.put("receiverUnit", apply.getReceiverUnit());
             builder.put("receiverAddress", apply.getReceiverAddress());
             builder.put("receiverName", apply.getReceiverName());

@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.service.listener;
 
+import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.reagent.service.ReagentMailSendService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -17,10 +18,11 @@ import java.util.Map;
  *   事件：create（任务创建时触发，即提交后进入发货环节）
  *   委托表达式：${reagentShipmentHandlerMailListener}
  *
- * 收件人：按申请单发货方区域（上海/宁波）写死的两个发货处理人邮箱，不再按任务候选人群发。
+ * 收件人：申请单"发货方邮箱"（consignorEmail，前端填写、可编辑）；留空则不发送。
+ * 不再按区域（上海/宁波）写死两个发货处理人邮箱。
  *
  * 注意：create 事件在 processInstanceId 落库前触发，绝不能按流程实例 ID 回表查申请单（会查不到而漏发）；
- * 发货区域改从提交申请时写入的流程变量 region 读取。
+ * 发货方邮箱改从提交申请时写入的流程变量 consignorEmail 读取。
  *
  * 另：发货节点配置为会签多实例（样品组每个成员一个并行审核任务、任一通过即完成），
  * 每个成员任务 create 都会触发本监听器，故需去重，保证每张申请单只发一封。
@@ -35,11 +37,6 @@ public class ReagentShipmentHandlerMailListener implements TaskListener {
      * 邮件模板编号，需在"系统管理 → 邮件管理 → 邮件模板"中配置
      */
     private static final String TEMPLATE_CODE = "reagent-shipment-notify-handler";
-
-    /** 上海 / 宁波 发货处理人邮箱（写死） */
-    private static final String MAIL_SHANGHAI = "jhsh_sample@accurantbio.com";
-//    private static final String MAIL_NINGBO = "xnnb_sample@accurantbio.com";
-    private static final String MAIL_NINGBO = "dayou.wang@accurantbio.com";
 
     /** 发送打标流程变量：同流程实例只发一封（会签/异常重试兜底） */
     private static final String VAR_MAIL_SENT = "reagentShipmentHandlerMailSent";
@@ -72,24 +69,27 @@ public class ReagentShipmentHandlerMailListener implements TaskListener {
             return;
         }
 
-        // 收件人由流程变量 region（前端选择的发货区域：上海/宁波）决定。
+        // 收件人 = 申请单"发货方邮箱"（前端填写，可编辑）。留空则不发送（不写死上海/宁波邮箱）。
         // create 事件早于 processInstanceId 落库，不能回表查申请单，故从流程变量读取。
-        String region = (String) delegateTask.getVariable("region");
-        boolean ningbo = "宁波".equals(region);
-        String toMail = ningbo ? MAIL_NINGBO : MAIL_SHANGHAI;
-        log.info("[reagent-mail] 申请单 {} 区域={}，通知邮箱={}", delegateTask.getVariable("applyNo"),
-                ningbo ? "宁波" : "上海", toMail);
+        String consignorEmail = (String) delegateTask.getVariable("consignorEmail");
+        if (StrUtil.isBlank(consignorEmail)) {
+            log.info("[reagent-mail] 申请单 {} 发货方邮箱为空，跳过发货通知邮件发送. taskId={}",
+                    delegateTask.getVariable("applyNo"), delegateTask.getId());
+            return;
+        }
+        log.info("[reagent-mail] 申请单 {} 发货方邮箱={}，通知发货处理人",
+                delegateTask.getVariable("applyNo"), consignorEmail);
 
         // 组装模板参数（仅业务白名单字段，从流程变量取）
         Map<String, Object> params = ReagentMailParamsHelper.buildTemplateParams(delegateTask);
 
         try {
-            reagentMailSendService.sendSingleMailToAddress(toMail, TEMPLATE_CODE, params);
+            reagentMailSendService.sendSingleMailToAddress(consignorEmail, TEMPLATE_CODE, params);
             // 发送成功后打标，供会签后续成员/异常重试场景跳过重复发送
             delegateTask.setVariable(VAR_MAIL_SENT, Boolean.TRUE);
-            log.info("[reagent-mail] 发货通知邮件已发送，收件人: {}", toMail);
+            log.info("[reagent-mail] 发货通知邮件已发送，收件人: {}", consignorEmail);
         } catch (Exception e) {
-            log.error("[reagent-mail] 发送失败，toMail: {}", toMail, e);
+            log.error("[reagent-mail] 发送失败，consignorEmail: {}", consignorEmail, e);
         }
     }
 

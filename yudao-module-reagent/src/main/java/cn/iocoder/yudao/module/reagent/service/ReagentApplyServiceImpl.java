@@ -150,6 +150,7 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
             variables.put("consignorAddress", StrUtil.nullToEmpty(apply.getConsignorAddress()));
             variables.put("consignorName", StrUtil.nullToEmpty(apply.getConsignorName()));
             variables.put("consignorPhone", StrUtil.nullToEmpty(apply.getConsignorPhone()));
+            variables.put("consignorEmail", StrUtil.nullToEmpty(apply.getConsignorEmail()));
             variables.put("freightSettlement", StrUtil.nullToEmpty(apply.getFreightSettlement()));
             variables.put("projectNo", StrUtil.nullToEmpty(apply.getProjectNo()));
             variables.put("transportTemp", StrUtil.nullToEmpty(apply.getTransportTemp()));

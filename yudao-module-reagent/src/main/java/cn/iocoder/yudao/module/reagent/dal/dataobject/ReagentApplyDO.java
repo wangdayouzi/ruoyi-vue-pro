@@ -40,6 +40,9 @@ public class ReagentApplyDO extends BaseDO {
     /** 发货联系电话 */
     private String consignorPhone;
 
+    /** 发货方邮箱：发货任务通知的收件人；留空则不发送邮件 */
+    private String consignorEmail;
+
     /** 发货区域：上海 / 宁波（前端选地址按钮写入，邮件按区域定向） */
     private String region;
 

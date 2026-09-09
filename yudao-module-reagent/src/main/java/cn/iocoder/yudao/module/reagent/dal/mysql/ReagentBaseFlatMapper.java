@@ -58,12 +58,16 @@ public interface ReagentBaseFlatMapper extends BaseMapperX<ReagentBaseFlatDO> {
     /** 物理删除（同步数据；重新同步可恢复） */
     int deleteByIdPhysical(@Param("id") Long id);
 
-    /** 按 试剂编号+批号 查扁平表行（打印补全 供应商/温度/规格 用，取一条） */
+    /** 按 试剂编号+批号 查扁平表行（打印补全 供应商/温度/规格 用，取一条）
+     *  注意：不要用 selectOne(...).last("LIMIT 1")——PG 下 MyBatis-Plus 会走 selectCursor，
+     *  游标未彻底关闭导致连接池复用时报 "statement 已经被关闭"（第二次调用必现 500）。
+     *  改为 selectList（完整读取并关闭）后取第一条。 */
     default ReagentBaseFlatDO selectByReagentCodeAndLotNo(String reagentCode, String lotNo) {
-        return selectOne(new LambdaQueryWrapperX<ReagentBaseFlatDO>()
+        List<ReagentBaseFlatDO> list = selectList(new LambdaQueryWrapperX<ReagentBaseFlatDO>()
                 .eq(ReagentBaseFlatDO::getReagentCode, reagentCode)
                 .eq(StrUtil.isNotBlank(lotNo), ReagentBaseFlatDO::getLotNo, lotNo)
                 .last("LIMIT 1"));
+        return CollUtil.isEmpty(list) ? null : list.get(0);
     }
 
     /** 最新同步时间（增量水位；表空返回 null） */

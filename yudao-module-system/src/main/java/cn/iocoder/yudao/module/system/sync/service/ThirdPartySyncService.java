@@ -329,11 +329,14 @@ public class ThirdPartySyncService {
         if (user == null) return;
         user.setNickname(dto.getNickname());
         if (StrUtil.isNotBlank(dto.getMobile())) user.setMobile(dto.getMobile());
-        if (StrUtil.isNotBlank(dto.getEmail())) user.setEmail(dto.getEmail());
+        // 邮箱：仅当本地邮箱为空时用钉钉邮箱填充，避免覆盖用户已维护的邮箱
+        String oldEmail = user.getEmail();
+        boolean emailWritten = StrUtil.isBlank(oldEmail) && StrUtil.isNotBlank(dto.getEmail());
+        if (emailWritten) user.setEmail(dto.getEmail());
         if (StrUtil.isNotBlank(dto.getAvatar())) user.setAvatar(dto.getAvatar());
         // TODO 诊断用日志：确认本次同步邮箱是否有值、是否写入（排查同步邮箱不生效）
-        log.info("[sync][用户更新] userId={}, nickname={}, 待写入邮箱={}, 是否写入={}",
-                userId, dto.getNickname(), dto.getEmail(), StrUtil.isNotBlank(dto.getEmail()));
+        log.info("[sync][用户更新] userId={}, nickname={}, 本地邮箱={}, 待写入邮箱={}, 是否写入={}",
+                userId, dto.getNickname(), oldEmail, dto.getEmail(), emailWritten);
         // 更新部门
         if (CollUtil.isNotEmpty(dto.getDeptIds())) {
             for (String sourceDeptId : dto.getDeptIds()) {

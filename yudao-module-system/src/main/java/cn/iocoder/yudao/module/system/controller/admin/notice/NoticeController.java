@@ -71,8 +71,7 @@ public class NoticeController {
     }
 
     @GetMapping("/page")
-    @Operation(summary = "获取通知公告列表")
-    @PreAuthorize("@ss.hasPermission('system:notice:query')")
+    @Operation(summary = "获取通知公告列表（首页展示，登录即可读，不限权限）")
     public CommonResult<PageResult<NoticeRespVO>> getNoticePage(@Validated NoticePageReqVO pageReqVO) {
         PageResult<NoticeDO> pageResult = noticeService.getNoticePage(pageReqVO);
         return success(BeanUtils.toBean(pageResult, NoticeRespVO.class));

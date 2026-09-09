@@ -26,7 +26,7 @@ final class ReagentMailParamsHelper {
     private static final String[] TEMPLATE_PARAM_KEYS = {
             "applyNo", "applicant", "region",
             "receiverUnit", "receiverName", "receiverPhone", "receiverAddress",
-            "consignorUnit", "consignorAddress", "consignorName", "consignorPhone",
+            "consignorUnit", "consignorAddress", "consignorName", "consignorPhone", "consignorEmail",
             "freightSettlement", "projectNo", "transportTemp", "hasTempLogger",
             "plannedShipDate", "note"
     };

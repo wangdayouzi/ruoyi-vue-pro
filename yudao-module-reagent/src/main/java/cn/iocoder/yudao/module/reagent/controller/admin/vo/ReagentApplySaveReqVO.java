@@ -33,6 +33,9 @@ public class ReagentApplySaveReqVO {
     @Schema(description = "发货联系电话", example = "021-XXXXXXXX")
     private String consignorPhone;
 
+    @Schema(description = "发货方邮箱：发货任务通知的收件人；留空则不发送邮件", example = "jhsh_sample@accurantbio.com")
+    private String consignorEmail;
+
     @Schema(description = "发货区域：上海 / 宁波（选地址按钮写入，邮件按区域定向）", example = "上海")
     private String region;
 
