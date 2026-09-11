@@ -8,17 +8,23 @@ import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.*;
 import cn.iocoder.yudao.module.reagent.dal.mysql.*;
 import cn.iocoder.yudao.module.reagent.dal.redis.no.ReagentNoRedisDAO;
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.reagent.enums.ErrorCodeConstants.*;
+import static cn.iocoder.yudao.module.reagent.enums.LogRecordConstants.*;
 
 /**
  * 发货单 Service 实现
@@ -55,6 +61,8 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = REAGENT_SHIPMENT_TYPE, subType = REAGENT_SHIPMENT_CONFIRM_SUB_TYPE, bizNo = "{{#shipment.id}}",
+            success = REAGENT_SHIPMENT_CONFIRM_SUCCESS)
     public Long confirmShipment(ReagentShipmentSaveReqVO reqVO) {
         // 1. 校验申请单存在且状态为待发货/部分发货
         ReagentApplyDO apply = validateApplyCanShip(reqVO.getApplyId());
@@ -62,7 +70,7 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
         // 2. 校验发货明细 & 数量合法性
         List<ReagentApplyItemDO> applyItems = reagentApplyItemMapper.selectListByApplyId(reqVO.getApplyId());
         for (ReagentShipmentItemVO itemVO : reqVO.getItems()) {
-            if (itemVO.getQuantityShipped() == null || itemVO.getQuantityShipped() <= 0) {
+            if (itemVO.getQuantityShipped() == null || itemVO.getQuantityShipped().compareTo(BigDecimal.ZERO) <= 0) {
                 throw exception(REAGENT_SHIPMENT_QTY_REQUIRED);
             }
             // 查找对应申请明细
@@ -71,8 +79,8 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
                     .findFirst()
                     .orElseThrow(() -> exception(REAGENT_APPLY_NO_ITEMS));
             // 累计发货不能超过需求
-            int newTotal = applyItem.getShippedQtyTotal() + itemVO.getQuantityShipped();
-            if (newTotal > applyItem.getRequestedQty()) {
+            BigDecimal newTotal = applyItem.getShippedQtyTotal().add(itemVO.getQuantityShipped());
+            if (newTotal.compareTo(applyItem.getRequestedQty()) > 0) {
                 throw exception(REAGENT_APPLY_QTY_EXCEEDED);
             }
         }
@@ -101,7 +109,7 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
             if (applyItem != null) {
                 ReagentApplyItemDO updateItem = new ReagentApplyItemDO();
                 updateItem.setId(applyItem.getId());
-                updateItem.setShippedQtyTotal(applyItem.getShippedQtyTotal() + itemVO.getQuantityShipped());
+                updateItem.setShippedQtyTotal(applyItem.getShippedQtyTotal().add(itemVO.getQuantityShipped()));
                 reagentApplyItemMapper.updateById(updateItem);
                 // 更新内存中的值，供后续判断使用
                 applyItem.setShippedQtyTotal(updateItem.getShippedQtyTotal());
@@ -111,7 +119,7 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
         // 6. 判定是否全部发货完成，更新状态 + 触发 Flowable 流程
         List<ReagentApplyItemDO> updatedItems = reagentApplyItemMapper.selectListByApplyId(reqVO.getApplyId());
         boolean allShipped = updatedItems.stream()
-                .allMatch(i -> i.getShippedQtyTotal() >= i.getRequestedQty());
+                .allMatch(i -> i.getShippedQtyTotal().compareTo(i.getRequestedQty()) >= 0);
 
         ReagentApplyDO updateApply = new ReagentApplyDO();
         updateApply.setId(reqVO.getApplyId());
@@ -135,6 +143,9 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
             log.info("[reagent] 申请单 {} 部分发货，状态更新为部分发货，等待继续发货", apply.getApplyNo());
         }
 
+        LogRecordContext.putVariable("apply", apply);
+        LogRecordContext.putVariable("shipment", shipment);
+        LogRecordContext.putVariable("shipmentItemCount", reqVO.getItems().size());
         return shipment.getId();
     }
 
@@ -159,6 +170,8 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = REAGENT_SHIPMENT_TYPE, subType = REAGENT_SHIPMENT_REVOKE_SUB_TYPE, bizNo = "{{#id}}",
+            success = REAGENT_SHIPMENT_REVOKE_SUCCESS)
     public void revokeShipment(Long id) {
         ReagentShipmentDO shipment = reagentShipmentMapper.selectById(id);
         if (shipment == null) {
@@ -173,7 +186,7 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
                 ReagentApplyItemDO updateItem = new ReagentApplyItemDO();
                 updateItem.setId(applyItem.getId());
                 updateItem.setShippedQtyTotal(
-                        Math.max(0, applyItem.getShippedQtyTotal() - item.getQuantityShipped()));
+                        applyItem.getShippedQtyTotal().subtract(item.getQuantityShipped()).max(BigDecimal.ZERO));
                 reagentApplyItemMapper.updateById(updateItem);
             }
         }
@@ -198,6 +211,7 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
             reagentApplyMapper.updateById(updateApply);
         }
         log.info("[reagent] 发货单 {} 已撤回，申请单 {} 状态已回退", shipment.getShipmentNo(), shipment.getApplyId());
+        LogRecordContext.putVariable("shipment", shipment);
     }
 
     // ==================== 私有方法 ====================
@@ -219,6 +233,8 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
     }
 
     @Override
+    @LogRecord(type = REAGENT_SHIPMENT_TYPE, subType = REAGENT_SHIPMENT_UPDATE_LOGISTICS_SUB_TYPE, bizNo = "{{#id}}",
+            success = REAGENT_SHIPMENT_UPDATE_LOGISTICS_SUCCESS)
     public void updateShipmentLogistics(Long id, String trackingNumber, String expressCompany) {
         ReagentShipmentDO shipment = reagentShipmentMapper.selectById(id);
         if (shipment == null) {
@@ -229,6 +245,25 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
         update.setTrackingNumber(trackingNumber);
         update.setExpressCompany(expressCompany);
         reagentShipmentMapper.updateById(update);
+        LogRecordContext.putVariable("shipment", shipment);
+        LogRecordContext.putVariable("logisticsChange", buildLogisticsChange(shipment, trackingNumber, expressCompany));
+    }
+
+    private String buildLogisticsChange(ReagentShipmentDO shipment, String trackingNumber, String expressCompany) {
+        List<String> changes = new ArrayList<>(2);
+        addFieldChange(changes, "物流单号", shipment.getTrackingNumber(), trackingNumber);
+        addFieldChange(changes, "快递公司", shipment.getExpressCompany(), expressCompany);
+        return changes.isEmpty() ? "未变更字段" : String.join("；", changes);
+    }
+
+    private void addFieldChange(List<String> changes, String fieldName, String oldValue, String newValue) {
+        if (!Objects.equals(oldValue, newValue)) {
+            changes.add("【" + fieldName + "】从【" + defaultString(oldValue) + "】修改为【" + defaultString(newValue) + "】");
+        }
+    }
+
+    private String defaultString(String value) {
+        return value == null ? "" : value;
     }
 
 }

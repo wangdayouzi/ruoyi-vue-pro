@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.service;
 
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentLabelPrintReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentLabelPrintRespVO;
 import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentLabelPrintMapper;
@@ -22,14 +23,22 @@ import java.util.Map;
 public class ReagentLabelPrintServiceImpl implements ReagentLabelPrintService {
 
     private static final String TEMPLATE = "reagent-label-print.xlsx";
+    /** 查询结果过多会把打印表单顶到屏幕外，标签页固定每页展示 5 条。 */
+    private static final int QUERY_PAGE_SIZE = 5;
 
     @Resource
     private ReagentLabelPrintMapper reagentLabelPrintMapper;
 
     @Override
-    public List<ReagentLabelPrintRespVO> getByBasId(String basId) {
-        log.info("[getByBasId] 查询试剂标签信息，basId = {}", basId);
-        return reagentLabelPrintMapper.selectByBasId(basId);
+    public PageResult<ReagentLabelPrintRespVO> getPageByBasId(String basId, Integer pageNo) {
+        int offset = (pageNo - 1) * QUERY_PAGE_SIZE;
+        Long total = reagentLabelPrintMapper.selectCountByBasId(basId);
+        log.info("[getPageByBasId] 查询试剂标签信息，basId = {}, pageNo = {}, total = {}", basId, pageNo, total);
+        if (total == 0) {
+            return PageResult.empty();
+        }
+        List<ReagentLabelPrintRespVO> list = reagentLabelPrintMapper.selectPageByBasId(basId, offset, QUERY_PAGE_SIZE);
+        return new PageResult<>(list, total);
     }
 
     @Override
@@ -39,6 +48,7 @@ public class ReagentLabelPrintServiceImpl implements ReagentLabelPrintService {
                 .put("basId", reqVO.getBasId())
                 .put("batchNo", reqVO.getBatchNo())
                 .put("storageCondition", reqVO.getStorageCondition())
+                .put("storageLocation", reqVO.getStorageLocation())
                 .put("expireDate", reqVO.getExpireDate())
                 .put("receiverName", reqVO.getReceiverName())
                 .put("receiveDate", reqVO.getReceiveDate())

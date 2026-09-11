@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -62,9 +63,9 @@ public class ReagentApplyItemDO extends BaseDO {
     private LocalDateTime expirationDate;
 
     /** 需求总数量 */
-    private Integer requestedQty;
+    private BigDecimal requestedQty;
 
     /** 已累计发货数量 */
-    private Integer shippedQtyTotal;
+    private BigDecimal shippedQtyTotal;
 
 }

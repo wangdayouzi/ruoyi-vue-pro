@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 /**
  * 发货单明细表 DO
  *
@@ -33,6 +35,6 @@ public class ReagentShipmentItemDO extends BaseDO {
     private String lotNo;
 
     /** 本次实际发货数量 */
-    private Integer quantityShipped;
+    private BigDecimal quantityShipped;
 
 }

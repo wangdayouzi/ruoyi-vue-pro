@@ -7,7 +7,7 @@ import lombok.Data;
 /**
  * 试剂标签打印 Req VO
  *
- * 打印时前端将 名称/BASID/批号/存储条件/过期日期/接收人/接收日期/备注 一起提交，
+ * 打印时前端将 名称/BASID/批号/存储条件/存储位置/过期日期/接收人/接收日期/备注 一起提交，
  * 后端渲染 Excel 模板（键值对表格，每行一个键值对）。
  */
 @Schema(description = "管理后台 - 试剂标签打印 Req VO")
@@ -26,6 +26,9 @@ public class ReagentLabelPrintReqVO {
 
     @Schema(description = "存储条件")
     private String storageCondition;
+
+    @Schema(description = "存储位置")
+    private String storageLocation;
 
     @Schema(description = "过期日期")
     private String expireDate;

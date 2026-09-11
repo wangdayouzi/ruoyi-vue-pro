@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -251,15 +252,18 @@ public class ReagentPrintService {
                 row.put("content", PrintUtil.fmtBlk(content));
                 row.put("catNo", PrintUtil.fmtBlk(catNo));
                 row.put("lotNo", lotNo);
-                row.put("quantityShipped", 0);
+                row.put("quantityShipped", BigDecimal.ZERO);
                 row.put("storageTemp", storageTemp);
                 row.put("expirationDate", PrintUtil.fmtBlk(expirationDate));
                 merged.put(mergeKey, row);
             }
             // 累加数量
-            int qty = si.getQuantityShipped() != null ? si.getQuantityShipped() : 0;
-            row.put("quantityShipped", ((Integer) row.get("quantityShipped")) + qty);
+            BigDecimal qty = si.getQuantityShipped() != null ? si.getQuantityShipped() : BigDecimal.ZERO;
+            row.put("quantityShipped", ((BigDecimal) row.get("quantityShipped")).add(qty));
         }
+        // 模板的数量单元格使用通用格式，转为两位小数字符串以确保打印时保留末尾 0。
+        merged.values().forEach(row -> row.put("quantityShipped",
+                ((BigDecimal) row.get("quantityShipped")).setScale(2).toPlainString()));
         return new ArrayList<>(merged.values());
     }
 }

@@ -14,12 +14,16 @@ import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentApplyMapper;
 import cn.iocoder.yudao.module.reagent.dal.redis.no.ReagentNoRedisDAO;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.service.impl.DiffParseFunction;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,6 +32,7 @@ import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.reagent.enums.ErrorCodeConstants.*;
+import static cn.iocoder.yudao.module.reagent.enums.LogRecordConstants.*;
 
 /**
  * 试剂申请单 Service 实现
@@ -72,6 +77,8 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = REAGENT_APPLY_TYPE, subType = REAGENT_APPLY_CREATE_SUB_TYPE, bizNo = "{{#apply.id}}",
+            success = REAGENT_APPLY_CREATE_SUCCESS)
     public Long createApply(ReagentApplySaveReqVO createReqVO) {
         // 生成申请单号
         String applyNo = generateApplyNo();
@@ -90,11 +97,14 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         // 保存明细
         saveApplyItems(apply.getId(), createReqVO.getItems());
 
+        LogRecordContext.putVariable("apply", apply);
         return apply.getId();
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = REAGENT_APPLY_TYPE, subType = REAGENT_APPLY_UPDATE_SUB_TYPE, bizNo = "{{#updateReqVO.id}}",
+            success = REAGENT_APPLY_UPDATE_SUCCESS)
     public void updateApply(ReagentApplySaveReqVO updateReqVO) {
         ReagentApplyDO apply = validateApplyExists(updateReqVO.getId());
         if (apply.getStatus() != STATUS_DRAFT && apply.getStatus() != STATUS_REJECTED) {
@@ -108,17 +118,26 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         // 先删后插明细
         reagentApplyItemMapper.deleteByApplyId(updateReqVO.getId());
         saveApplyItems(updateReqVO.getId(), updateReqVO.getItems());
+
+        LogRecordContext.putVariable("apply", apply);
+        LogRecordContext.putVariable(DiffParseFunction.OLD_OBJECT,
+                BeanUtils.toBean(apply, ReagentApplySaveReqVO.class));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = REAGENT_APPLY_TYPE, subType = REAGENT_APPLY_DELETE_SUB_TYPE, bizNo = "{{#id}}",
+            success = REAGENT_APPLY_DELETE_SUCCESS)
     public void deleteApply(Long id) {
-        validateApplyExists(id);
+        ReagentApplyDO apply = validateApplyExists(id);
         reagentApplyMapper.deleteById(id);
+        LogRecordContext.putVariable("apply", apply);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = REAGENT_APPLY_TYPE, subType = REAGENT_APPLY_SUBMIT_SUB_TYPE, bizNo = "{{#id}}",
+            success = REAGENT_APPLY_SUBMIT_SUCCESS)
     public void submitApply(Long id) {
         ReagentApplyDO apply = validateApplyExists(id);
         if (apply.getStatus() != STATUS_DRAFT && apply.getStatus() != STATUS_REJECTED) {
@@ -173,6 +192,7 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         // 更新状态为待发货
         apply.setStatus(STATUS_PENDING_SHIP);
         reagentApplyMapper.updateById(apply);
+        LogRecordContext.putVariable("apply", apply);
     }
 
     /**
@@ -213,6 +233,8 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = REAGENT_APPLY_TYPE, subType = REAGENT_APPLY_REJECT_SUB_TYPE, bizNo = "{{#reqVO.id}}",
+            success = REAGENT_APPLY_REJECT_SUCCESS)
     public void rejectApply(ReagentApplyRejectReqVO reqVO) {
         ReagentApplyDO apply = validateApplyExists(reqVO.getId());
         if (apply.getStatus() != STATUS_PENDING_SHIP) {
@@ -224,6 +246,7 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         apply.setRemark(reqVO.getRemark());
         reagentApplyMapper.updateById(apply);
         log.info("[reagent] 申请单 {} 已拒单退回，理由: {}", apply.getApplyNo(), reqVO.getRemark());
+        LogRecordContext.putVariable("apply", apply);
     }
 
     // ==================== 私有方法 ====================
@@ -232,7 +255,7 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
         for (ReagentApplyItemVO itemVO : itemVOs) {
             ReagentApplyItemDO item = BeanUtils.toBean(itemVO, ReagentApplyItemDO.class);
             item.setApplyId(applyId);
-            item.setShippedQtyTotal(0);
+            item.setShippedQtyTotal(BigDecimal.ZERO);
             reagentApplyItemMapper.insert(item);
         }
     }

@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.reagent.controller.admin;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentLabelPrintReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentLabelPrintRespVO;
 import cn.iocoder.yudao.module.reagent.service.ReagentLabelPrintService;
@@ -19,8 +20,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -41,11 +40,13 @@ public class ReagentLabelPrintController {
     private ReagentLabelPrintService reagentLabelPrintService;
 
     @GetMapping("/query")
-    @Operation(summary = "根据 BASID 查询试剂标签信息（只读 SQL Server）")
+    @Operation(summary = "根据 BASID 分页查询试剂标签信息（只读 SQL Server，每页固定 5 条）")
     @Parameter(name = "basId", description = "试剂编号 BASID（必填）", required = true)
     @PreAuthorize("@ss.hasPermission('reagent:label-print:query')")
-    public CommonResult<List<ReagentLabelPrintRespVO>> getLabelPrint(@RequestParam("basId") @NotBlank(message = "BASID 不能为空") String basId) {
-        return success(reagentLabelPrintService.getByBasId(basId));
+    public CommonResult<PageResult<ReagentLabelPrintRespVO>> getLabelPrint(
+            @RequestParam("basId") @NotBlank(message = "BASID 不能为空") String basId,
+            @RequestParam(value = "pageNo", defaultValue = "1") @jakarta.validation.constraints.Min(value = 1, message = "页码最小值为 1") Integer pageNo) {
+        return success(reagentLabelPrintService.getPageByBasId(basId, pageNo));
     }
 
     @PostMapping("/print")

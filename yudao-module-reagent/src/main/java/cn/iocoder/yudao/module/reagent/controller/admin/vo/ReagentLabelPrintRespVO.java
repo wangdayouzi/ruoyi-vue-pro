@@ -21,6 +21,9 @@ public class ReagentLabelPrintRespVO {
     @Schema(description = "批号")
     private String batchNo;
 
+    @Schema(description = "存储位置")
+    private String storageLocation;
+
     @Schema(description = "过期日期")
     private String expireDate;
 

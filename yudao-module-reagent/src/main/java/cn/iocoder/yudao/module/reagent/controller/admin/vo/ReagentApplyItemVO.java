@@ -1,10 +1,12 @@
 package cn.iocoder.yudao.module.reagent.controller.admin.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -52,11 +54,12 @@ public class ReagentApplyItemVO {
     @Schema(description = "过期日期")
     private LocalDateTime expirationDate;
 
-    @Schema(description = "需求总数量", requiredMode = Schema.RequiredMode.REQUIRED, example = "5")
+    @Schema(description = "需求总数量", requiredMode = Schema.RequiredMode.REQUIRED, example = "5.00")
     @NotNull(message = "需求数量不能为空")
-    private Integer requestedQty;
+    @DecimalMin(value = "0.01", message = "需求数量必须大于 0")
+    private BigDecimal requestedQty;
 
-    @Schema(description = "已累计发货数量", example = "0")
-    private Integer shippedQtyTotal;
+    @Schema(description = "已累计发货数量", example = "0.00")
+    private BigDecimal shippedQtyTotal;
 
 }

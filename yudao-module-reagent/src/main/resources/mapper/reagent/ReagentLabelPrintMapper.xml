@@ -7,21 +7,41 @@
         SELECT sdpm002.pm00202 AS 名称,
                sdpm026.pm02603 AS BASID,
                sdpm026.pm02631 AS 批号,
-               sdpm027.pm02725 AS 过期日期
+               sdpm027.pm02725 AS 过期日期,
+               sdpm027.pm02726 AS 存储位置
         FROM sdpm026 WITH (NOLOCK)
         LEFT JOIN sdpm027 WITH (NOLOCK) ON sdpm027.pm02701 = sdpm026.pm02601
         LEFT JOIN sdpm002 WITH (NOLOCK) ON sdpm002.pm00200 = sdpm027.pm02703
         WHERE sdpm026.pm02603 LIKE '%' + #{basId} + '%'   /* BASID 模糊查询 */
     -->
-    <select id="selectByBasId" parameterType="String" resultType="cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentLabelPrintRespVO">
-        SELECT sdpm002.pm00202 AS name,
-               sdpm026.pm02603 AS basId,
-               sdpm026.pm02631 AS batchNo,
-               sdpm027.pm02725 AS expireDate
+    <sql id="labelPrintFromWhere">
         FROM dbo.sdpm026 WITH (NOLOCK)
         LEFT JOIN dbo.sdpm027 WITH (NOLOCK) ON sdpm027.pm02701 = sdpm026.pm02601
         LEFT JOIN dbo.sdpm002 WITH (NOLOCK) ON sdpm002.pm00200 = sdpm027.pm02703
         WHERE sdpm026.pm02603 LIKE '%' + #{basId} + '%'
+    </sql>
+
+    <select id="selectCountByBasId" resultType="long">
+        SELECT COUNT(1)
+        <include refid="labelPrintFromWhere"/>
+    </select>
+
+    <select id="selectPageByBasId" resultType="cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentLabelPrintRespVO">
+        SELECT name, basId, batchNo, storageLocation, expireDate
+        FROM (
+            SELECT sdpm002.pm00202 AS name,
+                   sdpm026.pm02603 AS basId,
+                   sdpm026.pm02631 AS batchNo,
+                   sdpm027.pm02726 AS storageLocation,
+                   sdpm027.pm02725 AS expireDate,
+                   ROW_NUMBER() OVER (
+                       ORDER BY sdpm026.pm02603 ASC, sdpm026.pm02631 ASC,
+                                sdpm027.pm02725 ASC, sdpm027.pm02701 ASC
+                   ) AS rowNum
+            <include refid="labelPrintFromWhere"/>
+        ) pageRows
+        WHERE rowNum &gt; #{offset} AND rowNum &lt;= #{offset} + #{pageSize}
+        ORDER BY rowNum ASC
     </select>
 
 </mapper>

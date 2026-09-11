@@ -27,4 +27,11 @@ public interface ErrorCodeConstants {
     ErrorCode REAGENT_SHIPMENT_NOT_EXISTS  = new ErrorCode(1_050_003_000, "发货单不存在");
     ErrorCode REAGENT_SHIPMENT_QTY_REQUIRED = new ErrorCode(1_050_003_002, "本次发货数量必须大于0");
 
+    // ========== 试剂标签打印 (1-050-004-000) ==========
+    ErrorCode REAGENT_LABEL_PRINTER_NOT_AVAILABLE = new ErrorCode(1_050_004_000, "标签打印机不存在或未启用");
+    ErrorCode REAGENT_LABEL_JOB_NOT_EXISTS = new ErrorCode(1_050_004_001, "标签打印任务不存在");
+    ErrorCode REAGENT_LABEL_AGENT_UNAUTHORIZED = new ErrorCode(1_050_004_002, "标签打印代理身份校验失败");
+    ErrorCode REAGENT_LABEL_JOB_STATUS_INVALID = new ErrorCode(1_050_004_003, "标签打印任务状态不合法");
+    ErrorCode REAGENT_LABEL_TEMPLATE_NOT_AVAILABLE = new ErrorCode(1_050_004_004, "标签模板不存在或未启用");
+
 }

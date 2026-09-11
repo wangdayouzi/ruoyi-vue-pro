@@ -19,6 +19,12 @@ public class ReagentApplyPageReqVO extends PageParam {
     @Schema(description = "接收方单位，模糊匹配")
     private String receiverUnit;
 
+    @Schema(description = "物流单号，精确匹配")
+    private String trackingNumber;
+
+    @Schema(description = "试剂明细名称，模糊匹配")
+    private String reagentName;
+
     @Schema(description = "状态：0草稿, 1待发货, 2部分发货, 3已完成, 4已拒单退回")
     private Integer status;
 

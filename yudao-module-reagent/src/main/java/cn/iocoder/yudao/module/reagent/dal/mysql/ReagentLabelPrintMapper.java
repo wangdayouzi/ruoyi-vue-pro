@@ -18,12 +18,10 @@ import java.util.List;
 @Mapper
 public interface ReagentLabelPrintMapper {
 
-    /**
-     * 根据 BASID 查询试剂标签信息
-     *
-     * @param basId 试剂编号（必填）
-     * @return 匹配的试剂标签信息列表（一个 BASID 可能对应多个批号）
-     */
-    List<ReagentLabelPrintRespVO> selectByBasId(@Param("basId") String basId);
+    Long selectCountByBasId(@Param("basId") String basId);
+
+    List<ReagentLabelPrintRespVO> selectPageByBasId(@Param("basId") String basId,
+                                                     @Param("offset") Integer offset,
+                                                     @Param("pageSize") Integer pageSize);
 
 }
