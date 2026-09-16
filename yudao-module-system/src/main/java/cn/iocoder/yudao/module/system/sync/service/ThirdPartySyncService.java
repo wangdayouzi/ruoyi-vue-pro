@@ -296,7 +296,7 @@ public class ThirdPartySyncService {
         user.setEmail(dto.getEmail());
         user.setAvatar(dto.getAvatar());
         user.setPassword(DEFAULT_PASSWORD);
-        user.setStatus(0); // 正常
+        user.setStatus(1); // 停用：由管理员核验账号与权限后手动启用
 
         // 设置部门：取第一个匹配的部门
         if (CollUtil.isNotEmpty(dto.getDeptIds())) {
