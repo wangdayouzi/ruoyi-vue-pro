@@ -7,6 +7,8 @@ import cn.iocoder.yudao.module.system.controller.admin.social.vo.user.SocialUser
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 @Mapper
 public interface SocialUserMapper extends BaseMapperX<SocialUserDO> {
 
@@ -19,6 +21,10 @@ public interface SocialUserMapper extends BaseMapperX<SocialUserDO> {
     default SocialUserDO selectByTypeAndOpenid(Integer type, String openid) {
         return selectFirstOne(SocialUserDO::getType, type,
                 SocialUserDO::getOpenid, openid);
+    }
+
+    default List<SocialUserDO> selectListByType(Integer type) {
+        return selectList(SocialUserDO::getType, type);
     }
 
     default PageResult<SocialUserDO> selectPage(SocialUserPageReqVO reqVO) {

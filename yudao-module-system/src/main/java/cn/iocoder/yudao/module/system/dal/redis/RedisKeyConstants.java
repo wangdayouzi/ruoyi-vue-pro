@@ -68,6 +68,14 @@ public interface RedisKeyConstants {
     String OAUTH2_ACCESS_TOKEN = "oauth2_access_token:%s";
 
     /**
+     * 钉钉首次设置本地密码的一次性凭证。
+     *
+     * KEY 格式：dingtalk_password_setup_token:{token}
+     * VALUE 数据格式：String 用户编号；有效期由业务代码控制。
+     */
+    String DINGTALK_PASSWORD_SETUP_TOKEN = "dingtalk_password_setup_token:%s";
+
+    /**
      * 站内信模版的缓存
      * <p>
      * KEY 格式：notify_template:{code}

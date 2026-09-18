@@ -1,9 +1,11 @@
 package cn.iocoder.yudao.module.system.service.oauth2;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
+import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
 import cn.iocoder.yudao.framework.common.enums.UserTypeEnum;
 import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.module.system.controller.admin.auth.vo.AuthLoginRespVO;
@@ -11,6 +13,7 @@ import cn.iocoder.yudao.module.system.dal.dataobject.oauth2.OAuth2AccessTokenDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserBindDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.user.AdminUserDO;
+import cn.iocoder.yudao.module.system.dal.redis.RedisKeyConstants;
 import cn.iocoder.yudao.module.system.dal.mysql.social.SocialUserBindMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.social.SocialUserMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.user.AdminUserMapper;
@@ -19,13 +22,21 @@ import cn.iocoder.yudao.module.system.framework.oauth2.DingTalkOAuthProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.AUTH_LOGIN_USER_DISABLED;
+import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.AUTH_PASSWORD_ALREADY_INITIALIZED;
+import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.AUTH_PASSWORD_SETUP_TOKEN_INVALID;
 import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.AUTH_THIRD_LOGIN_NOT_BIND;
 import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.USER_NOT_EXISTS;
 
@@ -43,23 +54,37 @@ public class DingTalkOAuthService {
     private static final String AUTHORIZE_URL  = "https://login.dingtalk.com/oauth2/auth";
     private static final String TOKEN_URL      = "https://api.dingtalk.com/v1.0/oauth2/userAccessToken";
     private static final String USER_ME_URL    = "https://api.dingtalk.com/v1.0/contact/users/me";
+    private static final long PASSWORD_SETUP_TOKEN_EXPIRE_SECONDS = 10 * 60;
+    /**
+     * Redis 6.2 才支持 GETDEL；使用 Lua 兼容旧版本，并保证凭证只能使用一次。
+     */
+    private static final DefaultRedisScript<String> GET_AND_DELETE_SCRIPT = new DefaultRedisScript<>(
+            "local value = redis.call('GET', KEYS[1]); "
+                    + "if value then redis.call('DEL', KEYS[1]); end; "
+                    + "return value;", String.class);
 
     private final DingTalkOAuthProperties properties;
     private final SocialUserMapper socialUserMapper;
     private final SocialUserBindMapper socialUserBindMapper;
     private final AdminUserMapper adminUserMapper;
     private final OAuth2TokenService oauth2TokenService;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final PasswordEncoder passwordEncoder;
 
     public DingTalkOAuthService(DingTalkOAuthProperties properties,
                                  SocialUserMapper socialUserMapper,
                                  SocialUserBindMapper socialUserBindMapper,
                                  AdminUserMapper adminUserMapper,
-                                 OAuth2TokenService oauth2TokenService) {
+                                 OAuth2TokenService oauth2TokenService,
+                                 StringRedisTemplate stringRedisTemplate,
+                                 PasswordEncoder passwordEncoder) {
         this.properties = properties;
         this.socialUserMapper = socialUserMapper;
         this.socialUserBindMapper = socialUserBindMapper;
         this.adminUserMapper = adminUserMapper;
         this.oauth2TokenService = oauth2TokenService;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /** 获取前端地址 */
@@ -111,7 +136,57 @@ public class DingTalkOAuthService {
             throw exception(AUTH_THIRD_LOGIN_NOT_BIND);
         }
 
-        // 4. 创建 token
+        // 4. 校验本地账户状态。此前钉钉 OAuth 会绕过该校验，导致停用账户仍可登录。
+        AdminUserDO user = adminUserMapper.selectById(userId);
+        if (user == null) {
+            throw exception(USER_NOT_EXISTS);
+        }
+        if (CommonStatusEnum.isDisable(user.getStatus())) {
+            throw exception(AUTH_LOGIN_USER_DISABLED);
+        }
+
+        // 5. 首次认证仅返回一次性设置密码凭证，不能直接获得正式访问令牌。
+        if (!Boolean.TRUE.equals(user.getPasswordInitialized())) {
+            String passwordSetupToken = IdUtil.fastSimpleUUID();
+            stringRedisTemplate.opsForValue().set(
+                    String.format(RedisKeyConstants.DINGTALK_PASSWORD_SETUP_TOKEN, passwordSetupToken),
+                    userId.toString(), PASSWORD_SETUP_TOKEN_EXPIRE_SECONDS, TimeUnit.SECONDS);
+            return AuthLoginRespVO.builder()
+                    .passwordSetupRequired(true)
+                    .passwordSetupToken(passwordSetupToken)
+                    .build();
+        }
+
+        // 6. 创建正式 token
+        OAuth2AccessTokenDO token = oauth2TokenService.createAccessToken(
+                userId, UserTypeEnum.ADMIN.getValue(), "default", null);
+        return BeanUtil.toBean(token, AuthLoginRespVO.class);
+    }
+
+    /**
+     * 使用钉钉认证后发放的一次性凭证，首次设置本地登录密码并签发正式 Token。
+     */
+    public AuthLoginRespVO initializePassword(String passwordSetupToken, String password) {
+        String redisKey = String.format(RedisKeyConstants.DINGTALK_PASSWORD_SETUP_TOKEN, passwordSetupToken);
+        String userIdValue = stringRedisTemplate.execute(GET_AND_DELETE_SCRIPT, Collections.singletonList(redisKey));
+        if (StrUtil.isBlank(userIdValue)) {
+            throw exception(AUTH_PASSWORD_SETUP_TOKEN_INVALID);
+        }
+        Long userId = Long.valueOf(userIdValue);
+        AdminUserDO user = adminUserMapper.selectById(userId);
+        if (user == null) {
+            throw exception(USER_NOT_EXISTS);
+        }
+        if (CommonStatusEnum.isDisable(user.getStatus())) {
+            throw exception(AUTH_LOGIN_USER_DISABLED);
+        }
+        if (Boolean.TRUE.equals(user.getPasswordInitialized())) {
+            throw exception(AUTH_PASSWORD_ALREADY_INITIALIZED);
+        }
+
+        adminUserMapper.updateById(new AdminUserDO().setId(userId)
+                .setPassword(passwordEncoder.encode(password))
+                .setPasswordInitialized(true));
         OAuth2AccessTokenDO token = oauth2TokenService.createAccessToken(
                 userId, UserTypeEnum.ADMIN.getValue(), "default", null);
         return BeanUtil.toBean(token, AuthLoginRespVO.class);

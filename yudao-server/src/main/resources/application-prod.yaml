@@ -221,6 +221,8 @@ yudao:
   sync:
     parent-dept-id: 100   # 同步部门挂到哪个本地部门下
     default-role-id: 2  # 同步用户默认角色
+    dingtalk:
+      auto-disable-missing-users: true # 完整同步中连续两次未出现的钉钉用户自动停用
 
 justauth:
   enabled: true

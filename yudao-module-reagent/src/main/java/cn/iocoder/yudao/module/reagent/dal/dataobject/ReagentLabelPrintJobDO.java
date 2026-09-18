@@ -31,6 +31,8 @@ public class ReagentLabelPrintJobDO extends BaseDO {
     /** 标签字段 JSON 快照 */
     private String dataSnapshot;
     private Integer copies;
+    /** b-PAC 裁切方式，由页面选择后固化到任务。 */
+    private String printCutMode;
     private Integer status;
     /** 领取令牌，只有持有令牌的代理能回写结果 */
     private String claimToken;

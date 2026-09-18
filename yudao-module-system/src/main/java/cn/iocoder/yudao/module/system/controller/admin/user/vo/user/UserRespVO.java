@@ -28,6 +28,10 @@ public class UserRespVO{
     @ExcelProperty("用户昵称")
     private String nickname;
 
+    @Schema(description = "员工工号", example = "A0001")
+    @ExcelProperty("员工工号")
+    private String employeeNo;
+
     @Schema(description = "备注", example = "我是一个用户")
     private String remark;
 

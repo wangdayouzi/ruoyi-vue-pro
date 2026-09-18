@@ -33,6 +33,11 @@ public class UserSaveReqVO {
     @DiffLogField(name = "用户昵称")
     private String nickname;
 
+    @Schema(description = "员工工号", example = "A0001")
+    @Size(max = 64, message = "员工工号长度不能超过 64 个字符")
+    @DiffLogField(name = "员工工号")
+    private String employeeNo;
+
     @Schema(description = "备注", example = "我是一个用户")
     @DiffLogField(name = "备注")
     private String remark;

@@ -71,6 +71,7 @@ public class ReagentLabelPrintJobServiceImpl implements ReagentLabelPrintJobServ
         job.setTemplateCode(reqVO.getTemplateCode());
         job.setDataSnapshot(JSONUtil.toJsonStr(reqVO.getLabel()));
         job.setCopies(reqVO.getCopies());
+        job.setPrintCutMode(reqVO.getPrintCutMode());
         job.setPrintedCount(0);
         job.setStatus(ReagentLabelPrintJobDO.STATUS_PENDING);
         // 任务编号在入库前生成，兼容 job_no 设为 NOT NULL 的 PostgreSQL / MySQL 表结构。
@@ -118,6 +119,7 @@ public class ReagentLabelPrintJobServiceImpl implements ReagentLabelPrintJobServ
             respVO.setTemplateCode(job.getTemplateCode());
             respVO.setDataSnapshot(job.getDataSnapshot());
             respVO.setCopies(job.getCopies());
+            respVO.setPrintCutMode(job.getPrintCutMode());
             return respVO;
         }
         return null;

@@ -34,6 +34,12 @@ public interface SocialUserBindMapper extends BaseMapperX<SocialUserBindDO> {
                 .eq(SocialUserBindDO::getUserType, userType));
     }
 
+    default List<SocialUserBindDO> selectListByUserTypeAndSocialType(Integer userType, Integer socialType) {
+        return selectList(new LambdaQueryWrapperX<SocialUserBindDO>()
+                .eq(SocialUserBindDO::getUserType, userType)
+                .eq(SocialUserBindDO::getSocialType, socialType));
+    }
+
     default SocialUserBindDO selectByUserIdAndUserTypeAndSocialType(Long userId, Integer userType, Integer socialType) {
         return selectOne(new LambdaQueryWrapperX<SocialUserBindDO>()
                 .eq(SocialUserBindDO::getUserId, userId)

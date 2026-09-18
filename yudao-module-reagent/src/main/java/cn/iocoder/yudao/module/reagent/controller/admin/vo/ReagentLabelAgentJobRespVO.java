@@ -12,4 +12,5 @@ public class ReagentLabelAgentJobRespVO {
     private String templateCode;
     private String dataSnapshot;
     private Integer copies;
+    private String printCutMode;
 }

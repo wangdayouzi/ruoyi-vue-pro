@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.system.service.auth;
 
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.IdUtil;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
 import cn.iocoder.yudao.framework.common.enums.UserTypeEnum;
 import cn.iocoder.yudao.framework.common.util.monitor.TracerUtils;
@@ -17,6 +18,7 @@ import cn.iocoder.yudao.module.system.controller.admin.auth.vo.*;
 import cn.iocoder.yudao.module.system.convert.auth.AuthConvert;
 import cn.iocoder.yudao.module.system.dal.dataobject.oauth2.OAuth2AccessTokenDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.user.AdminUserDO;
+import cn.iocoder.yudao.module.system.dal.redis.RedisKeyConstants;
 import cn.iocoder.yudao.module.system.enums.logger.LoginLogTypeEnum;
 import cn.iocoder.yudao.module.system.enums.logger.LoginResultEnum;
 import cn.iocoder.yudao.module.system.enums.oauth2.OAuth2ClientConstants;
@@ -37,8 +39,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.util.servlet.ServletUtils.getClientIP;
@@ -52,6 +56,8 @@ import static cn.iocoder.yudao.module.system.enums.ErrorCodeConstants.*;
 @Service
 @Slf4j
 public class AdminAuthServiceImpl implements AdminAuthService {
+
+    private static final long PASSWORD_SETUP_TOKEN_EXPIRE_SECONDS = 10 * 60;
 
     @Resource
     private AdminUserService userService;
@@ -69,6 +75,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private CaptchaService captchaService;
     @Resource
     private SmsCodeApi smsCodeApi;
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     /**
      * 验证码的开关，默认为 true
@@ -209,6 +217,19 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private AuthLoginRespVO createTokenAfterLoginSuccess(AdminUserDO user, String username, LoginLogTypeEnum logType) {
         // 统一校验用户状态，避免短信、社交等登录方式遗漏
         validateUserStatus(user, username, logType);
+
+        // 钉钉同步用户尚未设置本地密码时，任一登录方式均不可获得正式访问令牌。
+        // 对于仍保留旧密码的存量同步用户，账号密码校验通过后会在这里进入首次设置密码流程。
+        if (!Boolean.TRUE.equals(user.getPasswordInitialized())) {
+            String passwordSetupToken = IdUtil.fastSimpleUUID();
+            stringRedisTemplate.opsForValue().set(
+                    String.format(RedisKeyConstants.DINGTALK_PASSWORD_SETUP_TOKEN, passwordSetupToken),
+                    user.getId().toString(), PASSWORD_SETUP_TOKEN_EXPIRE_SECONDS, TimeUnit.SECONDS);
+            return AuthLoginRespVO.builder()
+                    .passwordSetupRequired(true)
+                    .passwordSetupToken(passwordSetupToken)
+                    .build();
+        }
 
         // 插入登陆日志
         createLoginLog(user.getId(), username, logType, LoginResultEnum.SUCCESS);

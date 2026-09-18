@@ -35,6 +35,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -157,6 +159,14 @@ public class AuthController {
         return success(true);
     }
 
+    @PostMapping("/dingtalk/initialize-password")
+    @PermitAll
+    @Operation(summary = "钉钉首次认证后设置本地登录密码")
+    public CommonResult<AuthLoginRespVO> initializeDingTalkPassword(
+            @RequestBody @Valid AuthDingTalkInitializePasswordReqVO reqVO) {
+        return success(dingTalkOAuthService.initializePassword(reqVO.getPasswordSetupToken(), reqVO.getPassword()));
+    }
+
     // ========== 社交登录相关 ==========
 
     @GetMapping("/social-auth-redirect")
@@ -200,14 +210,21 @@ public class AuthController {
         String targetPath = dingTalkOAuthService.parseRedirectFromState(state, redirect);
         try {
             AuthLoginRespVO loginResp = dingTalkOAuthService.handleCallback(authCode);
+            if (Boolean.TRUE.equals(loginResp.getPasswordSetupRequired())) {
+                response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + targetPath
+                        + "?passwordSetupRequired=true&passwordSetupToken=" + loginResp.getPasswordSetupToken());
+                return;
+            }
             response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + targetPath
                     + "?token=" + loginResp.getAccessToken()
                     + "&refreshToken=" + loginResp.getRefreshToken()
                     + "&expiresTime=" + loginResp.getExpiresTime());
         } catch (Exception e) {
             log.error("[DingTalkOAuth] 登录失败", e);
-            response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + targetPath
-                    + "?error=" + e.getMessage());
+            // 失败时必须落到登录页：根路由需要登录态，会被路由守卫再次重定向而丢失错误信息。
+            response.sendRedirect(dingTalkOAuthService.getFrontendUrl() + "/login?error="
+                    + URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8)
+                    + "&redirect=" + URLEncoder.encode(targetPath, StandardCharsets.UTF_8));
         }
     }
 

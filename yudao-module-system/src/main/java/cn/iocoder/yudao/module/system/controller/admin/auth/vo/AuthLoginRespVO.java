@@ -27,4 +27,10 @@ public class AuthLoginRespVO {
     @Schema(description = "过期时间", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime expiresTime;
 
+    @Schema(description = "是否需要设置本地密码，仅钉钉首次登录时返回")
+    private Boolean passwordSetupRequired;
+
+    @Schema(description = "首次设置本地密码的一次性凭证，仅 passwordSetupRequired 为 true 时返回")
+    private String passwordSetupToken;
+
 }

@@ -44,6 +44,23 @@ public class AdminUserDO extends TenantBaseDO {
      */
     private String password;
     /**
+     * 是否已设置本地登录密码。
+     *
+     * 钉钉同步创建的账户在用户完成首次密码设置前为 {@code false}。
+     */
+    private Boolean passwordInitialized;
+    /** 员工工号 */
+    private String employeeNo;
+    /** 钉钉用户 ID，用于识别通讯录中已离职或被移除的用户 */
+    @TableField("dingtalk_user_id")
+    private String dingTalkUserId;
+    /** 连续未在完整钉钉通讯录同步中出现的次数 */
+    @TableField("dingtalk_missing_sync_count")
+    private Integer dingTalkMissingSyncCount;
+    /** 最近一次在钉钉通讯录中出现的时间 */
+    @TableField("dingtalk_last_seen_time")
+    private LocalDateTime dingTalkLastSeenTime;
+    /**
      * 用户昵称
      */
     private String nickname;

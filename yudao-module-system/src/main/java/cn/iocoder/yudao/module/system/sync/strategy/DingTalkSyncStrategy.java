@@ -87,31 +87,44 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
 
     @Override
     public List<ThirdPartyDeptDTO> fetchDepartments(SocialClientDO client) {
+        return fetchDepartmentsWithResult(client).departments();
+    }
+
+    /** 拉取部门并返回完整性标记，供离职缺失账号判断使用。 */
+    public DepartmentFetchResult fetchDepartmentsWithResult(SocialClientDO client) {
         String token = getAccessToken(client);
         List<ThirdPartyDeptDTO> result = new ArrayList<>();
         // 从根部门(1)开始递归拉取
-        fetchDeptTree(token, 1L, result);
-        log.info("[DingTalk][fetchDepartments] 共拉取 {} 个部门", result.size());
-        return result;
+        boolean complete = fetchDeptTree(token, 1L, result);
+        log.info("[DingTalk][fetchDepartments] 共拉取 {} 个部门，完整性={}", result.size(), complete);
+        return new DepartmentFetchResult(result, complete);
     }
 
     @Override
     public List<ThirdPartyUserDTO> fetchUsers(SocialClientDO client) {
         // 兜底：无 dept 列表时自行拉取
-        return fetchUsers(client, fetchDepartments(client));
+        return fetchUsersWithResult(client, fetchDepartmentsWithResult(client).departments()).users();
     }
 
     /**
      * 拉取用户（传入已拉取好的部门列表，避免重复调用）
      */
     public List<ThirdPartyUserDTO> fetchUsers(SocialClientDO client, List<ThirdPartyDeptDTO> depts) {
+        return fetchUsersWithResult(client, depts).users();
+    }
+
+    /**
+     * 拉取用户并返回完整性标记。仅完整拉取时，调用方才可依据“通讯录中不存在”停用账号。
+     */
+    public UserFetchResult fetchUsersWithResult(SocialClientDO client, List<ThirdPartyDeptDTO> depts) {
         if (CollUtil.isEmpty(depts)) {
             log.warn("[DingTalk][fetchUsers] 部门列表为空，跳过用户拉取");
-            return List.of();
+            return new UserFetchResult(List.of(), false);
         }
         String token = getAccessToken(client);
         List<ThirdPartyUserDTO> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
+        boolean complete = true;
 
         int deptIdx = 0;
         for (ThirdPartyDeptDTO dept : depts) {
@@ -120,11 +133,17 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
                 log.info("[DingTalk][fetchUsers] 进度: {}/{} 个部门, 已收集 {} 个用户",
                         deptIdx, depts.size(), result.size());
             }
-            fetchUsersByDept(token, Long.parseLong(dept.getSourceDeptId()), result, seen);
+            if (!fetchUsersByDept(token, Long.parseLong(dept.getSourceDeptId()), result, seen)) {
+                complete = false;
+            }
+        }
+        // 根部门也可能直接挂载用户；放在子部门之后，避免覆盖已有的具体部门归属。
+        if (!fetchUsersByDept(token, 1L, result, seen)) {
+            complete = false;
         }
 
-        log.info("[DingTalk][fetchUsers] 共拉取 {} 个用户", result.size());
-        return result;
+        log.info("[DingTalk][fetchUsers] 共拉取 {} 个用户，完整性={}", result.size(), complete);
+        return new UserFetchResult(result, complete);
     }
 
     // ==================== Token 管理 ====================
@@ -164,21 +183,29 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
      * （dept_id、name、parent_id、order），无需再逐个调用 get 接口，
      * 彻底解决 N+1 调用导致的 QPS 限流问题。
      */
-    private void fetchDeptTree(String token, Long deptId, List<ThirdPartyDeptDTO> result) {
-        List<ThirdPartyDeptDTO> children = fetchSubDepts(token, deptId);
-        if (CollUtil.isEmpty(children)) return;
+    private boolean fetchDeptTree(String token, Long deptId, List<ThirdPartyDeptDTO> result) {
+        DepartmentChildrenFetchResult fetchResult = fetchSubDepts(token, deptId);
+        if (!fetchResult.complete()) {
+            return false;
+        }
+        List<ThirdPartyDeptDTO> children = fetchResult.departments();
+        if (CollUtil.isEmpty(children)) return true;
 
+        boolean complete = true;
         for (ThirdPartyDeptDTO child : children) {
             result.add(child);
             // 递归拉子部门
-            fetchDeptTree(token, Long.parseLong(child.getSourceDeptId()), result);
+            if (!fetchDeptTree(token, Long.parseLong(child.getSourceDeptId()), result)) {
+                complete = false;
+            }
         }
+        return complete;
     }
 
     /**
      * 调用 listsub 接口，一次获取指定部门下的所有子部门（含完整信息）
      */
-    private List<ThirdPartyDeptDTO> fetchSubDepts(String token, Long deptId) {
+    private DepartmentChildrenFetchResult fetchSubDepts(String token, Long deptId) {
         String url = DEPT_LISTSUB_URL + "?access_token=" + token;
         HttpResponse resp = HttpRequest.post(url)
                 .body(JsonUtils.toJsonString(Map.of("dept_id", deptId)))
@@ -186,10 +213,12 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
         JsonNode json = JsonUtils.parseObject(resp.body(), JsonNode.class);
         if (json == null || json.get("errcode").asInt() != 0) {
             log.warn("[DingTalk][fetchSubDepts] deptId={} 拉取失败: {}", deptId, resp.body());
-            return List.of();
+            return new DepartmentChildrenFetchResult(List.of(), false);
         }
         JsonNode deptArray = json.get("result");
-        if (deptArray == null || !deptArray.isArray()) return List.of();
+        if (deptArray == null || !deptArray.isArray()) {
+            return new DepartmentChildrenFetchResult(List.of(), false);
+        }
 
         List<ThirdPartyDeptDTO> list = new ArrayList<>();
         for (JsonNode dept : deptArray) {
@@ -200,13 +229,13 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
             dto.setSort(dept.has("order") ? dept.get("order").asInt() : 0);
             list.add(dto);
         }
-        return list;
+        return new DepartmentChildrenFetchResult(list, true);
     }
 
     // ==================== 用户 ====================
 
-    private void fetchUsersByDept(String token, Long deptId,
-                                   List<ThirdPartyUserDTO> result, Set<String> seenUserIds) {
+    private boolean fetchUsersByDept(String token, Long deptId,
+                                     List<ThirdPartyUserDTO> result, Set<String> seenUserIds) {
         int cursor = 0;
         int size = 100;
 
@@ -223,11 +252,11 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
             JsonNode json = JsonUtils.parseObject(resp.body(), JsonNode.class);
             if (json == null || json.get("errcode").asInt() != 0) {
                 log.warn("[DingTalk][fetchUsersByDept] deptId={} 拉取失败: {}", deptId, resp.body());
-                break;
+                return false;
             }
 
             JsonNode resultNode = json.get("result");
-            if (resultNode == null || !resultNode.has("list")) break;
+            if (resultNode == null || !resultNode.has("list")) return false;
 
             JsonNode userList = resultNode.get("list");
             if (userList == null || !userList.isArray() || userList.size() == 0) break;
@@ -244,6 +273,8 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
                     deptIds.add(String.valueOf(deptId));
                     dto.setDeptIds(deptIds);
                     result.add(dto);
+                } else {
+                    return false;
                 }
                 // QPS 控制：每次用户详情调用后等待
                 safeSleep(USER_DETAIL_DELAY_MS);
@@ -253,6 +284,7 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
             if (!resultNode.has("has_more") || !resultNode.get("has_more").asBoolean()) break;
             cursor = resultNode.get("next_cursor").asInt();
         }
+        return true;
     }
 
     private ThirdPartyUserDTO fetchUserDetail(String token, String userId) {
@@ -279,6 +311,8 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
                 dto.setAvatar(result.has("avatar") ? result.get("avatar").asText() : null);
                 dto.setMobile(result.has("mobile") ? result.get("mobile").asText() : null);
                 dto.setEmail(result.has("email") ? result.get("email").asText() : null);
+                dto.setEmployeeNo(result.hasNonNull("job_number") ? result.get("job_number").asText() : null);
+                dto.setActive(result.hasNonNull("active") ? result.get("active").asBoolean() : null);
                 // TODO 诊断用日志：确认钉钉接口是否返回了邮箱（排查同步邮箱不生效）
                 log.info("[DingTalk][fetchUserDetail] userId={}, 钉钉返回 email={}, mobile={}",
                         userId, dto.getEmail(), dto.getMobile());
@@ -325,5 +359,11 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
     // ==================== 内部类 ====================
 
     private record TokenCache(String token, long expireTime) {}
+
+    public record DepartmentFetchResult(List<ThirdPartyDeptDTO> departments, boolean complete) {}
+
+    private record DepartmentChildrenFetchResult(List<ThirdPartyDeptDTO> departments, boolean complete) {}
+
+    public record UserFetchResult(List<ThirdPartyUserDTO> users, boolean complete) {}
 
 }

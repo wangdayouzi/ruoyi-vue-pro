@@ -28,6 +28,9 @@ public class UserPageReqVO extends PageParam {
     @Schema(description = "用户昵称，模糊匹配", example = "芋艿")
     private String nickname;
 
+    @Schema(description = "员工工号，模糊匹配", example = "A0001")
+    private String employeeNo;
+
     @Schema(description = "展示状态，参见 CommonStatusEnum 枚举类", example = "1")
     private Integer status;
 

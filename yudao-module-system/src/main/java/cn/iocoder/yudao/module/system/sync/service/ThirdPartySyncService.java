@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.system.sync.service;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.system.dal.dataobject.dept.DeptDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.permission.UserRoleDO;
@@ -23,9 +24,11 @@ import lombok.extern.slf4j.Slf4j;
 import me.zhyd.oauth.config.AuthConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -39,6 +42,10 @@ import java.util.*;
 @Service
 @Slf4j
 public class ThirdPartySyncService {
+
+    private static final int DISABLED_STATUS = 1;
+    private static final int DINGTALK_MISSING_DISABLE_THRESHOLD = 2;
+    private static final String DINGTALK_STATUS_REMARK_PREFIX = "【钉钉同步状态】";
 
     @Resource
     private DeptMapper deptMapper;
@@ -61,6 +68,9 @@ public class ThirdPartySyncService {
     @Resource
     private TransactionTemplate transactionTemplate;
 
+    @Resource
+    private PasswordEncoder passwordEncoder;
+
     /**
      * 同步部门挂载的本地父部门ID，不配置则默认挂到根部门(0)
      */
@@ -73,7 +83,12 @@ public class ThirdPartySyncService {
     @Value("${yudao.sync.default-role-id:0}")
     private Long defaultRoleId;
 
-    private static final String DEFAULT_PASSWORD = "$2a$04$y9izLO/uRwlP/1y.RsZiCumqMYlRsAtncVPWwRbbFhau5U1JVujO."; // 默认密码
+    /**
+     * 连续完整同步未出现在钉钉通讯录中的账号是否自动停用。
+     * 接口拉取不完整时不会执行该规则。
+     */
+    @Value("${yudao.sync.dingtalk.auto-disable-missing-users:true}")
+    private boolean dingTalkAutoDisableMissingUsers;
 
     /**
      * 执行同步
@@ -96,8 +111,16 @@ public class ThirdPartySyncService {
 
         // 先拉取部门（只调一次 API），再各自独立事务同步
         List<ThirdPartyDeptDTO> deptList;
+        boolean deptFetchComplete = false;
         try {
-            deptList = transactionTemplate.execute(status -> syncDepts(strategy, client, socialType));
+            if (strategy instanceof cn.iocoder.yudao.module.system.sync.strategy.DingTalkSyncStrategy dts) {
+                cn.iocoder.yudao.module.system.sync.strategy.DingTalkSyncStrategy.DepartmentFetchResult fetchResult =
+                        dts.fetchDepartmentsWithResult(client);
+                deptList = transactionTemplate.execute(status -> syncDepts(fetchResult.departments(), socialType));
+                deptFetchComplete = fetchResult.complete();
+            } else {
+                deptList = transactionTemplate.execute(status -> syncDepts(strategy, client, socialType));
+            }
         } catch (Exception e) {
             log.error("[sync][{}] 部门同步失败", typeEnum, e);
             return;
@@ -105,9 +128,11 @@ public class ThirdPartySyncService {
         log.info("[sync][{}] 部门同步完成，获得 {} 个部门，开始用户同步", typeEnum,
                 deptList != null ? deptList.size() : 0);
 
+        final List<ThirdPartyDeptDTO> syncedDeptList = deptList;
+        final boolean syncedDeptFetchComplete = deptFetchComplete;
         try {
             transactionTemplate.execute(status -> {
-                syncUsers(strategy, client, socialType, deptList);
+                syncUsers(strategy, client, socialType, syncedDeptList, syncedDeptFetchComplete);
                 return null;
             });
         } catch (Exception e) {
@@ -142,7 +167,10 @@ public class ThirdPartySyncService {
      * 同步部门
      */
     private List<ThirdPartyDeptDTO> syncDepts(ThirdPartySyncStrategy strategy, SocialClientDO client, Integer socialType) {
-        List<ThirdPartyDeptDTO> deptList = strategy.fetchDepartments(client);
+        return syncDepts(strategy.fetchDepartments(client), socialType);
+    }
+
+    private List<ThirdPartyDeptDTO> syncDepts(List<ThirdPartyDeptDTO> deptList, Integer socialType) {
         if (CollUtil.isEmpty(deptList)) {
             log.info("[sync][{}] 无部门数据", SocialTypeEnum.valueOfType(socialType));
             return deptList;
@@ -211,11 +239,15 @@ public class ThirdPartySyncService {
      * 同步用户
      */
     private void syncUsers(ThirdPartySyncStrategy strategy, SocialClientDO client,
-                            Integer socialType, List<ThirdPartyDeptDTO> deptList) {
+                            Integer socialType, List<ThirdPartyDeptDTO> deptList, boolean deptFetchComplete) {
         // 优先使用带 deptList 的重载（避免重复拉取部门）
         List<ThirdPartyUserDTO> userList;
+        boolean userFetchComplete = false;
         if (strategy instanceof cn.iocoder.yudao.module.system.sync.strategy.DingTalkSyncStrategy dts) {
-            userList = dts.fetchUsers(client, deptList);
+            cn.iocoder.yudao.module.system.sync.strategy.DingTalkSyncStrategy.UserFetchResult fetchResult =
+                    dts.fetchUsersWithResult(client, deptList);
+            userList = fetchResult.users();
+            userFetchComplete = fetchResult.complete();
         } else {
             userList = strategy.fetchUsers(client);
         }
@@ -249,7 +281,7 @@ public class ThirdPartySyncService {
                 boolean bindValid = bind != null && adminUserMapper.selectById(bind.getUserId()) != null;
                 if (bindValid) {
                     // 绑定有效 → 更新用户信息
-                    updateSystemUser(bind.getUserId(), dto, sourceDeptMap);
+                    updateSystemUser(bind.getUserId(), dto, sourceDeptMap, socialType);
                 } else {
                     // 绑定失效（用户被删了） → 清理旧绑定，走新建流程
                     if (bind != null) {
@@ -258,7 +290,7 @@ public class ThirdPartySyncService {
                                 SocialTypeEnum.valueOfType(socialType), socialUser.getId(), bind.getUserId());
                     }
                     // 重新创建用户 + 绑定
-                    Long userId = createSystemUser(dto, sourceDeptMap);
+                    Long userId = createSystemUser(dto, sourceDeptMap, socialType);
                     createBind(userId, socialUser.getId(), socialType);
                     log.info("[sync][{}] 重新创建用户: nickname={}, userId={}",
                             SocialTypeEnum.valueOfType(socialType), dto.getNickname(), userId);
@@ -272,11 +304,20 @@ public class ThirdPartySyncService {
                 // 3. 不存在 → 三连创建
                 log.info("[sync][{}] 新增用户: nickname={}, sourceUserId={}, openid={}",
                         SocialTypeEnum.valueOfType(socialType), dto.getNickname(), dto.getSourceUserId(), openid);
-                Long userId = createSystemUser(dto, sourceDeptMap);
+                Long userId = createSystemUser(dto, sourceDeptMap, socialType);
                 Long socialUserId = createSocialUser(socialType, openid, dto);
                 createBind(userId, socialUserId, socialType);
                 log.info("[sync][{}] 用户创建完成: nickname={}, userId={}, socialUserId={}",
                         SocialTypeEnum.valueOfType(socialType), dto.getNickname(), userId, socialUserId);
+            }
+        }
+
+        // 仅钉钉用户列表完整拉取成功时，才根据“连续缺失”判断离职，避免接口异常误停账号。
+        if (SocialTypeEnum.DINGTALK.getType().equals(socialType)) {
+            if (dingTalkAutoDisableMissingUsers && deptFetchComplete && userFetchComplete) {
+                syncMissingDingTalkUsers(userList);
+            } else if (!deptFetchComplete || !userFetchComplete) {
+                log.warn("[sync][DINGTALK] 本次通讯录拉取不完整，跳过离职缺失账号检查");
             }
         }
 
@@ -286,7 +327,7 @@ public class ThirdPartySyncService {
     /**
      * 创建系统用户
      */
-    private Long createSystemUser(ThirdPartyUserDTO dto, Map<String, DeptDO> sourceDeptMap) {
+    private Long createSystemUser(ThirdPartyUserDTO dto, Map<String, DeptDO> sourceDeptMap, Integer socialType) {
         AdminUserDO user = new AdminUserDO();
         // 用户名优先用手机号，没有则用 sourceUserId
         String username = StrUtil.isNotBlank(dto.getMobile()) ? dto.getMobile() : dto.getSourceUserId();
@@ -295,7 +336,16 @@ public class ThirdPartySyncService {
         user.setMobile(dto.getMobile());
         user.setEmail(dto.getEmail());
         user.setAvatar(dto.getAvatar());
-        user.setPassword(DEFAULT_PASSWORD);
+        if (SocialTypeEnum.DINGTALK.getType().equals(socialType)) {
+            user.setEmployeeNo(dto.getEmployeeNo());
+            user.setDingTalkUserId(dto.getSourceUserId());
+            user.setDingTalkMissingSyncCount(0);
+            user.setDingTalkLastSeenTime(LocalDateTime.now());
+            applyDingTalkEmploymentStatus(user, dto.getActive());
+        }
+        // 不为同步账户设置可预测的共享初始密码；首次钉钉认证后由用户自行设置本地密码。
+        user.setPassword(passwordEncoder.encode(IdUtil.fastSimpleUUID()));
+        user.setPasswordInitialized(false);
         user.setStatus(1); // 停用：由管理员核验账号与权限后手动启用
 
         // 设置部门：取第一个匹配的部门
@@ -324,7 +374,8 @@ public class ThirdPartySyncService {
     /**
      * 更新系统用户
      */
-    private void updateSystemUser(Long userId, ThirdPartyUserDTO dto, Map<String, DeptDO> sourceDeptMap) {
+    private void updateSystemUser(Long userId, ThirdPartyUserDTO dto, Map<String, DeptDO> sourceDeptMap,
+                                  Integer socialType) {
         AdminUserDO user = adminUserMapper.selectById(userId);
         if (user == null) return;
         user.setNickname(dto.getNickname());
@@ -334,6 +385,13 @@ public class ThirdPartySyncService {
         boolean emailWritten = StrUtil.isBlank(oldEmail) && StrUtil.isNotBlank(dto.getEmail());
         if (emailWritten) user.setEmail(dto.getEmail());
         if (StrUtil.isNotBlank(dto.getAvatar())) user.setAvatar(dto.getAvatar());
+        if (SocialTypeEnum.DINGTALK.getType().equals(socialType)) {
+            if (StrUtil.isNotBlank(dto.getEmployeeNo())) user.setEmployeeNo(dto.getEmployeeNo());
+            user.setDingTalkUserId(dto.getSourceUserId());
+            user.setDingTalkMissingSyncCount(0);
+            user.setDingTalkLastSeenTime(LocalDateTime.now());
+            applyDingTalkEmploymentStatus(user, dto.getActive());
+        }
         // TODO 诊断用日志：确认本次同步邮箱是否有值、是否写入（排查同步邮箱不生效）
         log.info("[sync][用户更新] userId={}, nickname={}, 本地邮箱={}, 待写入邮箱={}, 是否写入={}",
                 userId, dto.getNickname(), oldEmail, dto.getEmail(), emailWritten);
@@ -348,6 +406,99 @@ public class ThirdPartySyncService {
             }
         }
         adminUserMapper.updateById(user);
+    }
+
+    /**
+     * 将钉钉在职状态写入本地。钉钉确认离职时自动停用；在职不会自动恢复管理员手动停用的账号。
+     */
+    private void applyDingTalkEmploymentStatus(AdminUserDO user, Boolean active) {
+        if (active == null) {
+            return;
+        }
+        user.setRemark(replaceDingTalkStatusRemark(user.getRemark(), active ? "在职" : "已离职或未激活"));
+        if (!active) {
+            user.setStatus(DISABLED_STATUS);
+        }
+    }
+
+    /**
+     * 在完整同步中连续两次未出现，才将钉钉账号停用。
+     *
+     * 兼容早期同步的账号：它们没有保存 dingtalkUserId，但已有钉钉社交绑定，
+     * 因此使用绑定的 openid（钉钉 unionid）进行缺失比对。
+     */
+    private void syncMissingDingTalkUsers(List<ThirdPartyUserDTO> userList) {
+        Set<String> seenUserIds = new HashSet<>();
+        Set<String> seenOpenids = new HashSet<>();
+        for (ThirdPartyUserDTO dto : userList) {
+            if (StrUtil.isNotBlank(dto.getSourceUserId())) {
+                seenUserIds.add(dto.getSourceUserId());
+                // 老版本绑定可能把 userid 写入 openid，一并视为已出现，避免误停用。
+                seenOpenids.add(dto.getSourceUserId());
+            }
+            if (StrUtil.isNotBlank(dto.getOpenid())) {
+                seenOpenids.add(dto.getOpenid());
+            }
+        }
+        Set<Long> handledUserIds = new HashSet<>();
+        for (AdminUserDO user : adminUserMapper.selectListWithDingTalkUserId()) {
+            handledUserIds.add(user.getId());
+            if (seenUserIds.contains(user.getDingTalkUserId())) {
+                continue;
+            }
+            markDingTalkUserMissing(user, user.getDingTalkUserId());
+        }
+
+        // 存量账号没有 dingtalkUserId 时，使用已有的钉钉社交绑定补充检查。
+        Map<Long, Long> userIdBySocialUserId = new HashMap<>();
+        for (SocialUserBindDO bind : socialUserBindMapper.selectListByUserTypeAndSocialType(
+                2, SocialTypeEnum.DINGTALK.getType())) {
+            userIdBySocialUserId.put(bind.getSocialUserId(), bind.getUserId());
+        }
+        for (SocialUserDO socialUser : socialUserMapper.selectListByType(SocialTypeEnum.DINGTALK.getType())) {
+            if (seenOpenids.contains(socialUser.getOpenid())) {
+                continue;
+            }
+            Long userId = userIdBySocialUserId.get(socialUser.getId());
+            if (userId == null || !handledUserIds.add(userId)) {
+                continue;
+            }
+            AdminUserDO user = adminUserMapper.selectById(userId);
+            if (user != null) {
+                markDingTalkUserMissing(user, socialUser.getOpenid());
+            }
+        }
+    }
+
+    private void markDingTalkUserMissing(AdminUserDO user, String dingTalkIdentifier) {
+        int missingCount = Math.min((user.getDingTalkMissingSyncCount() == null ? 0
+                : user.getDingTalkMissingSyncCount()) + 1, DINGTALK_MISSING_DISABLE_THRESHOLD);
+        user.setDingTalkMissingSyncCount(missingCount);
+        if (missingCount >= DINGTALK_MISSING_DISABLE_THRESHOLD) {
+            user.setStatus(DISABLED_STATUS);
+            user.setRemark(replaceDingTalkStatusRemark(user.getRemark(), "已不在钉钉通讯录"));
+            log.info("[sync][DINGTALK] 连续 {} 次未发现用户，已停用: userId={}, dingTalkIdentifier={}",
+                    missingCount, user.getId(), dingTalkIdentifier);
+        }
+        adminUserMapper.updateById(user);
+    }
+
+    /** 保留人工备注，仅替换本系统维护的单行钉钉状态标记。 */
+    private String replaceDingTalkStatusRemark(String remark, String status) {
+        StringBuilder result = new StringBuilder(DINGTALK_STATUS_REMARK_PREFIX).append(status);
+        if (StrUtil.isBlank(remark)) {
+            return result.toString();
+        }
+        for (String line : StrUtil.splitToArray(remark, '\n')) {
+            if (StrUtil.isBlank(line) || line.startsWith(DINGTALK_STATUS_REMARK_PREFIX)) {
+                continue;
+            }
+            if (result.length() + 1 + line.length() > 500) {
+                break;
+            }
+            result.append('\n').append(line);
+        }
+        return result.toString();
     }
 
     /**

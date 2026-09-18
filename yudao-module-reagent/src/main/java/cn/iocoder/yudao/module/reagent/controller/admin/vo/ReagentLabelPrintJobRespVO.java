@@ -13,6 +13,7 @@ public class ReagentLabelPrintJobRespVO {
     private Long printerId;
     private String templateCode;
     private Integer copies;
+    private String printCutMode;
     private Integer printedCount;
     private Integer status;
     private String errorCode;

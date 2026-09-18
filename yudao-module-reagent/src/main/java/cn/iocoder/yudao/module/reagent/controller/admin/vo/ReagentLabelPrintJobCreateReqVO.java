@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Schema(description = "管理后台 - 创建试剂标签打印任务")
@@ -22,4 +23,7 @@ public class ReagentLabelPrintJobCreateReqVO {
     @Min(value = 1, message = "打印份数至少为 1")
     @Max(value = 50, message = "单次打印份数不能超过 50")
     private Integer copies = 1;
+    /** DEFAULT，或 AUTO_CUT、HALF_CUT、CHAIN 以 | 组合的 b-PAC 裁切选项。 */
+    @Pattern(regexp = "DEFAULT|(?:AUTO_CUT|HALF_CUT|CHAIN)(?:\\|(?:AUTO_CUT|HALF_CUT|CHAIN))*", message = "裁切方式不合法")
+    private String printCutMode = "HALF_CUT_CHAIN";
 }
