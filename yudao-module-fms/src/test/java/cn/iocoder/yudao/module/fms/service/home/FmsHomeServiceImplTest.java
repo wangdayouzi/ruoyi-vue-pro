@@ -13,10 +13,10 @@ import cn.iocoder.yudao.module.fms.service.config.FmsSubjectService;
 import cn.iocoder.yudao.module.fms.service.report.FmsBalanceSheetService;
 import cn.iocoder.yudao.module.fms.service.report.FmsIncomeStatementService;
 import cn.iocoder.yudao.module.fms.service.report.FmsReportCommonService;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,8 +30,8 @@ import static cn.iocoder.yudao.module.fms.enums.ErrorCodeConstants.ACCOUNT_SET_N
 import static cn.iocoder.yudao.module.fms.enums.ErrorCodeConstants.HOME_METRIC_INVALID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,19 +41,19 @@ public class FmsHomeServiceImplTest extends BaseDbUnitTest {
 
     @Resource
     private FmsHomeServiceImpl homeService;
-    @MockitoBean
+    @MockBean
     private FmsAccountSetService accountSetService;
-    @MockitoBean
+    @MockBean
     private FmsClosingPeriodService closingPeriodService;
-    @MockitoBean
+    @MockBean
     private FmsIncomeStatementService incomeStatementService;
-    @MockitoBean
+    @MockBean
     private FmsBalanceSheetService balanceSheetService;
-    @MockitoBean
+    @MockBean
     private FmsReportCommonService reportCommonService;
-    @MockitoBean
+    @MockBean
     private FmsSubjectService subjectService;
-    @MockitoBean
+    @MockBean
     private FmsFinanceIndicatorService financeIndicatorService;
 
     @Test

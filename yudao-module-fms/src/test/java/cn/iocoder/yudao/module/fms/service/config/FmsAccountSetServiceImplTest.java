@@ -20,10 +20,10 @@ import cn.iocoder.yudao.module.fms.service.config.FmsFinanceParameterService;
 import cn.iocoder.yudao.module.fms.service.config.FmsFinanceIndicatorService;
 import cn.iocoder.yudao.module.fms.service.config.FmsSubjectService;
 import cn.iocoder.yudao.module.fms.service.config.FmsVoucherWordService;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -52,23 +52,23 @@ public class FmsAccountSetServiceImplTest extends BaseDbUnitTest {
     @Resource
     private FmsAccountSetMapper accountSetMapper;
 
-    @MockitoBean
+    @MockBean
     private FmsAccountUserService accountUserService;
-    @MockitoBean
+    @MockBean
     private FmsCurrencyService currencyService;
-    @MockitoBean
+    @MockBean
     private FmsFinanceParameterService financeParameterService;
-    @MockitoBean
+    @MockBean
     private FmsVoucherWordService voucherWordService;
-    @MockitoBean
+    @MockBean
     private FmsAuxiliaryTypeService auxiliaryTypeService;
-    @MockitoBean
+    @MockBean
     private FmsSubjectService subjectService;
-    @MockitoBean
+    @MockBean
     private FmsClosingSchemeService closingSchemeService;
-    @MockitoBean
+    @MockBean
     private FmsClosingTemplateService closingTemplateService;
-    @MockitoBean
+    @MockBean
     private FmsFinanceIndicatorService financeIndicatorService;
 
     @Test
