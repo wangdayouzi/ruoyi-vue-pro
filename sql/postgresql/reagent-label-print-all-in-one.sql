@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS reagent_label_print_job (
     template_code varchar(128) NOT NULL,
     data_snapshot text NOT NULL,
     copies integer NOT NULL,
+    print_cut_mode varchar(32) NOT NULL DEFAULT 'HALF_CUT_CHAIN',
     status smallint NOT NULL DEFAULT 0,
     claim_token varchar(64) NULL,
     agent_code varchar(64) NULL,
@@ -63,6 +64,9 @@ CREATE TABLE IF NOT EXISTS reagent_label_print_job (
     update_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted smallint NOT NULL DEFAULT 0
 );
+-- 兼容已部署的旧表：页面裁切方式需要随打印任务固化。
+ALTER TABLE reagent_label_print_job
+    ADD COLUMN IF NOT EXISTS print_cut_mode varchar(32) NOT NULL DEFAULT 'HALF_CUT_CHAIN';
 CREATE INDEX IF NOT EXISTS idx_reagent_label_print_job_claim ON reagent_label_print_job(printer_id, status, create_time, deleted);
 
 INSERT INTO reagent_label_template (id, name, code, status, creator, updater)

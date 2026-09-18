@@ -5617,6 +5617,11 @@ CREATE TABLE system_users (
     id int8 NOT NULL,
   username varchar(30) NOT NULL,
   password varchar(100) NOT NULL DEFAULT '',
+  password_initialized boolean NOT NULL DEFAULT true,
+  employee_no varchar(64) NULL DEFAULT NULL,
+  dingtalk_user_id varchar(128) NULL DEFAULT NULL,
+  dingtalk_missing_sync_count int2 NOT NULL DEFAULT 0,
+  dingtalk_last_seen_time timestamp NULL DEFAULT NULL,
   nickname varchar(30) NOT NULL,
   remark varchar(500) NULL DEFAULT NULL,
   dept_id int8 NULL DEFAULT NULL,
@@ -5642,10 +5647,17 @@ CREATE INDEX idx_system_users_01 ON system_users (username);
 CREATE INDEX idx_system_users_02 ON system_users (mobile);
 CREATE INDEX idx_system_users_03 ON system_users (email);
 CREATE INDEX idx_system_users_04 ON system_users (dept_id);
+CREATE INDEX idx_system_users_05 ON system_users (employee_no);
+CREATE INDEX idx_system_users_06 ON system_users (dingtalk_user_id);
 
 COMMENT ON COLUMN system_users.id IS '用户ID';
 COMMENT ON COLUMN system_users.username IS '用户账号';
 COMMENT ON COLUMN system_users.password IS '密码';
+COMMENT ON COLUMN system_users.password_initialized IS '是否已设置本地登录密码';
+COMMENT ON COLUMN system_users.employee_no IS '员工工号';
+COMMENT ON COLUMN system_users.dingtalk_user_id IS '钉钉用户ID';
+COMMENT ON COLUMN system_users.dingtalk_missing_sync_count IS '连续未出现在完整钉钉同步中的次数';
+COMMENT ON COLUMN system_users.dingtalk_last_seen_time IS '最近一次出现在钉钉通讯录的时间';
 COMMENT ON COLUMN system_users.nickname IS '用户昵称';
 COMMENT ON COLUMN system_users.remark IS '备注';
 COMMENT ON COLUMN system_users.dept_id IS '部门ID';
