@@ -34,4 +34,9 @@ public interface ErrorCodeConstants {
     ErrorCode REAGENT_LABEL_JOB_STATUS_INVALID = new ErrorCode(1_050_004_003, "标签打印任务状态不合法");
     ErrorCode REAGENT_LABEL_TEMPLATE_NOT_AVAILABLE = new ErrorCode(1_050_004_004, "标签模板不存在或未启用");
 
+    // ========== 样品领用台账（1-050-005-000） ==========
+    ErrorCode SAMPLE_LOAN_NOT_EXISTS = new ErrorCode(1_050_005_000, "样品领用记录不存在");
+    ErrorCode SAMPLE_LOAN_ALREADY_BORROWING = new ErrorCode(1_050_005_001, "该 BAS 号样品当前仍在领用中，请先归还");
+    ErrorCode SAMPLE_LOAN_NOT_BORROWING = new ErrorCode(1_050_005_002, "该样品已归还，不能重复归还");
+
 }
