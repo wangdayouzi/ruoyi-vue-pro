@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import jakarta.annotation.security.PermitAll;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -56,7 +57,7 @@ public class SampleLoanController {
 
     @GetMapping("/screen-list")
     @Operation(summary = "获得大屏中的领用中样品")
-    @PreAuthorize("@ss.hasPermission('reagent:sample-loan:query')")
+    @PermitAll
     public CommonResult<List<SampleLoanRespVO>> getBorrowingSampleLoanList() {
         return success(BeanUtils.toBean(sampleLoanService.getBorrowingSampleLoanList(), SampleLoanRespVO.class));
     }
