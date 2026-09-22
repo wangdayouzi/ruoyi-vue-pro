@@ -1,0 +1,614 @@
+USE SHJH_Prj
+GO
+SET ANSI_NULLS, QUOTED_IDENTIFIER ON
+GO
+CREATE VIEW sdvw_StuffInAndOutTotal
+WITH ENCRYPTION
+AS
+
+/*
+* 材料出入库流水帐     说明：主项目 只是项目领料出库才有 mPrjCode='',mPrjName='' 2023-11-13 By Aisike与彭工确认的 
+*/ 
+select *,  GYDW=isnull(pf00302,''),SFCK=isnull(pm00402,''),  CGY=isnull(pm00404,'')
+From (
+--注意所有物流单据出库depsort=1 入库depsortsort=0    业务类型过滤查询 TType ， 单据穿透判断菜单TType1
+
+Select 
+AreaID,DepotID,BillID,YMonth,CMonth,BatchNumber,pf00302,TBill,TDetailBill,pm00402,pm00200,pm00201,pm00202,pm00205,            
+pm00221,pm00222,pm00207,UnitName,Qty,Price,Amt,pm00404,Ower,assessor=IsNull(assessor,''),Remake,TType,TType1,
+TCheck,ProjID,ProjCode,ProjName,ContName, ContCode,depsort,receiveQty,expDate,sLocation,sProvider,IsFullRequisition,pm02015Code,
+pm00102=isnull(pm00102,''),pm00104=isnull(pm00104,''),pm00105=isnull(pm00105,''),pa07902=isnull(pa07902,''),pm02603_W=isnull(pm02603_W,'')
+/*主项目*/
+,mPrjCode,mPrjName,mPrjType
+From(
+ --入库单 (不包含调拨领料自动生成的入库单)   --蓝字
+( select AreaID=pm00411,DepotID=pm00401,BillID=pm02601,pm02602 as YMonth,pm02614 as CMonth,BatchNumber=isnull(pm02631,''),pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02603,''),TDetailBill=isnull(pm02702,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02703 and pm00302=pa01301 and pm00303=1),
+   Qty=pm02706*pm02705,
+   Price=isnull((case when  isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1) then isnull(pm02707,0) else isnull(pm02709,0) end),0),
+   Amt=isnull((case when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1) then isnull(pm02708,0) else isnull(pm02710,0) end),0),
+   pm00404, Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02609=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02616=pj00401), Remake=isnull(pm02606,''),
+   (case pm02623 when 0 then 30 when 1 then 30 when 2 then 32 when 3 then 33 when 4 then 35 when 6 then 41 end) as TType,
+   (case pm02623 when 0 then 30 when 1 then 30 when 2 then 32 when 3 then 33 when 4 then 35 when 6 then 41 end) as TType1,
+   TCheck=isnull(pm02617,0),
+   ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName=isnull(pd00402,''),ContCode=isnull(pd00452,''),depsort=0,
+   receiveQty= Isnull((select sum(pm02104) from sdpm021 WITH (NOLOCK),sdpm020 WITH (NOLOCK) where pm02101=pm02001 and pm02019=1 and pm02108=pm02702 and pm02703=pm02103),0)
+               -isnull(( select pm02504=sum(pm02504) from ( select pm02504=sum(pm02504) from sdpm025 WITH (NOLOCK),sdpm024 WITH (NOLOCK),sdpm021 WITH (NOLOCK),sdpm020 WITH (NOLOCK) where pm02419=1 and pm02501=pm02401 and pm02001=pm02101 and pm02102=pm02507 and pm02702=pm02108 and pm02703=pm02503 and pm02703=pm02103
+                         union all select pm02504=Sum(pm20712) from sdpm025 WITH (NOLOCK),sdpm024 WITH (NOLOCK),sdpm021 WITH (NOLOCK),sdpm020 WITH (NOLOCK),sdpm207 WITH (NOLOCK) where pm02419=1 and pm02501=pm02401 and pm02001=pm02101 and pm02004=pm02404 and pm02102=pm02507 and pm02702=pm02108 and pm02703=pm02503 and pm02703=pm02103 And pm02502=pm20702  
+                   )#Tui ),0)
+               +isnull((select sum(pm02304) from sdpm023 WITH (NOLOCK),sdpm022 WITH (NOLOCK) where pm02301=pm02201 and pm02311=pm02702 and pm02217=1 and pm02215=1 and pm02303=pm02703),0)
+               +isnull((select Sum(ISNULL(pm20612,0)) from sdpm023 WITH (NOLOCK),sdpm022 WITH (NOLOCK),sdpm206 WITH (NOLOCK) where pm02301=pm02201 and pm02311=pm02702 and pm02217=1 and pm02215=1 and pm02303=pm02703 And pm20602=pm02302 ),0)
+  ,expDate=pm02725,sLocation=pm02726,
+   sProvider=isnull((select top 1 pf00302 from sdpm013 WITH (NOLOCK),sdpd004 WITH (NOLOCK),sdpf003 WITH (NOLOCK) where pm01305=pd00401 and pf00301=pd00404 and pm01301=pm02612),''),
+   IsFullRequisition=pm02632,pm02015Code=''
+   ,pm02603_W=pm02603+'_'+right('000'+convert(varchar(10),pm02728),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm026 WITH (NOLOCK) inner join sdpm027 WITH (NOLOCK) on pm02601=pm02701
+               inner join sdpm002 WITH (NOLOCK) on pm00200=pm02703
+               inner join sdpm004 WITH (NOLOCK) on pm02605=pm00401
+               left join sdpf003 WITH (NOLOCK) on pm02604=pf00301
+               left join sdpm013 WITH (NOLOCK) on pm01301=pm02612
+               left join sdpd004 WITH (NOLOCK) on pd00401=pm01305
+               left join sdpj020 WITH (NOLOCK) on pj02001=pm02630
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02723
+    where pm02620=0 and not exists(select 1 from sdpm201 WITH (NOLOCK) where pm02702=pm20102) and not exists(select 1 from sdpm020 WITH (NOLOCK) where pm02024=pm02601 and pm02024<>'' ) 
+)
+
+union all
+--入库单<替代材料>
+( select AreaID=pm00411,DepotID=pm00401,BillID=pm02601,pm02602 as YMonth,pm02614 as CMonth,BatchNumber=isnull(pm02631,''),pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02603,''),TDetailBill=isnull(pm02702,''),pm00402,pm00200=pm02703,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=isnull((select pa01302 from sdpa013 WITH (NOLOCK) where pm20115=pa01301),''), 
+   Qty=isnull(pm20105,0),
+   Price=isnull((case when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1) then pm20106 else pm20108 end),0),
+   Amt=isnull((case when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1) then pm20107 else pm20110 end),0),
+   pm00404,
+   Ower=isnull((select pj00402 from sdpj004 WITH (NOLOCK) where pm02609=pj00401),''),
+   assessor=isnull((select pj00402 from sdpj004 WITH (NOLOCK) where pm02616=pj00401),''),   
+   Remake=isnull(pm02606,''),
+   (case pm02623 when 0 then 30 when 1 then 30 when 2 then 32 when 3 then 33 when 4 then 35 when 6 then 41 end) as TType,
+   (case pm02623 when 0 then 30 when 1 then 30 when 2 then 32 when 3 then 33 when 4 then 35 when 6 then 41 end) as TType1,
+   TCheck=isnull(pm02617,0),
+   ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName=isnull(pd00402,''),ContCode=isnull(pd00452,''),depsort=0,
+   receiveQty=pm20118, 
+   expDate=pm02725,
+   sLocation=pm02726,
+   sProvider=isnull((select top 1 pf00302 from sdpm013 WITH (NOLOCK),sdpd004 WITH (NOLOCK),sdpf003 WITH (NOLOCK) where pm01305=pd00401 and pf00301=pd00404 and pm01301=pm02612),''),
+   IsFullRequisition=pm02632
+   ,pm02015Code=''
+   ,pm02603_W=pm02603+'_'+right('000'+convert(varchar(10),pm02728),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm026 WITH (NOLOCK) join sdpm027 WITH (NOLOCK) on pm02601=pm02701
+               join sdpm201 WITH (NOLOCK) on pm20102=pm02702
+               join sdpm002 WITH (NOLOCK) on pm00200=pm20104
+               join sdpm004 WITH (NOLOCK) on pm02605=pm00401
+               left join sdpj020 WITH (NOLOCK) on pj02001=pm02630
+               left join sdpf003 WITH (NOLOCK) on pm02604=pf00301
+               left join sdpm013 WITH (NOLOCK) on pm01301=pm02612
+               left join sdpd004 WITH (NOLOCK) on pd00401=pm01305
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02723   
+  where pm02620=0 and not exists(select 1 from sdpm020 WITH (NOLOCK) where pm02024=pm02601 and pm02024<>'' )
+)
+
+union all
+--调拨入库单  （调拨领料生成的入库单）
+( select AreaID=pm00411,DepotID=pm00401,BillID=pm02601,pm02602 as YMonth,pm02614 as CMonth,BatchNumber=isnull(pm02631,''),pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02603,''),TDetailBill=isnull(pm02702,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02703 and pm00302=pa01301 and pm00303=1),
+   Qty=pm02706*pm02705,
+   Price=isnull((case when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1) then isnull(pm02707,0) else isnull(pm02709,0) end),0),
+   Amt=isnull((case when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1) then isnull(pm02708,0) else isnull(pm02710,0) end),0),
+   pm00404, Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02609=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02616=pj00401), Remake=isnull(pm02606,''),
+   TType=11,
+   TType1=30,
+   TCheck=isnull(pm02617,0),
+   ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName=isnull(pd00402,''),ContCode=isnull(pd00452,''),depsort=0,
+   receiveQty= Isnull((select sum(pm02104) from sdpm021 WITH (NOLOCK),sdpm020 WITH (NOLOCK) where pm02101=pm02001 and pm02019=1 and pm02108=pm02702 and pm02703=pm02103),0)
+               -isnull(( select pm02504=sum(pm02504) from (
+                                    select pm02504=sum(pm02504) from sdpm025 WITH (NOLOCK),sdpm024 WITH (NOLOCK),sdpm021 WITH (NOLOCK),sdpm020 WITH (NOLOCK) where pm02419=1 and pm02501=pm02401 and pm02001=pm02101 and pm02102=pm02507 and pm02702=pm02108 and pm02703=pm02503 and pm02703=pm02103
+                          union all select pm02504=Sum(pm20712) from sdpm025 WITH (NOLOCK),sdpm024 WITH (NOLOCK),sdpm021 WITH (NOLOCK),sdpm020 WITH (NOLOCK),sdpm207 WITH (NOLOCK) where pm02419=1 and pm02501=pm02401 and pm02001=pm02101 and pm02004=pm02404 and pm02102=pm02507 and pm02702=pm02108 and pm02703=pm02503 and pm02703=pm02103 And pm02502=pm20702  
+                   )#Tui ),0)
+               +isnull((select sum(pm02304) from sdpm023 WITH (NOLOCK),sdpm022 WITH (NOLOCK) where pm02301=pm02201 and pm02311=pm02702 and pm02217=1 and pm02215=1 and pm02303=pm02703),0)
+               +isnull((select Sum(ISNULL(pm20612,0)) from sdpm023 WITH (NOLOCK),sdpm022 WITH (NOLOCK),sdpm206 WITH (NOLOCK) where pm02301=pm02201 and pm02311=pm02702 and pm02217=1 and pm02215=1 and pm02303=pm02703 And pm20602=pm02302 ),0)
+ 
+ ,expDate=pm02725, sLocation=pm02726,
+   sProvider=isnull((select top 1 pf00302 from sdpm013 WITH (NOLOCK),sdpd004 WITH (NOLOCK),sdpf003 WITH (NOLOCK) where pm01305=pd00401 and pf00301=pd00404 and pm01301=pm02612),''),
+   IsFullRequisition=pm02632,pm02015Code=''
+   ,pm02603_W=pm02603+'_'+right('000'+convert(varchar(10),pm02728),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm026 WITH (NOLOCK) inner join sdpm027 WITH (NOLOCK) on pm02601=pm02701
+               join sdpm002 WITH (NOLOCK) on pm00200=pm02703
+               join sdpm004 WITH (NOLOCK) on pm02605=pm00401
+               left join sdpf003 WITH (NOLOCK) on pm02604=pf00301
+               left join sdpm013 WITH (NOLOCK) on pm01301=pm02612
+               left join sdpd004 WITH (NOLOCK) on pd00401=pm01305
+               left join sdpj020 WITH (NOLOCK) on pj02001=pm02630
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02723
+    where pm02620=0 and not exists(select 1 from sdpm201 WITH (NOLOCK) where pm02702=pm20102) and exists(select 1 from sdpm020 WITH (NOLOCK) where pm02024=pm02601 and pm02024<>'' ) 
+)
+
+union all
+--调拨入库单 （调拨领料生成的入库单）<替代材料>
+( select AreaID=pm00411,DepotID=pm00401,BillID=pm02601,pm02602 as YMonth,pm02614 as CMonth,BatchNumber=isnull(pm02631,''),pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02603,''),TDetailBill=isnull(pm02702,''),pm00402,pm00200=pm02703,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=isnull((select pa01302 from sdpa013 WITH (NOLOCK) where pm20115=pa01301),''), 
+   Qty=isnull(pm20105,0),
+   Price=isnull((case when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1)
+       then (case when isnull((select sum(pm20105) from sdpm201 WITH (NOLOCK) where pm20102=pm02702),0)>0 then isnull((select sum(pm20107)/sum(pm20105) from sdpm201 WITH (NOLOCK) where pm20102=pm02702),0) else 0 end)
+       else (case when isnull((select sum(pm20105) from sdpm201 WITH (NOLOCK) where pm20102=pm02702),0)>0 then isnull((select sum(pm20110)/sum(pm20105) from sdpm201 WITH (NOLOCK) where pm20102=pm02702),0) else 0 end)
+   end),0),
+   Amt=isnull((case when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1)
+        then isnull((select sum(pm20107) from sdpm201 WITH (NOLOCK) where pm20102=pm02702),0)
+        else isnull((select sum(pm20110) from sdpm201 WITH (NOLOCK) where pm20102=pm02702),0)
+   end),0),
+   pm00404,
+   Ower=isnull((select pj00402 from sdpj004 WITH (NOLOCK) where pm02609=pj00401),''),
+   assessor=isnull((select pj00402 from sdpj004 WITH (NOLOCK) where pm02616=pj00401),''),   
+   Remake=isnull(pm02606,''),
+   TType=11,
+   TType1=30,
+   TCheck=isnull(pm02617,0),
+   ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName=isnull(pd00402,''),ContCode=isnull(pd00452,''),depsort=0,
+   receiveQty=pm20118, 
+   expDate=pm02725,
+   sLocation=pm02726,
+   sProvider=isnull((select top 1 pf00302 from sdpm013 WITH (NOLOCK),sdpd004 WITH (NOLOCK),sdpf003 WITH (NOLOCK) where pm01305=pd00401 and pf00301=pd00404 and pm01301=pm02612),''),
+   IsFullRequisition=pm02632
+   ,pm02015Code=''
+   ,pm02603_W=pm02603+'_'+right('000'+convert(varchar(10),pm02728),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm026 WITH (NOLOCK) join sdpm027 WITH (NOLOCK) on pm02601=pm02701
+               join sdpm201 WITH (NOLOCK) on pm20102=pm02702
+               join sdpm002 WITH (NOLOCK) on pm00200=pm20104
+               join sdpm004 WITH (NOLOCK) on pm02605=pm00401
+               left join sdpj020 WITH (NOLOCK) on pj02001=pm02630
+               left join sdpf003 WITH (NOLOCK) on pm02604=pf00301
+               left join sdpm013 WITH (NOLOCK) on pm01301=pm02612
+               left join sdpd004 WITH (NOLOCK) on pd00401=pm01305
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02723  
+   where pm02620=0 and exists(select 1 from sdpm020 WITH (NOLOCK) where pm02024=pm02601 and pm02024<>'' )
+)
+
+union all
+
+--项目领料单 
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02001,pm02002 as YMonth,pm02016 as CMonth,BatchNumber='',pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02003,''),TDetailBill=isnull(pm02102,''),pm00402=isnull(pm00402,''),pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02103 and pm00302=pa01301 and pm00303=1),
+   Qty=pm02104,
+   Price=case when pm02019=1 then ( case when pm02104>0 then pm02104*pm02107/pm02104 else 0 end) else ( case when pm02104>0 then pm02104*pm02105/pm02104 else 0 end) end,
+   Amt=case when pm02019=0 then pm02104*pm02105 else pm02104*pm02107 end,
+   pm00404, Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02012=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02017=pj00401),
+   Remake='',TType=20,TType1=20,TCheck=isnull(pm02019,0),
+   ProjID=isnull(p1.pa00101,''), ProjCode=isnull(p1.pa00140,''),ProjName=isnull(p1.pa00102,''),ContName='',ContCode='',depsort=1,receiveQty=0,expDate='',sLocation='',
+   sProvider=isnull((select top 1 pf00302 from sdpf003 WITH (NOLOCK) where pf00301=pm02008),''),
+   IsFullRequisition=0
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm026 WITH (NOLOCK) where pm02601=pm02015),'')
+   ,pm02603_W=pm02003+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02001 order by pm02001,pm00201)),3)
+   ,mPrjCode=isnull(p2.pa00140,''),mPrjName=isnull(p2.pa00102,''),mPrjType=isnull(pa001Extend16,-1)
+  from sdpm020 WITH (NOLOCK) join sdpm021 WITH (NOLOCK) on pm02001=pm02101
+               join sdpm002 WITH (NOLOCK) on pm00200=pm02103
+               join sdpm004 WITH (NOLOCK) on pm02006=pm00401
+               left join sdpf003 WITH (NOLOCK) on pm02008=pf00301
+               left join sdpa001 p1 WITH (NOLOCK) on p1.pa00101=pm02004
+			   left join sdpa001 p2 WITH (NOLOCK) on p1.pa00128<>p2.pa00128 and left(p1.pa00128,6)=p2.pa00128
+			   left join sdpa001Extend WITH (NOLOCK) on pa001Extend01=p2.pa00101
+   where not exists(select 1 from sdpm203 WITH (NOLOCK) where pm02102=pm20302) and pm02022=0
+)
+
+union all
+--项目领料单<替代材料>
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02001,pm02002 as YMonth,pm02016 as CMonth,BatchNumber='',pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02003,''),TDetailBill=isnull(pm02102,''),pm00402=isnull(pm00402,''),pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=isnull((select pa01302 from sdpa013 WITH (NOLOCK) where pm20311=pa01301),''), 
+   Qty=isnull(pm20305,0),
+   Price=case when pm02019=0 then isnull(pm20306,0) else isnull(pm20308,0) end,
+   Amt=case when pm02019=0 then isnull(pm20307,0) else isnull(pm20305*pm20308,0) end,   
+   pm00404,Ower=isnull((select pj00402 from sdpj004 WITH (NOLOCK) where pm02013=pj00401),''),
+   assessor=isnull((select pj00402 from sdpj004 WITH (NOLOCK) where pm02017=pj00401),''),
+   Remake='',TType=20,TType1=20,TCheck=isnull(pm02019,0),
+   ProjID=isnull(p1.pa00101,''),ProjCode=isnull(p1.pa00140,''),ProjName=isnull(p1.pa00102,''),ContName='',ContCode='',depsort=1,receiveQty=0,expDate='',sLocation='',
+   sProvider=isnull((select top 1 pf00302 from sdpf003 WITH (NOLOCK) where pf00301=pm02008),''),
+   IsFullRequisition=0
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm026 WITH (NOLOCK) where pm02601=pm02015),'')
+   ,pm02603_W=pm02003+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02001 order by pm02001,pm00201)),3)
+   ,mPrjCode=isnull(p2.pa00140,''),mPrjName=isnull(p2.pa00102,''),mPrjType=isnull(pa001Extend16,-1)
+  from sdpm020 WITH (NOLOCK) join sdpm021 WITH (NOLOCK) on pm02001=pm02101
+               join sdpm203 WITH (NOLOCK) on pm20302=pm02102
+               join sdpm002 WITH (NOLOCK) on pm00200=pm20304
+               join sdpm004 WITH (NOLOCK) on pm02006=pm00401
+               left join sdpf003 WITH (NOLOCK) on pm02008=pf00301
+               left join sdpa001 p1 WITH (NOLOCK) on pa00101=pm02004
+			   left join sdpa001 p2 WITH (NOLOCK) on p1.pa00128<>p2.pa00128 and left(p1.pa00128,6)=p2.pa00128
+			   left join sdpa001Extend WITH (NOLOCK) on pa001Extend01=p2.pa00101
+	where pm02022=0
+)
+
+union all
+
+--项目领料单  （调拨领料类型的领料出库单）
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02001,pm02002 as YMonth,pm02016 as CMonth,BatchNumber='',pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02003,''),TDetailBill=isnull(pm02102,''),pm00402=isnull(pm00402,''),pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02103 and pm00302=pa01301 and pm00303=1),
+   Qty=pm02104,
+   Price=case when pm02019=1 then ( case when pm02104>0 then pm02104*pm02107/pm02104 else 0 end) else ( case when pm02104>0 then pm02104*pm02105/pm02104 else 0 end) end,
+   Amt=case when pm02019=0 then pm02104*pm02105 else pm02104*pm02107 end,
+   pm00404, Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02012=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02017=pj00401),
+   Remake='',TType=10,TType1=20,TCheck=isnull(pm02019,0),
+   ProjID=isnull(pa00101,''), ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName='',ContCode='',depsort=1,receiveQty=0,expDate='',sLocation='',
+   sProvider=isnull((select top 1 pf00302 from sdpf003 WITH (NOLOCK) where pf00301=pm02008),''),
+   IsFullRequisition=0
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm026 WITH (NOLOCK) where pm02601=pm02015),'')
+   ,pm02603_W=pm02003+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02001 order by pm02001,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm020 WITH (NOLOCK) join sdpm021 WITH (NOLOCK) on pm02001=pm02101
+               join sdpm002 WITH (NOLOCK) on pm00200=pm02103
+               join sdpm004 WITH (NOLOCK) on pm02006=pm00401
+               left join sdpf003 WITH (NOLOCK) on pm02008=pf00301
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02004
+   where not exists(select 1 from sdpm203 WITH (NOLOCK) where pm02102=pm20302) and pm02022=1
+)
+
+union all
+--调拨出库 （调拨领料类型的领料出库单）<替代材料>
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02001,pm02002 as YMonth,pm02016 as CMonth,BatchNumber='',pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02003,''),TDetailBill=isnull(pm02102,''),pm00402=isnull(pm00402,''),pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=isnull((select pa01302 from sdpa013 WITH (NOLOCK) where pm20311=pa01301),''), 
+   Qty=isnull(pm20305,0),
+   Price=case when pm02019=0 then isnull(pm20306,0) else isnull(pm20308,0) end,
+   Amt=case when pm02019=0 then isnull(pm20307,0) else isnull(pm20305*pm20308,0) end,   
+   pm00404,
+   Ower=isnull((select pj00402 from sdpj004 WITH (NOLOCK) where pm02013=pj00401),''),
+   assessor=isnull((select pj00402 from sdpj004 WITH (NOLOCK) where pm02017=pj00401),''),
+   Remake='',TType=10,TType1=20,TCheck=isnull(pm02019,0),
+   ProjID=isnull(pa00101,''), ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName='',ContCode='',depsort=1,receiveQty=0,expDate='',sLocation='',
+   sProvider=isnull((select top 1 pf00302 from sdpf003 WITH (NOLOCK) where pf00301=pm02008),''),
+   IsFullRequisition=0
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm026 WITH (NOLOCK) where pm02601=pm02015),'')
+   ,pm02603_W=pm02003+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02001 order by pm02001,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm020 WITH (NOLOCK) join sdpm021 WITH (NOLOCK) on pm02001=pm02101
+               join sdpm203 WITH (NOLOCK) on pm20302=pm02102
+               join sdpm002 WITH (NOLOCK) on pm00200=pm20304
+               join sdpm004 WITH (NOLOCK) on pm02006=pm00401
+               left join sdpf003 WITH (NOLOCK) on pm02008=pf00301
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02004
+			   where pm02022=1
+)
+
+--项目退料单 
+union all 
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02401,pm02402 as YMonth,pm02416 as CMonth,BatchNumber='',pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02403,''),TDetailBill=isnull(pm02502,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02503 and pm00302=pa01301 and pm00303=1),
+   Qty=pm02504,Price=case when pm02504>0 then pm02506/pm02504 else 0 end,Amt=pm02506,pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02412=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02417=pj00401),
+   Remake='',TType=21,TType1=21,TCheck=isnull(pm02419,0),
+   ProjID=isnull(pa00101,''),ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName='',ContCode='',
+   depsort=0,receiveQty=0,expDate='',sLocation='',sProvider='',IsFullRequisition=0   
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm021 WITH (NOLOCK),sdpm020 WITH (NOLOCK),sdpm026 WITH (NOLOCK) where pm02001=pm02101 and pm02601=pm02015 and pm02507=pm02102),'')
+   ,pm02603_W=pm02403+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02401 order by pm02401,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+   from sdpm024 WITH (NOLOCK) join sdpm025 WITH (NOLOCK) on pm02401=pm02501 
+       join sdpm002 WITH (NOLOCK) on pm00200=pm02503
+       join sdpm004 WITH (NOLOCK) on pm02406=pm00401
+       left join sdpf003 WITH (NOLOCK) on pm02408=pf00301
+       left join sdpa001 WITH (NOLOCK) on pa00101=pm02404
+  where not exists(select 1 from sdpm207 WITH (NOLOCK) where pm20702=pm02502) 
+)
+--项目退料单-替代品 
+union all 
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02401,pm02402 as YMonth,pm02416 as CMonth,BatchNumber='',pf00302=isnull(pf00302,''),
+   TBill=isnull(pm02403,''),TDetailBill=isnull(pm02502,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm20704 and pm00302=pa01301 and pm00303=1),
+   Qty=isnull(pm20705,0),Price=case when pm20705>0 then pm20707/pm20705 else 0 end ,Amt=isnull(pm20707,0),
+   pm00404,Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02412=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02417=pj00401),
+   Remake='',TType=21,TType1=21,TCheck=isnull(pm02419,0),
+   ProjID=isnull(pa00101,''),ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),
+   ContName='',ContCode='',depsort=0,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0   
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm021 WITH (NOLOCK),sdpm020 WITH (NOLOCK),sdpm026 WITH (NOLOCK) where pm02001=pm02101 and pm02601=pm02015 and pm02507=pm02102),'')
+   ,pm02603_W=pm02403+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02401 order by pm02401,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm024 WITH (NOLOCK) join sdpm025 WITH (NOLOCK) on pm02401=pm02501
+               join sdpm207 WITH (NOLOCK) on pm20702=pm02502
+               join sdpm002 WITH (NOLOCK) on pm00200=pm20704 
+               join sdpm004 WITH (NOLOCK) on pm02406=pm00401
+               left join sdpf003 WITH (NOLOCK) on pm02408=pf00301
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02404
+)
+
+-- 采购退货出库
+union all
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02201,pm02202 as YMonth,pm02214 as CMonth,BatchNumber='',pf00302,
+   TBill=isnull(pm02203,''),TDetailBill=isnull(pm02302,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02303 and pm00302=pa01301 and pm00303=1),
+   Qty=pm02304,  
+   Price=isnull((case when isnull(pm023Ext04,'')='' then pm02305
+              when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1) then pm02305
+              else pm023Ext02 end ),0),
+   Amt=isnull((case when isnull(pm023Ext04,'')='' then pm02304*pm02305
+              when isnull(pj02005,0)<=1 and exists (select 1 from sdps002 WITH (NOLOCK) where ps00201='IncreaseInBAT' and ps00203=1) then pm02304*pm02305
+              else pm02304*pm023Ext02 end ),0),
+   pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02209=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02213=pj00401),
+   Remake=isnull(pm02206,''),
+   TType=(case pm02217 when 1 then 37 when 2 then 40 when 3 then 81 when 4 then 36 end), 
+   TType1=(case pm02217 when 1 then 37 when 2 then 40 when 3 then 81 when 4 then 36 end), 
+   TCheck=isnull(pm02215,0),ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName=isnull(pd00402,''),ContCode=isnull(pd00452,''),depsort=1,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm027 WITH (NOLOCK),sdpm026 WITH (NOLOCK) where pm02701=pm02601 and pm02702=pm02311),'')
+   ,pm02603_W=pm02203+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02201 order by pm02201,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm022 WITH (NOLOCK) join sdpm023 WITH (NOLOCK) on pm02201=pm02301               
+               join sdpm002 WITH (NOLOCK) on pm00200=pm02303
+               join sdpm004 WITH (NOLOCK) on pm02205=pm00401
+               left join jhpm023Ext WITH (NOLOCK) on pm02302=pm023Ext01
+               left join sdpj020 WITH (NOLOCK) on pj02001=pm023Ext04
+               left join sdpf003 WITH (NOLOCK) on pm02204=pf00301
+               left join sdpm013 WITH (NOLOCK) on pm01301=pm02212
+               left join sdpd004 WITH (NOLOCK) on pm01305=pd00401
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02313 
+  where not exists(select 1 from sdpm206 WITH (NOLOCK) where pm20602=pm02302) and pm02217=1 
+)
+
+-- 采购退货出库(替代品）
+union all
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02201,pm02202 as YMonth,pm02214 as CMonth,BatchNumber='',pf00302,
+   TBill=isnull(pm02203,''),TDetailBill=isnull(pm02302,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02303 and pm00302=pa01301 and pm00303=1),
+   Qty=isnull((select sum(pm20605) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0),
+   Price=case when pm02215=1
+           then (case when (isnull((select sum(pm20605) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0))>0 
+                then (isnull((select sum(pm20605*pm20608) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0))/(isnull((select sum(pm20605) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0))
+                else 0 end) 
+                 else (case when (isnull((select sum(pm20605) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0))>0 
+               then (isnull((select sum(pm20607) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0))/(isnull((select sum(pm20605) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0))
+              else 0 end) 
+         end, 
+   Amt=case when pm02215=1 then isnull((select sum(pm20605*pm20608) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0) 
+                           else isnull((select sum(pm20607) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0) end,
+   pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02209=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02213=pj00401),
+   Remake=isnull(pm02206,''),
+   TType=(case pm02217 when 1 then 37 when 2 then 40 when 3 then 81 when 4 then 36 end), 
+   TType1=(case pm02217 when 1 then 37 when 2 then 40 when 3 then 81 when 4 then 36 end), 
+   TCheck=isnull(pm02215,0),ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName=isnull(pd00402,''),ContCode=isnull(pd00452,''),depsort=1,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm027 WITH (NOLOCK),sdpm026 WITH (NOLOCK) where pm02701=pm02601 and pm02702=pm02311),'')
+   ,pm02603_W=pm02203+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02201 order by pm02201,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+   from sdpm022 WITH (NOLOCK) join sdpm023 WITH (NOLOCK) on pm02201=pm02301               
+               join sdpm002 WITH (NOLOCK) on pm00200=pm02303
+               join sdpm004 WITH (NOLOCK) on pm02205=pm00401
+               join sdpm206 WITH (NOLOCK) on pm02302=pm20602
+               left join jhpm023Ext WITH (NOLOCK) on pm02302=pm023Ext01
+               left join sdpj020 WITH (NOLOCK) on pj02001=pm023Ext04
+               left join sdpf003 WITH (NOLOCK) on pm02204=pf00301
+               left join sdpm013 WITH (NOLOCK) on pm01301=pm02212
+               left join sdpd004 WITH (NOLOCK) on pm01305=pd00401
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02313  
+   where pm02217=1
+)
+
+--出库单 (其它业务出库/车间领料出库/销售出库）
+union all
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02201,pm02202 as YMonth,pm02214 as CMonth,BatchNumber='',pf00302,
+   TBill=isnull(pm02203,''),TDetailBill=isnull(pm02302,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02303 and pm00302=pa01301 and pm00303=1),
+   Qty=pm02304+isnull((select sum(pm20605) from sdpm206 WITH (NOLOCK) where pm20602=pm02302),0),
+   Price=case when pm02215=1 then pm02307 else pm02305 end,
+   Amt=case when pm02215=1 then convert(decimal(18,4),pm02304*pm02307) else convert(decimal(18,4),pm02304*pm02305) end,
+   pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02209=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02213=pj00401),
+   Remake=isnull(pm02206,''),
+   TType=(case pm02217 when 1 then 37 when 2 then 40 when 3 then 81 when 4 then 36 end), 
+   TType1=(case pm02217 when 1 then 37 when 2 then 40 when 3 then 81 when 4 then 36 end), 
+   TCheck=isnull(pm02215,0),ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName=isnull(pd00402,''),ContCode=isnull(pd00452,''),depsort=1,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=isnull((select top 1 pm02603 from sdpm027 WITH (NOLOCK),sdpm026 WITH (NOLOCK) where pm02701=pm02601 and pm02702=pm02311),'')
+   ,pm02603_W=pm02203+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02201 order by pm02201,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm022 WITH (NOLOCK) join sdpm023 WITH (NOLOCK) on pm02201=pm02301
+               join sdpm002 WITH (NOLOCK) on pm00200=pm02303
+               join sdpm004 WITH (NOLOCK) on pm02205=pm00401
+               left join sdpf003 WITH (NOLOCK) on pm02204=pf00301
+               left join sdpm013 WITH (NOLOCK) on pm01301=pm02212
+               left join sdpd004 WITH (NOLOCK) on pm01305=pd00401
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm02313 
+   where pm02217>1
+)
+
+union all
+--费用入库单
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm01701,pm01702 as YMonth,pm01712 as CMonth,BatchNumber='',pf00302='',
+   TBill=isnull(pm01703,''),TDetailBill=isnull(pm01802,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm01803 and pm00302=pa01301 and pm00303=1),
+   Qty=0,Price=0,Amt=pm01804,pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm01708=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm01711=pj00401),
+   Remake=isnull(pm01704,''),TType=34,TType1=34,TCheck=isnull(pm01710,0),
+   ProjID='',
+   ProjCode='',ProjName='',ContName='',ContCode='',depsort=0,receiveQty=0,expDate='',sLocation='',sProvider='',IsFullRequisition=0
+   ,pm02015Code=''
+  ,pm02603_W=pm01703+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm01701 order by pm01701,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm017 WITH (NOLOCK) join sdpm018 WITH (NOLOCK) on pm01701=pm01801
+               join sdpm002 WITH (NOLOCK) on pm00200=pm01803
+               join sdpm004 WITH (NOLOCK) on pm01713=pm00401)
+
+--盘点单[入库]
+union all 
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm01501,pm01502 as YMonth,pm01512 as CMonth,BatchNumber='',pf00302='',
+   TBill=isnull(pm01503,''),TDetailBill=isnull(pm01602,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm01603 and pm00302=pa01301 and pm00303=1),
+   Qty=ABS(pm01607-pm01604), 
+   Price=pm01608,Amt=pm01609,
+   pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm01509=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm01511=pj00401),
+   Remake=isnull(pm01505,''),TType=60,TType1=60,TCheck=isnull(pm01513,0),
+   ProjID=pm01514,ProjCode=pa00140,ProjName=pa00102,ContName='',ContCode='',depsort=0,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=''
+   ,pm02603_W=pm01503+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm01501 order by pm01501,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+   from sdpm015 WITH (NOLOCK) join sdpm016 WITH (NOLOCK) on pm01501=pm01601 
+   join sdpm002 WITH (NOLOCK) on pm00200=pm01603
+   join sdpm004 WITH (NOLOCK) on pm01504=pm00401
+   left join sdpa001 WITH (NOLOCK) on pa00101=pm01514
+   where pm01607>pm01604)
+
+--盘点单[出库] 
+union all
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm01501,pm01502 as YMonth,pm01512 as CMonth,BatchNumber='',pf00302='',
+   TBill=isnull(pm01503,''),TDetailBill=isnull(pm01602,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm01603 and pm00302=pa01301 and pm00303=1),
+   Qty=ABS(pm01607-pm01604),
+   Price=pm01608,Amt=ABS(pm01609),
+   pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm01509=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm01511=pj00401),
+   Remake=isnull(pm01505,''),TType=61,TType1=61,TCheck=isnull(pm01513,0),
+   ProjID=pm01514,ProjCode=pa00140,ProjName=pa00102,ContName='',ContCode='',depsort=1,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=''
+   ,pm02603_W=pm01503+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm01501 order by pm01501,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+   from sdpm015 WITH (NOLOCK) join sdpm016 WITH (NOLOCK) on pm01501=pm01601 
+   join sdpm002 WITH (NOLOCK) on pm00200=pm01603
+   join sdpm004 WITH (NOLOCK) on pm01504=pm00401
+   left join sdpa001 WITH (NOLOCK) on pa00101=pm01514
+   where pm01607<pm01604)
+
+--报废单 
+union all 
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm02801,pm02802 as YMonth,pm02812 as CMonth,BatchNumber='',pf00302='',
+   TBill=isnull(pm02803,''),TDetailBill=isnull(pm02902,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm02903 and pm00302=pa01301 and pm00303=1),
+   Qty=pm02904,Price=pm02905,Amt=pm02906,pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02808=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm02811=pj00401),
+   Remake=isnull(pm02805,''),TType=50,TType1=50,TCheck=isnull(pm02813,0),
+  ProjID=isnull(pa00101,''),
+  ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName='',ContCode='',depsort=1,receiveQty=0,expDate='',sLocation='',sProvider='',
+  IsFullRequisition=0
+  ,pm02015Code=''
+   ,pm02603_W=pm02803+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm02801 order by pm02801,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm028 WITH (NOLOCK)
+  inner join sdpm029 WITH (NOLOCK) on pm02801=pm02901 and pm02814=0
+  inner join sdpm002 WITH (NOLOCK) on pm00200=pm02903
+  inner join sdpm004 WITH (NOLOCK) on pm02804=pm00401
+  left join sdpa001 WITH (NOLOCK) on pa00101=pm02815 
+)
+--调拨出库 
+union all
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm03001,pm03002 as YMonth,pm03013 as CMonth,BatchNumber='',pf00302='',
+   TBill=isnull(pm03003,''),TDetailBill=isnull(pm03102,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm00200 and pm00302=pa01301 and pm00303=1),
+   Qty=pm03104,Price=pm03105,Amt=pm03106,pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm03010=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm03012=pj00401),
+   Remake=isnull(pm03006,''),
+   TType=10,TType1=10,TCheck=isnull(pm03014,0),
+   ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName='',ContCode='',depsort=1,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=''
+    ,pm02603_W=pm03003+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm03001 order by pm03001,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm030 WITH (NOLOCK) join sdpm031 WITH (NOLOCK) on pm03001=pm03101
+               join sdpm002 WITH (NOLOCK) on pm00200=pm03103
+               join sdpm004 WITH (NOLOCK) on pm03004=pm00401
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm03017
+)
+
+--调拨入库 
+union all
+(select AreaID=pm00411,DepotID=pm00401,BillID=pm03001,pm03002 as YMonth,pm03013 as CMonth,BatchNumber='',pf00302='',
+   TBill=isnull(pm03003,''),TDetailBill=isnull(pm03102,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm00200 and pm00302=pa01301 and pm00303=1),
+   Qty=pm03104,Price=pm03105,Amt=pm03106,pm00404,
+   Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm03010=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm03012=pj00401),
+   Remake=isnull(pm03006,''),
+   TType=11,TType1=11,TCheck=isnull(pm03014,0),
+   ProjID=isnull(pa00101,''),
+   ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName='',ContCode='',depsort=0 ,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=''
+   ,pm02603_W=pm03003+'_'+right('000'+convert(varchar(10),ROW_NUMBER() over (partition by pm03001 order by pm03001,pm00201)),3)
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm030 WITH (NOLOCK) join sdpm031 WITH (NOLOCK) on pm03001=pm03101
+               join sdpm002 WITH (NOLOCK) on pm00200=pm03103
+               join sdpm004 WITH (NOLOCK) on pm03005=pm00401
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm03018
+)
+
+
+union all --财务月结调整单入库
+( select AreaID=pm00411,DepotID=pm00401,BillID=pm08201,pm08209 as YMonth, CMonth=isnull((pm08204+'-'+pm08205),''),BatchNumber='',pf00302='',
+   TBill=isnull(pm08203,''),TDetailBill=isnull(pm08301,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm08303 and pm00302=pa01301 and pm00303=1),
+   Qty=isnull(pm08304,0), Price=isnull(pm08305,0), Amt=isnull(pm08306,0),
+   pm00404, Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm08208=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm08211=pj00401),
+   Remake=isnull(pm08207,''),
+   TType=(case when pm08206=0 then 100 when pm08206=1 then 101 when pm08206=5 then 105 when pm08206=7 then 107 when pm08206=9 then 109 end),
+   TType1=(case when pm08206=0 then 100 when pm08206=1 then 101 when pm08206=5 then 105 when pm08206=7 then 107 when pm08206=9 then 109 end),
+   TCheck=isnull(pm08210,0),
+   ProjID=isnull(pa00101,''),ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName='',ContCode='',depsort=0,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=''
+   ,pm02603_W=''
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm082 WITH (NOLOCK) join sdpm083 WITH (NOLOCK) on pm08201=pm08302
+               join sdpm002 WITH (NOLOCK) on pm00200=pm08303
+               join sdpm004 WITH (NOLOCK) on pm00401=pm08307
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm08202
+   where pm08206 in (0,1,5,7,9)
+)
+union all --财务月结调整单出库
+( select AreaID=pm00411,DepotID=pm00401,BillID=pm08201,pm08209 as YMonth, CMonth=isnull((pm08204+'-'+pm08205),''),BatchNumber='',pf00302='',
+   TBill=isnull(pm08203,''),TDetailBill=isnull(pm08301,''),pm00402,pm00200,pm00201,pm00202,pm00203,pm00205,pm00221,pm00222,pm00207,
+   UnitName=(select pa01302 from sdpa013 WITH (NOLOCK),sdpm003 WITH (NOLOCK) where pm00301=pm08303 and pm00302=pa01301 and pm00303=1),
+   Qty=isnull(pm08304,0), Price=isnull(pm08305,0), Amt=isnull(pm08306,0),
+   pm00404, Ower=(select pj00402 from sdpj004 WITH (NOLOCK) where pm08208=pj00401),
+   assessor=(select pj00402 from sdpj004 WITH (NOLOCK) where pm08211=pj00401),
+   Remake=isnull(pm08207,''),
+   TType=(case when pm08206=2 then 102 when pm08206=3 then 103 when pm08206=4 then 104 when pm08206=8 then 108 when pm08206=10 then 110 end),
+   TType1=(case when pm08206=2 then 102 when pm08206=3 then 103 when pm08206=4 then 104 when pm08206=8 then 108 when pm08206=10 then 110 end),
+   TCheck=isnull(pm08210,0),
+   ProjID=isnull(pa00101,''),ProjCode=isnull(pa00140,''),ProjName=isnull(pa00102,''),ContName='',ContCode='',depsort=1,receiveQty=0,expDate='',sLocation='',sProvider='',
+   IsFullRequisition=0
+   ,pm02015Code=''
+   ,pm02603_W=''
+   ,mPrjCode='',mPrjName='',mPrjType=-1
+  from sdpm082 WITH (NOLOCK) join sdpm083 WITH (NOLOCK) on pm08201=pm08302
+               join sdpm002 WITH (NOLOCK) on pm00200=pm08303
+               join sdpm004 WITH (NOLOCK) on pm00401=pm08307
+               left join sdpa001 WITH (NOLOCK) on pa00101=pm08202
+  where pm08206 in(2,3,4,6,8,10)
+)
+)#temp
+left join sdpm001 WITH (NOLOCK) on pm00101=pm00203
+left join sdpa001 WITH (NOLOCK) on pa00101=ProjID
+GO

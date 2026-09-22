@@ -1,0 +1,385 @@
+USE SHJH_Prj
+GO
+SET ANSI_NULLS, QUOTED_IDENTIFIER ON
+GO
+
+CREATE VIEW sdvw_StockQty
+WITH ENCRYPTION
+AS
+
+(
+ --取材料的所有存货 
+ select FYMonth = convert(varchar(7),GETDATE(),21), pm00401='', 
+    pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+    pm00402='',pa01302,pm00209=sum(pm00503),pm00501='',pm00506='',iLevel=0, 
+    pm00503=sum(pm00503),pm00208=0,pm00210=sum(pm00505)
+    /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where Areaid=pj01501 and FIFOI_02Mat=pm00200) ,0)
+		上面这句很慢，改成下面的zsw20220111*/
+		,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI,sdpm004 where pm00401=FIFOI_11DepotID and pm00411=pj01501  and FIFOI_02Mat=pm00200) ,0)
+    ,PrjName=''
+    ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm005,sdpm004,sdpj015 
+  where pm00200=pm00301 and pm00302=pa01301 and pm00502=pm00200 and pm00303=1
+        and pm00401=pm00501 and pm00411=pj01501 and pm00411<>''
+  group by  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302
+)
+union all 
+(
+ --取材料的所有存货  ---核算范围是仓库，此时区域为空
+ select FYMonth = convert(varchar(7),GETDATE(),21), pm00401, 
+    pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+    pm00402='',pa01302,pm00209=sum(pm00503),pm00501='',pm00506='',iLevel=0, 
+    pm00503=sum(pm00503),pm00208=0,pm00210=sum(pm00505)
+    /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+		上面这句很慢，改成下面的zsw20220111*/
+		,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+    ,PrjName=''
+    ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm005,sdpm004 
+  where pm00200=pm00301 and pm00302=pa01301 and pm00502=pm00200 and pm00303=1
+        and pm00401=pm00501  and pm00411=''
+  group by pm00401, pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302
+  
+  
+)
+union all 
+(
+ --取材料的仓库存货
+ select FYMonth = convert(varchar(7),GETDATE(),21), pm00401='',
+  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209=sum(pm00503),pm00501,pm00506='',iLevel=1,
+  pm00503=sum(pm00503),
+  pm00504=isnull(pm00504,0),pm00505=sum(pm00505)
+  --,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00501  and FIFOI_02Mat=pm00200) ,0)
+	/*上面这句很慢，改成下面的zsw20220111*/
+	,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00501  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=''
+  ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm005,sdpm004,sdpj015
+  where pm00200=pm00301 and pm00302=pa01301 and pm00303=1 and pm00501=pm00401
+    and pm00502=pm00200 and pj01501=pm00411 and pm00411<>''
+  group by  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302,pm00501,pm00402,pm00504
+)
+union all 
+(
+ --取材料的仓库存货 ---核算范围是仓库，此时区域为空
+ select FYMonth = convert(varchar(7),GETDATE(),21), pm00401,
+  pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209=sum(pm00503),pm00501,pm00506='',iLevel=1,
+  pm00503=sum(pm00503),
+  pm00504=isnull(pm00504,0),pm00505=sum(pm00505)
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00501  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=''
+  ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm005,sdpm004
+  where pm00200=pm00301 and pm00302=pa01301 and pm00303=1 and pm00501=pm00401
+    and pm00502=pm00200 and pm00411=''
+  group by pm00401,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302,pm00501,pm00402,pm00504
+)
+union all 
+(
+ --取材料的项目存货
+ select FYMonth = convert(varchar(7),GETDATE(),21), pm00401,
+  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209,pm00501,pm00506=isnull(pa00102,''),iLevel=2,
+  pm00503=isnull(pm00503,0),
+  pm00504=isnull(pm00504,0),pm00505=isnull(pm00505,0)
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=ISNULL(pa00102,'')
+  ,PrjCode=ISNULL(pa00101,'')
+  from sdpm002 inner join sdpm003 on pm00200=pm00301
+               inner join sdpa013 on pm00302=pa01301 and pm00303=1 
+               inner join sdpm005 on pm00502=pm00200 
+               inner join sdpm004 on pm00501=pm00401
+               inner join sdpj015 on pj01501=pm00411 
+               left  join sdpa001 on pm00506=pa00101 
+)
+union all 
+(
+ --取材料的项目存货 ---核算范围是仓库，此时区域为空
+ select FYMonth = convert(varchar(7),GETDATE(),21), pm00401,
+  pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209,pm00501,pm00506=isnull(pa00102,''),iLevel=2,
+  pm00503=isnull(pm00503,0),
+  pm00504=isnull(pm00504,0),pm00505=isnull(pm00505,0)
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200 and PrjID=pm00506) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200 and FIFOI_12PrjID=pm00506) ,0)
+  ,PrjName=ISNULL(pa00102,'')
+  ,PrjCode=ISNULL(pa00101,'')
+  from sdpm002 inner join sdpm003 on pm00200=pm00301
+               inner join sdpa013 on pm00302=pa01301 and pm00303=1 
+               inner join sdpm005 on pm00502=pm00200 
+               inner join sdpm004 on pm00501=pm00401 and pm00411=''
+               left  join sdpa001 on pm00506=pa00101 
+)
+
+union all 
+(
+ --取材料的所有存货 
+ select FYMonth = pm005Bak01, pm00401='',
+    pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+    pm00402='',pa01302,pm00209=sum(pm005Bak04),pm00501='',pm00506='',iLevel=0, 
+    pm00503=sum(pm005Bak04),pm00208=0,pm00210=sum(pm005Bak06)
+    /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where Areaid=pj01501  and FIFOI_02Mat=pm00200) ,0)
+		上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI,sdpm004 where pm00401=FIFOI_11DepotID and pm00411=pj01501  and FIFOI_02Mat=pm00200) ,0)
+    ,PrjName=''
+    ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm005Bak,sdpm004,sdpj015 
+  where pm00200=pm00301 and pm00302=pa01301 and pm005Bak03=pm00200 and pm00303=1
+        and pm00401=pm005Bak02 and pm00411=pj01501 and pm00411<>''
+        and pm005Bak01<>convert(varchar(7),GETDATE(),21) 
+  group by pm005Bak01, pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302
+)
+union all 
+(
+ --取材料的所有存货  ---核算范围是仓库，此时区域为空 
+ select FYMonth = pm005Bak01, pm00401,
+    pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+    pm00402='',pa01302,pm00209=sum(pm005Bak04),pm00501='',pm00506='',iLevel=0, 
+    pm00503=sum(pm005Bak04),pm00208=0,pm00210=sum(pm005Bak06)
+    /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+		上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+    ,PrjName=''
+    ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm005Bak,sdpm004 
+  where pm00200=pm00301 and pm00302=pa01301 and pm005Bak03=pm00200 and pm00303=1
+        and pm00401=pm005Bak02 and pm00411=''
+        and pm005Bak01<>convert(varchar(7),GETDATE(),21) 
+  group by pm005Bak01,pm00401,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302
+)
+union all 
+(
+ --取材料的仓库存货
+ select FYMonth = pm005Bak01,  pm00401='',
+  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209=sum(pm005Bak04),pm00501=pm005Bak02,pm00506='',iLevel=1,
+  pm00503=sum(pm005Bak04),
+  pm00504=isnull(pm005Bak05,0),pm00505=sum(pm005Bak06)
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm005bak02  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm005bak02  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=''
+  ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm005Bak,sdpm004,sdpj015
+  where pm00200=pm00301 and pm00302=pa01301 and pm00303=1 and pm005Bak02=pm00401
+    and pm005Bak03=pm00200 and pj01501=pm00411 and pm00411<>''
+    and pm005Bak01<>convert(varchar(7),GETDATE(),21)
+  group by  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302,pm005Bak01,pm005Bak02,pm00402,pm005Bak05
+
+)
+union all 
+(
+ --取材料的仓库存货  ---核算范围是仓库，此时区域为空
+ select FYMonth = pm005Bak01,  pm00401,
+  pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209=sum(pm005Bak04),pm00501=pm005Bak02,pm00506='',iLevel=1,
+  pm00503=sum(pm005Bak04),
+  pm00504=isnull(pm005Bak05,0),pm00505=sum(pm005Bak06)
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=''
+  ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm005Bak,sdpm004
+  where pm00200=pm00301 and pm00302=pa01301 and pm00303=1 and pm005Bak02=pm00401
+    and pm005Bak03=pm00200 and pm00411=''
+    and pm005Bak01<>convert(varchar(7),GETDATE(),21)
+  group by pm00401,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302,pm005Bak01,pm005Bak02,pm00402,pm005Bak05
+
+)
+union all 
+(
+ --取材料的项目存货
+ select FYMonth = pm005Bak01, pm00401='',
+  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209,pm00501=pm005Bak02,pm00506=isnull(pa00102,''),iLevel=2,
+  pm00503=isnull(pm005Bak04,0),
+  pm00504=isnull(pm005Bak05,0),pm00505=isnull(pm005Bak06,0)
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=ISNULL(pa00102,'')
+  ,PrjCode=ISNULL(pa00101,'')
+  from sdpm002 inner join sdpm003 on pm00200=pm00301 
+               inner join sdpa013 on pm00302=pa01301 and pm00303=1 
+               inner join sdpm005Bak on pm005Bak03=pm00200
+               inner join sdpm004 on pm005Bak02=pm00401 
+               inner join sdpj015 on pj01501=pm00411 and pm00411<>''
+               left  join sdpa001 on pa00101=pm005Bak07 
+ where pm005Bak01<>convert(varchar(7),GETDATE(),21)
+)
+union all 
+(
+ --取材料的项目存货
+ select FYMonth = pm005Bak01, pm00401,
+  pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209,pm00501=pm005Bak02,pm00506=isnull(pa00102,''),iLevel=2,
+  pm00503=isnull(pm005Bak04,0),
+  pm00504=isnull(pm005Bak05,0),pm00505=isnull(pm005Bak06,0)
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=ISNULL(pa00102,'')
+  ,PrjCode=ISNULL(pa00101,'')
+  from sdpm002 inner join sdpm003 on pm00200=pm00301 
+               inner join sdpa013 on pm00302=pa01301 and pm00303=1 
+               inner join sdpm005Bak on pm005Bak03=pm00200
+               inner join sdpm004 on pm005Bak02=pm00401 
+               left  join sdpa001 on pa00101=pm005Bak07 
+ where pm005Bak01<>convert(varchar(7),GETDATE(),21)
+)
+
+
+
+
+
+
+
+-- 财务月结调整  add lyf 2020-12--begin---
+union all 
+(
+ --取材料的所有存货 
+ select FYMonth = pm08204+'-'+pm08205, pm00401='', pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+    pm00402='',pa01302,pm00209=sum(pm08304),pm00501='',pm00506='',iLevel=0
+        --,pm00503=sum(pm08304),pm00208=0,pm00210=sum(pm08306)
+        ,pm00503=case when  ( pm08206 in(0,1,5,7)  or ( pm08206=9  and sum(pm08304)>0) )  then sum(pm08304)  
+                      when  ( pm08206 in(2,3,4,6,8) or (pm08206=9 and sum(pm08304)<0 ))  then sum(pm08304)*(-1)  end 
+        ,pm00208=0
+        ,pm00210=case when  ( pm08206 in(0,1,5,7,9)   )  then sum(pm08306)  
+                      when  ( pm08206 in(2,3,4,6,8,10)   ) then sum(pm08306)*(-1)  end  
+    /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where Areaid=pj01501  and FIFOI_02Mat=pm00200) ,0)
+		上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI,sdpm004 where pm00401=FIFOI_11DepotID and pm00411=pj01501  and FIFOI_02Mat=pm00200) ,0)
+    ,PrjName='' ,PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm004,sdpj015,sdpm082,sdpm083
+  where pm00200=pm00301 and pm00302=pa01301 and pm08303=pm00200 and pm00303=1     and pm00401=pm08307 and pm00411=pj01501 and pm00411<>''  
+   and pm08201=pm08302  and pm08210=1
+   -- and isnull((pm08204+'-'+pm08205),'')<>convert(varchar(7),GETDATE(),21)
+  group by pm08204,pm08205, pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302,pm08206
+)
+union all 
+(
+  --取材料的所有存货  ---核算范围是仓库，此时区域为空 
+  select FYMonth = pm08204+'-'+pm08205, pm00401,    pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+    pm00402='',pa01302,pm00209=sum(pm08304),pm00501='',pm00506='',iLevel=0
+        --,pm00503=sum(pm08304),pm00208=0,pm00210=sum(pm08306)
+        ,pm00503=case when  ( pm08206 in(0,1,5,7,9)   )  then sum(pm08304)  
+                      when  ( pm08206 in(2,3,4,6,8,10)   )  then sum(pm08304)*(-1) end 
+        ,pm00208=0
+        ,pm00210=case when  ( pm08206 in(0,1,5,7,9)   )  then sum(pm08306)  
+                      when  ( pm08206 in(2,3,4,6,8,10)   ) then sum(pm08306)*(-1)  end  
+    /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+		上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+    ,PrjName='',PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm082,sdpm083,sdpm004 
+  where pm00200=pm00301 and pm00302=pa01301 and pm08303=pm00200 and pm00303=1     and pm00401=pm08307 and pm00411=''       
+   and pm08201=pm08302  and pm08210=1
+   -- and isnull((pm08204+'-'+pm08205),'')<>convert(varchar(7),GETDATE(),21)
+  group by pm08204,pm08205,pm00401,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302,pm08206
+)
+union all 
+(
+  --取材料的仓库存货
+  select FYMonth = pm08204+'-'+pm08205,  pm00401='',  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209=sum(pm08304),pm00501=pm08307,pm00506='',iLevel=1
+  --,pm00503=sum(pm08304), pm00504=isnull(pm08305,0),pm00505=sum(pm08306)
+  ,pm00503=case when  ( pm08206 in(0,1,5,7,9)   )  then sum(pm08304)  
+                      when  ( pm08206 in(2,3,4,6,8,10)   ) then sum(pm08304)*(-1) end 
+        ,pm00504=0
+        ,pm00505=case when  ( pm08206 in(0,1,5,7,9)   ) then sum(pm08306) 
+                      when  ( pm08206 in(2,3,4,6,8,10) ) then sum(pm08306)*(-1)  end 
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm08307  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm08307  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName='',PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm082,sdpm083,sdpm004,sdpj015
+  where pm00200=pm00301 and pm00302=pa01301 and pm00303=1 and pm08307=pm00401    and pm08303=pm00200 and pj01501=pm00411 and pm00411<>''   
+       and pm08201=pm08302  and pm08210=1
+   -- and isnull((pm08204+'-'+pm08205),'')<>convert(varchar(7),GETDATE(),21)
+  group by  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302,pm08204,pm08205,pm08307,pm00402,pm08305,pm08206
+)
+union all 
+(
+ --取材料的仓库存货  ---核算范围是仓库，此时区域为空
+ select FYMonth = pm08204+'-'+pm08205,  pm00401,  pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+  pm00402=isnull(pm00402,''),pa01302,pm00209=sum(pm08304),pm00501=pm08307,pm00506='',iLevel=1
+  --,pm00503=sum(pm08304),  pm00504=isnull(pm08305,0),pm00505=sum(pm08306)
+        ,pm00503=case when  ( pm08206 in(0,1,5,7,9) )  then sum(pm08304)  
+                      when  ( pm08206 in(2,3,4,6,8,10) ) then sum(pm08304)*(-1) end 
+        ,pm00504=0
+        ,pm00505=case when  ( pm08206 in(0,1,5,7,9) ) then sum(pm08306) 
+                      when  ( pm08206 in(2,3,4,6,8,10)) then sum(pm08306)*(-1)  end 
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName='',PrjCode=''
+  from sdpm002,sdpm003,sdpa013,sdpm082,sdpm083,sdpm004
+  where pm00200=pm00301 and pm00302=pa01301 and pm00303=1 and pm08307=pm00401   and pm08303=pm00200 and pm00411=''
+   and pm08201=pm08302  and pm08210=1
+   -- and isnull((pm08204+'-'+pm08205),'')<>convert(varchar(7),GETDATE(),21)
+
+  group by pm00401,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,pa01302,pm08204,pm08205,pm08307,pm00402,pm08305,pm08206
+)
+union all 
+(
+ --取材料的项目存货
+ select FYMonth = pm08204+'-'+pm08205, pm00401='',  pj01501,pj01502,pj01503,pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+   pm00402=isnull(pm00402,''),pa01302,pm00209,pm00501=pm08307,pm00506=isnull(pa00102,''),iLevel=2
+  -- ,pm00503=isnull(pm08304,0), pm00504=isnull(pm08305,0),pm00505=isnull(pm08306,0)
+        ,pm00503=case when  ( pm08206 in(0,1,5,7,9))  then isnull(pm08304,0)  
+                      when  ( pm08206 in(2,3,4,6,8)  or (pm08206=9 and pm08304<0 ))  then isnull(pm08304,0)*(-1) end 
+        ,pm00504=0
+        ,pm00505=case when  ( pm08206 in(0,1,5,7,9) )  then isnull(pm08306,0)  
+                      when  ( pm08206 in(2,3,4,6,8,10) ) then isnull(pm08306,0)*(-1)  end 
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=ISNULL(pa00102,''),PrjCode=ISNULL(pa00101,'')
+  from sdpm002 inner join sdpm003 on pm00200=pm00301 
+               inner join sdpa013 on pm00302=pa01301 and pm00303=1             
+                           inner join sdpm083 on pm08303=pm00200
+                           inner join sdpm082 on pm08201=pm08302
+               inner join sdpm004 on pm08307=pm00401 
+               inner join sdpj015 on pj01501=pm00411 and pm00411<>''
+               left  join sdpa001 on pa00101=pm08202 
+  where  pm08210=1
+   --and  isnull((pm08204+'-'+pm08205),'')<>convert(varchar(7),GETDATE(),21)
+)
+union all 
+(
+  --取材料的项目存货
+  select FYMonth = pm08204+'-'+pm08205, pm00401,  pj01501='',pj01502='',pj01503='',pm00200,pm00201,pm00202,pm00205,pm00221,pm00222,
+   pm00402=isnull(pm00402,''),pa01302,pm00209,pm00501=pm08307,pm00506=isnull(pa00102,''),iLevel=2
+     -- ,pm00503=isnull(pm08304,0), pm00504=isnull(pm08305,0),pm00505=isnull(pm08306,0)
+        ,pm00503=case when  ( pm08206 in(0,1,5,7,9)  )  then isnull(pm08304,0)  
+                      when  ( pm08206 in(2,3,4,6,8)  or (pm08206=9 and pm08304<0 ))  then isnull(pm08304,0)*(-1) end 
+        ,pm00504=0
+        ,pm00505=case when  ( pm08206 in(0,1,5,7,9) )  then isnull(pm08306,0)  
+                      when  ( pm08206 in(2,3,4,6,8,10) ) then isnull(pm08306,0)*(-1)  end 
+  /*,pm00505Sum=ISNULL((select SUM(amt)from sdvw_sdFIFOI where DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+	上面这句很慢，改成下面的zsw20220111*/
+	 ,pm00505Sum=ISNULL((select sum((FIFOI_04IQty-FIFOI_05RQty-FIFOI_06OQTY)*FIFOI_07Pri) from sdFIFOI where FIFOI_11DepotID=pm00401  and FIFOI_02Mat=pm00200) ,0)
+  ,PrjName=ISNULL(pa00102,''),PrjCode=ISNULL(pa00101,'')
+  from sdpm002 inner join sdpm003 on pm00200=pm00301 
+               inner join sdpa013 on pm00302=pa01301 and pm00303=1 
+               inner join sdpm083 on pm08303=pm00200  
+                           inner join sdpm082 on pm08201=pm08302 
+               inner join sdpm004 on pm08307=pm00401 
+               left  join sdpa001 on pa00101=pm08202 
+  where  pm08210=1
+   --and  isnull((pm08204+'-'+pm08205),'')<>convert(varchar(7),GETDATE(),21)
+)
+
+-- 财务月结调整  add lyf 2020-12--end---
+
+
+
+GO
