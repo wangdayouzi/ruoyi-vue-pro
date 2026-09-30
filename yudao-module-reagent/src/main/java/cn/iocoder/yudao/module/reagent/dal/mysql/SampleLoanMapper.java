@@ -21,10 +21,13 @@ public interface SampleLoanMapper extends BaseMapperX<SampleLoanDO> {
                 .orderByDesc(SampleLoanDO::getId));
     }
 
-    default SampleLoanDO selectBorrowingByBasNo(String basNo) {
+    default SampleLoanDO selectBorrowingByKey(String basNo, String location, Long requesterId, Long excludeId) {
         return selectOne(new LambdaQueryWrapperX<SampleLoanDO>()
                 .eq(SampleLoanDO::getBasNo, basNo)
+                .eq(SampleLoanDO::getLocation, location)
+                .eq(SampleLoanDO::getRequesterId, requesterId)
                 .eq(SampleLoanDO::getStatus, 1)
+                .neIfPresent(SampleLoanDO::getId, excludeId)
                 .last("LIMIT 1"));
     }
 

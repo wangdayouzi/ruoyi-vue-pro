@@ -14,7 +14,7 @@ import lombok.ToString;
 import java.time.LocalDateTime;
 
 /**
- * 样品领用台账。样品独立于试剂库存，不和 ERP、LIMS 建立关联。
+ * 领用台账。领用记录独立于试剂库存，不和 ERP、LIMS 建立关联。
  */
 @TableName("sample_loan")
 @KeySequence("sample_loan_seq")
@@ -30,6 +30,10 @@ public class SampleLoanDO extends TenantBaseDO {
     private Long id;
     /** BAS 号 */
     private String basNo;
+    /** 领用类型：SAMPLE-样品，REAGENT-试剂 */
+    private String materialType;
+    /** 领用地点：4楼、8楼 */
+    private String location;
     /** 需求人用户 ID */
     private Long requesterId;
     /** 需求人 */
@@ -38,11 +42,11 @@ public class SampleLoanDO extends TenantBaseDO {
     private Long submitterId;
     /** 提单人 */
     private String submitter;
-    /** 样品信息（选填） */
+    /** 物料信息（选填） */
     private String sampleInfo;
     /** 备注（选填） */
     private String remark;
-    /** 1-领用中；2-已归还 */
+    /** 1-可领用；2-已归还；3-无需归还 */
     private Integer status;
     /** 实际归还时间 */
     private LocalDateTime returnTime;

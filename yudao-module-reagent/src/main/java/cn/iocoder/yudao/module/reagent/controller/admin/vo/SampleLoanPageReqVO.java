@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
-@Schema(description = "管理后台 - 样品领用台账分页 Request VO")
+@Schema(description = "管理后台 - 领用台账分页 Request VO")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
@@ -16,6 +16,6 @@ public class SampleLoanPageReqVO extends PageParam {
     private String basNo;
     @Schema(description = "需求人用户 ID", example = "1")
     private Long requesterId;
-    @Schema(description = "状态，1-领用中；2-已归还", example = "1")
+    @Schema(description = "状态，1-可领用；2-已归还；3-无需归还", example = "1")
     private Integer status;
 }

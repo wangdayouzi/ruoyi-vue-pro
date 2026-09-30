@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanCreateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanPageReqVO;
+import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.SampleLoanDO;
 import cn.iocoder.yudao.module.reagent.dal.mysql.SampleLoanMapper;
 import jakarta.annotation.Resource;
@@ -24,6 +25,7 @@ public class SampleLoanServiceImpl implements SampleLoanService {
 
     public static final int STATUS_BORROWING = 1;
     public static final int STATUS_RETURNED = 2;
+    public static final int STATUS_NO_RETURN = 3;
 
     @Resource
     private SampleLoanMapper sampleLoanMapper;
@@ -32,16 +34,47 @@ public class SampleLoanServiceImpl implements SampleLoanService {
     @Transactional(rollbackFor = Exception.class)
     public Long createSampleLoan(SampleLoanCreateReqVO createReqVO) {
         String basNo = StrUtil.trim(createReqVO.getBasNo());
-        if (sampleLoanMapper.selectBorrowingByBasNo(basNo) != null) {
-            throw exception(SAMPLE_LOAN_ALREADY_BORROWING);
-        }
         SampleLoanDO sampleLoan = BeanUtils.toBean(createReqVO, SampleLoanDO.class);
         sampleLoan.setBasNo(basNo)
+                .setMaterialType(StrUtil.trim(createReqVO.getMaterialType()))
+                .setLocation(StrUtil.trim(createReqVO.getLocation()))
                 .setRequester(StrUtil.trim(createReqVO.getRequester()))
                 .setSubmitter(StrUtil.trim(createReqVO.getSubmitter()))
                 .setStatus(STATUS_BORROWING);
         sampleLoanMapper.insert(sampleLoan);
         return sampleLoan.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateSampleLoan(SampleLoanUpdateReqVO updateReqVO) {
+        SampleLoanDO sampleLoan = sampleLoanMapper.selectById(updateReqVO.getId());
+        if (sampleLoan == null) {
+            throw exception(SAMPLE_LOAN_NOT_EXISTS);
+        }
+        String basNo = StrUtil.trim(updateReqVO.getBasNo());
+        SampleLoanDO updateObj = BeanUtils.toBean(updateReqVO, SampleLoanDO.class);
+        updateObj.setBasNo(basNo)
+                .setMaterialType(StrUtil.trim(updateReqVO.getMaterialType()))
+                .setLocation(StrUtil.trim(updateReqVO.getLocation()))
+                .setRequester(StrUtil.trim(updateReqVO.getRequester()))
+                .setSubmitter(StrUtil.trim(updateReqVO.getSubmitter()));
+        sampleLoanMapper.updateById(updateObj);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteSampleLoan(Long id) {
+        if (sampleLoanMapper.selectById(id) == null) {
+            throw exception(SAMPLE_LOAN_NOT_EXISTS);
+        }
+        sampleLoanMapper.deleteById(id);
+    }
+
+    @Override
+    public boolean hasBorrowingSampleLoan(String basNo, String location, Long requesterId, Long excludeId) {
+        return sampleLoanMapper.selectBorrowingByKey(
+                StrUtil.trim(basNo), StrUtil.trim(location), requesterId, excludeId) != null;
     }
 
     @Override
@@ -58,6 +91,22 @@ public class SampleLoanServiceImpl implements SampleLoanService {
         updateObj.setId(id);
         updateObj.setStatus(STATUS_RETURNED);
         updateObj.setReturnTime(LocalDateTime.now());
+        sampleLoanMapper.updateById(updateObj);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void noReturnSampleLoan(Long id) {
+        SampleLoanDO sampleLoan = sampleLoanMapper.selectById(id);
+        if (sampleLoan == null) {
+            throw exception(SAMPLE_LOAN_NOT_EXISTS);
+        }
+        if (!Integer.valueOf(STATUS_BORROWING).equals(sampleLoan.getStatus())) {
+            throw exception(SAMPLE_LOAN_NOT_BORROWING);
+        }
+        SampleLoanDO updateObj = new SampleLoanDO();
+        updateObj.setId(id);
+        updateObj.setStatus(STATUS_NO_RETURN);
         sampleLoanMapper.updateById(updateObj);
     }
 
