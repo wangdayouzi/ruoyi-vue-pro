@@ -354,6 +354,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         return userMapper.selectByIds(ids);
     }
 
+    @Override
     public List<AdminUserDO> getUserListAll() {
         return userMapper.selectList();
     }

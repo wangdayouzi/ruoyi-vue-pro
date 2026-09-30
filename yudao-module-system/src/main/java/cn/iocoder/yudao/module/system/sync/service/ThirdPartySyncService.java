@@ -4,12 +4,14 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.module.system.dal.dataobject.dept.DeptDO;
+import cn.iocoder.yudao.module.system.dal.dataobject.permission.RoleDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.permission.UserRoleDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialClientDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserBindDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.social.SocialUserDO;
 import cn.iocoder.yudao.module.system.dal.dataobject.user.AdminUserDO;
 import cn.iocoder.yudao.module.system.dal.mysql.dept.DeptMapper;
+import cn.iocoder.yudao.module.system.dal.mysql.permission.RoleMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.permission.UserRoleMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.social.SocialUserBindMapper;
 import cn.iocoder.yudao.module.system.dal.mysql.social.SocialUserMapper;
@@ -62,6 +64,9 @@ public class ThirdPartySyncService {
     @Resource
     private UserRoleMapper userRoleMapper;
 
+    @Resource
+    private RoleMapper roleMapper;
+
     @Autowired(required = false)
     private JustAuthProperties justAuthProperties; // 复用 justauth 配置（与 OAuth 登录共用）
 
@@ -78,10 +83,10 @@ public class ThirdPartySyncService {
     private Long syncParentDeptId;
 
     /**
-     * 同步用户默认分配的角色ID，不配置则不分配角色
+     * 同步用户默认分配的角色标识
      */
-    @Value("${yudao.sync.default-role-id:0}")
-    private Long defaultRoleId;
+    @Value("${yudao.sync.default-role-code:normal}")
+    private String defaultRoleCode;
 
     /**
      * 连续完整同步未出现在钉钉通讯录中的账号是否自动停用。
@@ -258,6 +263,11 @@ public class ThirdPartySyncService {
         }
         log.info("[sync][{}] 拉取到 {} 个用户, 开始写入", SocialTypeEnum.valueOfType(socialType), userList.size());
 
+        RoleDO defaultRole = StrUtil.isBlank(defaultRoleCode) ? null : roleMapper.selectByCode(defaultRoleCode);
+        if (defaultRole == null) {
+            throw new IllegalStateException("同步默认角色不存在，roleCode=" + defaultRoleCode);
+        }
+
         // 预加载现有 sourceDeptId → DeptDO 映射
         Map<String, DeptDO> sourceDeptMap = new HashMap<>();
         for (DeptDO d : deptMapper.selectList()) {
@@ -290,7 +300,7 @@ public class ThirdPartySyncService {
                                 SocialTypeEnum.valueOfType(socialType), socialUser.getId(), bind.getUserId());
                     }
                     // 重新创建用户 + 绑定
-                    Long userId = createSystemUser(dto, sourceDeptMap, socialType);
+                    Long userId = createSystemUser(dto, sourceDeptMap, socialType, defaultRole.getId());
                     createBind(userId, socialUser.getId(), socialType);
                     log.info("[sync][{}] 重新创建用户: nickname={}, userId={}",
                             SocialTypeEnum.valueOfType(socialType), dto.getNickname(), userId);
@@ -304,7 +314,7 @@ public class ThirdPartySyncService {
                 // 3. 不存在 → 三连创建
                 log.info("[sync][{}] 新增用户: nickname={}, sourceUserId={}, openid={}",
                         SocialTypeEnum.valueOfType(socialType), dto.getNickname(), dto.getSourceUserId(), openid);
-                Long userId = createSystemUser(dto, sourceDeptMap, socialType);
+                Long userId = createSystemUser(dto, sourceDeptMap, socialType, defaultRole.getId());
                 Long socialUserId = createSocialUser(socialType, openid, dto);
                 createBind(userId, socialUserId, socialType);
                 log.info("[sync][{}] 用户创建完成: nickname={}, userId={}, socialUserId={}",
@@ -327,7 +337,8 @@ public class ThirdPartySyncService {
     /**
      * 创建系统用户
      */
-    private Long createSystemUser(ThirdPartyUserDTO dto, Map<String, DeptDO> sourceDeptMap, Integer socialType) {
+    private Long createSystemUser(ThirdPartyUserDTO dto, Map<String, DeptDO> sourceDeptMap, Integer socialType,
+                                  Long defaultRoleId) {
         AdminUserDO user = new AdminUserDO();
         // 用户名优先用手机号，没有则用 sourceUserId
         String username = StrUtil.isNotBlank(dto.getMobile()) ? dto.getMobile() : dto.getSourceUserId();

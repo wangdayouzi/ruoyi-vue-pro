@@ -131,11 +131,13 @@ public class UserController {
     }
 
     @GetMapping({"/list-all-simple", "/simple-list"})
-    @Operation(summary = "获取用户精简信息列表", description = "只包含被开启的用户，主要用于前端的下拉选项")
+    @Operation(summary = "获取用户精简信息列表", description = "默认只返回启用用户，可通过 includeDisabled=true 包含禁用用户")
     public CommonResult<List<UserSimpleRespVO>> getSimpleUserList(
-            @RequestParam(value = "deptId", required = false) Long deptId) {
-        List<AdminUserDO> list = userService.getUserListByStatus(
-                CommonStatusEnum.ENABLE.getStatus(), deptId);
+            @RequestParam(value = "deptId", required = false) Long deptId,
+            @RequestParam(value = "includeDisabled", required = false, defaultValue = "false") boolean includeDisabled) {
+        List<AdminUserDO> list = includeDisabled
+                ? userService.getUserListAll()
+                : userService.getUserListByStatus(CommonStatusEnum.ENABLE.getStatus(), deptId);
 
         // 拼接数据
         Map<Long, DeptDO> deptMap = deptService.getDeptMap(
