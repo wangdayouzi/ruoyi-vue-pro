@@ -7,11 +7,13 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.QueryWrapperX;
+import cn.iocoder.yudao.framework.mybatis.core.util.JdbcUtils;
 import cn.iocoder.yudao.module.pms.controller.admin.pm.workbench.vo.PmsWorkbenchPageReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.pm.workitem.vo.workitem.PmsWorkItemPageReqVO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.pm.workitem.PmsWorkItemDO;
 import cn.iocoder.yudao.module.pms.enums.pm.workitem.PmsWorkItemLifecycleStatusEnum;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.annotation.DbType;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
@@ -71,13 +73,13 @@ public interface PmsWorkItemMapper extends BaseMapperX<PmsWorkItemDO> {
      */
     default Map<Long, Map<Integer, Long>> selectStatusCountMapByProjectIds(Collection<Long> projectIds) {
         List<Map<String, Object>> rows = selectMaps(new QueryWrapperX<PmsWorkItemDO>()
-                .select("project_id AS projectId", "status", "COUNT(*) AS count")
+                .select("project_id", "status", "COUNT(*) AS count")
                 .in("project_id", projectIds)
                 .eq("lifecycle_status", PmsWorkItemLifecycleStatusEnum.ACTIVE.getStatus())
                 .groupBy("project_id", "status"));
         Map<Long, Map<Integer, Long>> projectStatusCountMap = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
-            Long projectId = ((Number) row.get("projectId")).longValue();
+            Long projectId = ((Number) row.get("project_id")).longValue();
             Integer status = ((Number) row.get("status")).intValue();
             projectStatusCountMap.computeIfAbsent(projectId, key -> new LinkedHashMap<>())
                     .put(status, ((Number) row.get("count")).longValue());
@@ -93,13 +95,13 @@ public interface PmsWorkItemMapper extends BaseMapperX<PmsWorkItemDO> {
      */
     default Map<Long, Map<Integer, Long>> selectStatusCountMapByIterationIds(Collection<Long> iterationIds) {
         List<Map<String, Object>> rows = selectMaps(new QueryWrapperX<PmsWorkItemDO>()
-                .select("iteration_id AS iterationId", "status", "COUNT(*) AS count")
+                .select("iteration_id", "status", "COUNT(*) AS count")
                 .in("iteration_id", iterationIds)
                 .eq("lifecycle_status", PmsWorkItemLifecycleStatusEnum.ACTIVE.getStatus())
                 .groupBy("iteration_id", "status"));
         Map<Long, Map<Integer, Long>> iterationStatusCountMap = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
-            Long iterationId = ((Number) row.get("iterationId")).longValue();
+            Long iterationId = ((Number) row.get("iteration_id")).longValue();
             Integer status = ((Number) row.get("status")).intValue();
             iterationStatusCountMap.computeIfAbsent(iterationId, key -> new LinkedHashMap<>())
                     .put(status, ((Number) row.get("count")).longValue());
@@ -333,11 +335,14 @@ public interface PmsWorkItemMapper extends BaseMapperX<PmsWorkItemDO> {
             queryWrapper.and(wrapper -> wrapper.notIn(PmsWorkItemDO::getIterationId,
                     pageReqVO.getExcludedIterationIds()).or().isNull(PmsWorkItemDO::getIterationId));
         }
-        // label_ids 为 JSON 数组列，使用 MySQL JSON_CONTAINS 匹配元素，H2 单测不覆盖该分支
+        // label_ids 为 JSON 数组列；PostgreSQL 和 MySQL 使用各自的包含查询。
         if (CollUtil.isNotEmpty(pageReqVO.getLabelIds())) {
+            boolean postgreSql = DbType.POSTGRE_SQL == JdbcUtils.getDbType();
             queryWrapper.and(labelWrapper -> {
                 for (Long labelId : pageReqVO.getLabelIds()) {
-                    labelWrapper.or().apply("JSON_CONTAINS(label_ids, JSON_ARRAY({0}))", labelId);
+                    labelWrapper.or().apply(postgreSql
+                            ? "label_ids @> jsonb_build_array({0})"
+                            : "JSON_CONTAINS(label_ids, JSON_ARRAY({0}))", labelId);
                 }
             });
         }
