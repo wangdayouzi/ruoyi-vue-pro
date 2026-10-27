@@ -2,10 +2,13 @@ package cn.iocoder.yudao.module.pms.service.kb.content;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentCreateReqVO;
+import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentDraftSaveReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentMoveReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentSearchPageReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentUpdateReqVO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentDO;
+import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentDraftDO;
+import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentVersionDO;
 
 import java.util.Collection;
 import java.util.List;
@@ -37,6 +40,23 @@ public interface PmsKnowledgeDocumentService {
      * @param userId 用户编号
      */
     void updateDocument(PmsKnowledgeDocumentUpdateReqVO updateReqVO, Long userId);
+
+    PmsKnowledgeDocumentDraftDO getDraft(Long documentId, Long userId);
+
+    void saveDraft(PmsKnowledgeDocumentDraftSaveReqVO reqVO, Long userId);
+
+    void publishDraft(Long documentId, Long userId);
+
+    int rebuildLibrarySearchIndex(Long libraryId, Long userId);
+
+    /** History is visible to document readers; only editors can restore it. */
+    List<PmsKnowledgeDocumentVersionDO> getDocumentVersionList(Long documentId, Long userId);
+
+    PmsKnowledgeDocumentVersionDO getDocumentVersion(Long documentId, Long versionNo, Long userId);
+
+    void restoreDocumentVersion(Long documentId, Long versionNo, Long expectedVersionNo, Long userId);
+
+    void deleteDocumentVersions(Collection<Long> documentIds);
 
     /**
      * 删除文档，并将文档和全部子文档移入回收站

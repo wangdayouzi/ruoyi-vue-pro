@@ -22,6 +22,12 @@ public class PmsKnowledgeDocumentShareRespVO {
     @Schema(description = "外部查看令牌", requiredMode = Schema.RequiredMode.REQUIRED)
     private String token;
 
+    @Schema(description = "公开分享失效时间")
+    private LocalDateTime expireTime;
+
+    @Schema(description = "是否需要访问码")
+    private Boolean accessCodeRequired;
+
     @Schema(description = "分享状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer status;
 

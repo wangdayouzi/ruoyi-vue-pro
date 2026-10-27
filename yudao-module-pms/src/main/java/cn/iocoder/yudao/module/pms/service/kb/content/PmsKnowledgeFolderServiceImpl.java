@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.folder.PmsKnowledgeFolderMoveReqVO;
+import cn.iocoder.yudao.module.infra.api.number.NumberRuleApi;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.folder.PmsKnowledgeFolderSaveReqVO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentDO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeFolderDO;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertSet;
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_FOLDER_MOVE_INVALID;
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_FOLDER_NOT_EXISTS;
@@ -62,6 +64,8 @@ public class PmsKnowledgeFolderServiceImpl implements PmsKnowledgeFolderService 
     @Resource
     @Lazy // 延迟加载，避免循环依赖
     private PmsKnowledgeRecycleService recycleService;
+    @Resource
+    private NumberRuleApi numberRuleApi;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -70,6 +74,7 @@ public class PmsKnowledgeFolderServiceImpl implements PmsKnowledgeFolderService 
         libraryMemberService.validateLibraryReadable(saveReqVO.getLibraryId(), userId);
         // 1.2 校验父文件夹存在
         PmsKnowledgeFolderDO parent = validateFolderParent(saveReqVO.getLibraryId(), saveReqVO.getParentId());
+        validateNumberRule(saveReqVO.getNumberRuleId(), parent);
         Long permissionId;
         if (parent == null) {
             // 1.3 根目录下校验知识库编辑权限
@@ -101,10 +106,17 @@ public class PmsKnowledgeFolderServiceImpl implements PmsKnowledgeFolderService 
         if (ObjectUtil.notEqual(folder.getLibraryId(), saveReqVO.getLibraryId())) {
             throw exception(KNOWLEDGE_FOLDER_PARENT_INVALID);
         }
+        validateNumberRule(saveReqVO.getNumberRuleId(),
+                folder.getParentId() == null || folder.getParentId() == 0L ? null : folderMapper.selectById(folder.getParentId()));
 
         // 2. 更新文件夹名称；目录位置通过移动接口维护
         folderMapper.updateById(BeanUtils.toBean(saveReqVO, PmsKnowledgeFolderDO.class)
                 .setId(folder.getId()).setLibraryId(null).setParentId(null));
+        if (saveReqVO.getNumberRuleId() == null) {
+            folderMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PmsKnowledgeFolderDO>()
+                    .eq(PmsKnowledgeFolderDO::getId, folder.getId())
+                    .set(PmsKnowledgeFolderDO::getNumberRuleId, null));
+        }
     }
 
     @Override
@@ -280,6 +292,12 @@ public class PmsKnowledgeFolderServiceImpl implements PmsKnowledgeFolderService 
             throw exception(KNOWLEDGE_FOLDER_PARENT_INVALID);
         }
         return parent;
+    }
+
+    private void validateNumberRule(Long ruleId, PmsKnowledgeFolderDO parent) {
+        if (ruleId == null) return;
+        if (parent != null) throw invalidParamException("只有一级主文件夹可覆盖编号规则");
+        if (!numberRuleApi.isEnabled(ruleId)) throw invalidParamException("编号规则不存在或已停用");
     }
 
     /**

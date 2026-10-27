@@ -33,6 +33,9 @@ public class PmsKnowledgeLibrarySaveReqVO {
     @Size(max = 255, message = "知识库封面地址不能超过 255 个字符")
     private String coverUrl;
 
+    @Schema(description = "默认文档编号规则 ID；为空表示不自动编号")
+    private Long numberRuleId;
+
     @Schema(description = "创建时的初始管理员用户编号列表", example = "[1, 2]")
     private List<Long> adminUserIds;
 

@@ -86,6 +86,10 @@ public interface FileService {
      */
     byte[] getFileContent(Long configId, String path) throws Exception;
 
+    byte[] getFileContentByUrl(String url) throws Exception;
+
+    boolean isFileRegistered(String url);
+
     /**
      * 获得文件
      *

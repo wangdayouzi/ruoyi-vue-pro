@@ -45,6 +45,8 @@ public class PmsKnowledgeLibraryDO extends BaseDO {
      * 知识库封面
      */
     private String coverUrl;
+    /** 默认文档业务编号规则；为空表示不自动编号。 */
+    private Long numberRuleId;
     /**
      * 知识库状态
      *

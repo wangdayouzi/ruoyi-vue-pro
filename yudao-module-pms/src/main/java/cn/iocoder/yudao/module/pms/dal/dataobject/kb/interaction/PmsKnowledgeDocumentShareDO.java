@@ -50,6 +50,10 @@ public class PmsKnowledgeDocumentShareDO extends BaseDO {
      * 外部查看令牌
      */
     private String token;
+    /** 公开分享失效时间，空表示永久有效 */
+    private LocalDateTime expireTime;
+    /** 访问码的 BCrypt 摘要，绝不返回前端 */
+    private String accessCodeHash;
     /**
      * 分享状态
      *

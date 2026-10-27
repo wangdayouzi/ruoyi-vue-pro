@@ -1,6 +1,6 @@
 package cn.iocoder.yudao.module.pms.controller.admin.kb.interaction;
 
-import cn.iocoder.yudao.module.infra.api.file.FileApi;
+import cn.iocoder.yudao.module.pms.service.kb.content.PmsKnowledgeOfficePreviewService;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.interaction.vo.share.PmsKnowledgeDocumentSharePublicRespVO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentDO;
 import cn.iocoder.yudao.module.pms.enums.kb.content.PmsKnowledgeDocumentTypeEnum;
@@ -30,20 +30,24 @@ public class PmsKnowledgeDocumentShareControllerTest {
         PmsKnowledgeDocumentDO document = new PmsKnowledgeDocumentDO().setId(1L).setTitle("测试文件")
                 .setType(PmsKnowledgeDocumentTypeEnum.FILE.getType()).setContent(rawUrl).setFileType("pdf");
         PmsKnowledgeDocumentShareService shareService = mock(PmsKnowledgeDocumentShareService.class);
-        FileApi fileApi = mock(FileApi.class);
-        when(shareService.getDocumentByShareToken(token)).thenReturn(document);
-        when(fileApi.presignGetUrl(rawUrl, null)).thenReturn(previewUrl);
+        PmsKnowledgeOfficePreviewService officePreviewService = mock(PmsKnowledgeOfficePreviewService.class);
+        when(shareService.getDocumentByShareToken(token, null)).thenReturn(document);
+        var share = new cn.iocoder.yudao.module.pms.dal.dataobject.kb.interaction.PmsKnowledgeDocumentShareDO().setToken(token);
+        when(shareService.getActiveDocumentShare(document.getId())).thenReturn(share);
+        when(officePreviewService.isPreviewAvailable()).thenReturn(true);
+        when(officePreviewService.isPreviewSourceRegistered(document)).thenReturn(true);
+        when(officePreviewService.buildSharePreviewUrl(document, share)).thenReturn(previewUrl);
         PmsKnowledgeDocumentShareController controller = new PmsKnowledgeDocumentShareController();
         ReflectionTestUtils.setField(controller, "documentShareService", shareService);
-        ReflectionTestUtils.setField(controller, "fileApi", fileApi);
+        ReflectionTestUtils.setField(controller, "officePreviewService", officePreviewService);
 
         // 调用
-        PmsKnowledgeDocumentSharePublicRespVO result = controller.getDocumentByToken(token).getData();
+        PmsKnowledgeDocumentSharePublicRespVO result = controller.getDocumentByToken(token, null).getData();
 
         // 断言
         assertNull(result.getContent());
         assertEquals(previewUrl, result.getPreviewUrl());
-        verify(fileApi).presignGetUrl(rawUrl, null);
+        verify(officePreviewService).buildSharePreviewUrl(document, share);
     }
 
 }

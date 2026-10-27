@@ -287,6 +287,20 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
+    public boolean isFileRegistered(String url) {
+        return url != null && !url.isBlank() && fileMapper.selectLatestByUrl(HttpUtils.removeUrlQuery(url)) != null;
+    }
+
+    @Override
+    public byte[] getFileContentByUrl(String url) throws Exception {
+        FileDO file = fileMapper.selectLatestByUrl(HttpUtils.removeUrlQuery(url));
+        if (file == null) {
+            throw exception(FILE_NOT_EXISTS);
+        }
+        return getFileContent(file.getConfigId(), file.getPath());
+    }
+
+    @Override
     public FileDO getFileByConfigIdAndPath(Long configId, String path) {
         return fileMapper.selectLatestByConfigIdAndPath(configId, path);
     }

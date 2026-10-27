@@ -27,6 +27,9 @@ public class PmsKnowledgeFolderRespVO {
     @Schema(description = "文件夹标题", requiredMode = Schema.RequiredMode.REQUIRED, example = "产品文档")
     private String title;
 
+    @Schema(description = "一级文件夹编号规则覆盖值")
+    private Long numberRuleId;
+
     @Schema(description = "直属子文件夹数量", requiredMode = Schema.RequiredMode.REQUIRED, example = "3")
     private Integer childFolderCount;
 

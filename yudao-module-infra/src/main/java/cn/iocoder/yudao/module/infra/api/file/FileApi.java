@@ -52,4 +52,10 @@ public interface FileApi {
     String presignGetUrl(@NotEmpty(message = "URL 不能为空") String url,
                          Integer expirationSeconds);
 
+    /** Read a file created by the infrastructure file service. External URLs are rejected. */
+    byte[] getFileContentByUrl(@NotEmpty(message = "URL 不能为空") String url) throws Exception;
+
+    /** Whether this URL has a managed file record and can be served by this application. */
+    boolean isFileRegistered(String url);
+
 }

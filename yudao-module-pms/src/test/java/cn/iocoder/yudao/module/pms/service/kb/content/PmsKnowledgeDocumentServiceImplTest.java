@@ -11,6 +11,7 @@ import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeFolderD
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.library.PmsKnowledgeLibraryDO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.library.PmsKnowledgeLibraryMemberDO;
 import cn.iocoder.yudao.module.pms.dal.mysql.kb.content.PmsKnowledgeDocumentMapper;
+import cn.iocoder.yudao.module.pms.dal.mysql.kb.content.PmsKnowledgeDocumentVersionMapper;
 import cn.iocoder.yudao.module.pms.dal.mysql.kb.content.PmsKnowledgeFolderMapper;
 import cn.iocoder.yudao.module.pms.dal.mysql.kb.library.PmsKnowledgeLibraryMapper;
 import cn.iocoder.yudao.module.pms.dal.mysql.kb.library.PmsKnowledgeLibraryMemberMapper;
@@ -43,6 +44,7 @@ import static cn.iocoder.yudao.framework.test.core.util.RandomUtils.randomPojo;
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_MOVE_INVALID;
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_MOVE_TARGET_INVALID;
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_NOT_EXISTS;
+import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_VERSION_CONFLICT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -69,6 +71,14 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
     private PmsKnowledgeFolderMapper folderMapper;
     @Resource
     private PmsKnowledgeDocumentMapper documentMapper;
+    @Resource
+    private PmsKnowledgeDocumentVersionMapper documentVersionMapper;
+    @MockitoBean
+    private cn.iocoder.yudao.module.infra.api.file.FileApi fileApi;
+    @MockitoBean
+    private cn.iocoder.yudao.module.infra.api.number.NumberRuleApi numberRuleApi;
+    @MockitoBean
+    private PmsKnowledgeAttributeService attributeService;
     @MockitoBean
     private PermissionApi permissionApi;
     @MockitoBean
@@ -202,6 +212,38 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
         PmsKnowledgeDocumentDO updatedDocument = documentMapper.selectById(document.getId());
         assertEquals("新标题", updatedDocument.getTitle());
         assertEquals("新正文", updatedDocument.getContent());
+    }
+
+    @Test
+    public void testDocumentVersion_updateConflictAndRestore() {
+        Long userId = randomLongId();
+        PmsKnowledgeLibraryDO library = randomLibraryDO();
+        libraryMapper.insert(library);
+        PmsKnowledgeFolderDO folder = randomFolderDO(library.getId(), 0L);
+        folderMapper.insert(folder);
+        when(memberService.validateLibraryReadable(library.getId(), userId)).thenReturn(library);
+        when(folderService.getFolder(folder.getId(), userId)).thenReturn(folder);
+
+        Long documentId = documentService.createDocument(new PmsKnowledgeDocumentCreateReqVO()
+                .setLibraryId(library.getId()).setFolderId(folder.getId()).setParentId(0L)
+                .setTitle("版本测试").setType(PmsKnowledgeDocumentTypeEnum.RICH_TEXT.getType())
+                .setContent("原始正文"), userId);
+        assertEquals(1L, documentMapper.selectById(documentId).getVersionNo());
+        assertEquals("原始正文", documentVersionMapper.selectByDocumentIdAndVersionNo(documentId, 1L).getContent());
+
+        documentService.updateDocument(new PmsKnowledgeDocumentUpdateReqVO()
+                .setId(documentId).setExpectedVersionNo(1L).setContent("修改正文"), userId);
+        assertEquals(2L, documentMapper.selectById(documentId).getVersionNo());
+        assertEquals("修改正文", documentVersionMapper.selectByDocumentIdAndVersionNo(documentId, 2L).getContent());
+        assertServiceException(() -> documentService.updateDocument(new PmsKnowledgeDocumentUpdateReqVO()
+                .setId(documentId).setExpectedVersionNo(1L).setContent("过期修改"), userId),
+                KNOWLEDGE_DOCUMENT_VERSION_CONFLICT);
+
+        documentService.restoreDocumentVersion(documentId, 1L, 2L, userId);
+        assertEquals(3L, documentMapper.selectById(documentId).getVersionNo());
+        assertEquals("原始正文", documentMapper.selectById(documentId).getContent());
+        assertEquals("原始正文", documentVersionMapper.selectByDocumentIdAndVersionNo(documentId, 3L).getContent());
+        assertEquals(3, documentVersionMapper.selectListByDocumentId(documentId).size());
     }
 
     @Test
@@ -463,6 +505,70 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
         assertEquals(2, pageResult.getTotal());
     }
 
+    @Test
+    public void draftCanBeSavedAndPublishedRepeatedlyWithoutChangingLiveContent() {
+        Long userId = 7L;
+        PmsKnowledgeDocumentDO document = randomDocumentDO(1L, 0L, 0L).setContent("published");
+        documentMapper.insert(document);
+        var draft = new cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentDraftSaveReqVO()
+                .setDocumentId(document.getId()).setBaseVersionNo(1L).setTitle("draft title")
+                .setContent("first draft").setLabelIds(Collections.emptyList());
+        documentService.saveDraft(draft, userId);
+        assertEquals("published", documentMapper.selectById(document.getId()).getContent());
+        documentService.publishDraft(document.getId(), userId);
+        assertEquals(2L, documentMapper.selectById(document.getId()).getVersionNo());
+        org.junit.jupiter.api.Assertions.assertNull(documentService.getDraft(document.getId(), userId));
+        draft.setBaseVersionNo(2L).setContent("second draft");
+        documentService.saveDraft(draft, userId);
+        documentService.publishDraft(document.getId(), userId);
+        assertEquals("second draft", documentMapper.selectById(document.getId()).getContent());
+        assertEquals(3L, documentMapper.selectById(document.getId()).getVersionNo());
+        assertServiceException(() -> documentService.saveDraft(draft, userId), KNOWLEDGE_DOCUMENT_VERSION_CONFLICT);
+    }
+
+    @Test
+    public void archiveRoundTripPreservesHistoricalContentAndVersionNumbers() throws Exception {
+        var source = randomDocumentDO(1L, 0L, 0L).setVersionNo(2L).setContent("current content");
+        documentMapper.insert(source);
+        var oldest = new cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentVersionDO()
+                .setDocumentId(source.getId()).setVersionNo(1L).setTitle("old title").setContent("old content")
+                .setType(PmsKnowledgeDocumentTypeEnum.RICH_TEXT.getType()).setEditorUserId(7L);
+        documentVersionMapper.insert(oldest);
+        documentVersionMapper.insert(new cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentVersionDO()
+                .setDocumentId(source.getId()).setVersionNo(2L).setTitle("current title").setContent("current content")
+                .setType(PmsKnowledgeDocumentTypeEnum.RICH_TEXT.getType()).setEditorUserId(7L));
+        var archive = new PmsKnowledgeArchiveService();
+        org.springframework.test.util.ReflectionTestUtils.setField(archive, "libraryMemberService", memberService);
+        org.springframework.test.util.ReflectionTestUtils.setField(archive, "documentMapper", documentMapper);
+        org.springframework.test.util.ReflectionTestUtils.setField(archive, "versionMapper", documentVersionMapper);
+        org.springframework.test.util.ReflectionTestUtils.setField(archive, "folderMapper", folderMapper);
+        org.springframework.test.util.ReflectionTestUtils.setField(archive, "folderService", folderService);
+        org.springframework.test.util.ReflectionTestUtils.setField(archive, "documentService", documentService);
+        org.springframework.test.util.ReflectionTestUtils.setField(archive, "fileApi", fileApi);
+        org.springframework.test.util.ReflectionTestUtils.setField(archive, "objectMapper", new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules());
+        when(contentPermissionService.createDefaultContentPermission(2L, 7L)).thenReturn(20L);
+        byte[] bytes = archive.exportLibrary(1L, Collections.singletonList(source.getId()), 7L);
+        assertEquals(1, archive.importLibrary(2L, bytes, 7L));
+        var restored = documentMapper.selectListByLibraryId(2L).get(0);
+        assertEquals(2L, restored.getVersionNo());
+        assertEquals("current content", restored.getContent());
+        assertEquals("old content", documentVersionMapper.selectByDocumentIdAndVersionNo(restored.getId(), 1L).getContent());
+        assertEquals("current content", documentVersionMapper.selectByDocumentIdAndVersionNo(restored.getId(), 2L).getContent());
+    }
+
+    @Test
+    public void uploadedTextFileIsIndexedWithoutChangingVersionHistory() throws Exception {
+        var document = randomDocumentDO(1L, 0L, 0L).setType(PmsKnowledgeDocumentTypeEnum.FILE.getType())
+                .setContent("file-url").setFileType("txt").setFileSize(100L);
+        documentMapper.insert(document);
+        when(fileApi.getFileContentByUrl("file-url")).thenReturn("attachment searchable body".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals(1, documentService.rebuildLibrarySearchIndex(1L, 7L));
+        var indexed = documentMapper.selectById(document.getId());
+        assertTrue(indexed.getSearchText().contains("searchable body"));
+        assertEquals(1L, indexed.getVersionNo());
+        assertTrue(documentVersionMapper.selectListByDocumentId(document.getId()).isEmpty());
+    }
+
     // ========== 随机对象 ==========
 
     private PmsKnowledgeLibraryDO randomLibraryDO() {
@@ -483,6 +589,7 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
     private PmsKnowledgeDocumentDO randomDocumentDO(Long libraryId, Long folderId, Long parentId) {
         return randomPojo(PmsKnowledgeDocumentDO.class, document -> document.setId(null).setLibraryId(libraryId)
                 .setPermissionId(randomLongId()).setFolderId(folderId).setParentId(parentId).setTitle("测试文档")
+                .setVersionNo(1L)
                 .setType(PmsKnowledgeDocumentTypeEnum.RICH_TEXT.getType())
                 .setStatus(PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus()));
     }
@@ -491,7 +598,7 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
                                                           String content, Integer status) {
         return randomPojo(PmsKnowledgeDocumentDO.class, document -> document.setId(null).setLibraryId(libraryId)
                 .setPermissionId(permissionId)
-                .setFolderId(0L).setParentId(0L).setTitle(title).setContent(content)
+                .setFolderId(0L).setParentId(0L).setTitle(title).setContent(content).setSearchText(title + " " + content)
                 .setType(PmsKnowledgeDocumentTypeEnum.RICH_TEXT.getType()).setStatus(status));
     }
 

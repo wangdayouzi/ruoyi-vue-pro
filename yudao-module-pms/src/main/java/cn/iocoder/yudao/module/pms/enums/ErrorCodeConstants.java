@@ -84,6 +84,9 @@ public interface ErrorCodeConstants {
     ErrorCode KNOWLEDGE_DOCUMENT_STATUS_INVALID = new ErrorCode(1_053_130_013, "文档状态无效");
     ErrorCode KNOWLEDGE_DOCUMENT_TYPE_INVALID = new ErrorCode(1_053_130_014, "文档类型无效");
     ErrorCode KNOWLEDGE_DOCUMENT_MOVE_TARGET_INVALID = new ErrorCode(1_053_130_015, "文档移动目标只能选择文件夹或父文档之一");
+    ErrorCode KNOWLEDGE_DOCUMENT_VERSION_CONFLICT = new ErrorCode(1_053_130_016, "文档已被其他人修改，请刷新后重试");
+    ErrorCode KNOWLEDGE_DOCUMENT_VERSION_NOT_EXISTS = new ErrorCode(1_053_130_017, "文档历史版本不存在");
+    ErrorCode KNOWLEDGE_DOCUMENT_NUMBER_RULE_MISSING = new ErrorCode(1_053_130_018, "当前知识库或一级文件夹未配置编号规则，不能创建文档");
     ErrorCode KNOWLEDGE_GROUP_NOT_EXISTS = new ErrorCode(1_053_130_020, "知识库分组不存在");
     ErrorCode KNOWLEDGE_GROUP_NAME_DUPLICATE = new ErrorCode(1_053_130_021, "知识库分组名称已存在");
     ErrorCode KNOWLEDGE_GROUP_DEFAULT_CANNOT_MODIFY = new ErrorCode(1_053_130_022, "默认知识库分组不允许修改");
@@ -96,6 +99,9 @@ public interface ErrorCodeConstants {
     ErrorCode KNOWLEDGE_FAVORITE_DUPLICATE = new ErrorCode(1_053_130_051, "该知识对象已关注");
     ErrorCode KNOWLEDGE_DOCUMENT_SHARE_ALREADY_OPEN = new ErrorCode(1_053_130_060, "该文档已开启分享");
     ErrorCode KNOWLEDGE_DOCUMENT_SHARE_INVALID = new ErrorCode(1_053_130_061, "文档分享不存在或已失效");
+    ErrorCode KNOWLEDGE_PREVIEW_FILE_NOT_REGISTERED = new ErrorCode(1_053_130_064, "原文件未登记或已失效，请重新上传后预览");
+    ErrorCode KNOWLEDGE_DRAFT_INVALID = new ErrorCode(1_053_130_063, "草稿状态或内容无效，请填写正文后发布");
+    ErrorCode KNOWLEDGE_ARCHIVE_INVALID = new ErrorCode(1_053_130_062, "知识库内容包无效或超过大小限制");
     ErrorCode KNOWLEDGE_CONTENT_PERMISSION_NOT_EXISTS = new ErrorCode(1_053_130_070, "知识内容协作权限不存在");
     ErrorCode KNOWLEDGE_CONTENT_ACCESS_DENIED = new ErrorCode(1_053_130_071, "无权访问该知识内容");
     ErrorCode KNOWLEDGE_CONTENT_WRITE_ACCESS_DENIED = new ErrorCode(1_053_130_072, "无权编辑该知识内容");

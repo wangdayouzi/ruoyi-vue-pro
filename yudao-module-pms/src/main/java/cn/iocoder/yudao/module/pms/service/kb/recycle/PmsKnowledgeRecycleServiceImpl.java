@@ -673,6 +673,7 @@ public class PmsKnowledgeRecycleServiceImpl implements PmsKnowledgeRecycleServic
         // 1. 先删除依赖文档编号的分享和评论
         documentShareService.deleteSharesByDocumentIds(documentIds);
         documentCommentService.deleteCommentsByDocumentIds(documentIds);
+        documentService.deleteDocumentVersions(documentIds);
         // 2. 再删除文档主记录
         documentService.deleteDocumentList(documentIds);
     }

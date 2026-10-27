@@ -4,18 +4,31 @@ import cn.hutool.core.collection.CollUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentCreateReqVO;
+import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentDraftSaveReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentMoveReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentSearchPageReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document.PmsKnowledgeDocumentUpdateReqVO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentDO;
+import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentDraftDO;
+import cn.iocoder.yudao.module.infra.api.file.FileApi;
+import cn.iocoder.yudao.module.infra.api.number.NumberRuleApi;
+import cn.iocoder.yudao.module.pms.service.kb.library.PmsKnowledgeLibraryService;
+import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentVersionDO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeFolderDO;
 import cn.iocoder.yudao.module.pms.dal.mysql.kb.content.PmsKnowledgeDocumentMapper;
+import cn.iocoder.yudao.module.pms.dal.mysql.kb.content.PmsKnowledgeDocumentDraftMapper;
+import cn.iocoder.yudao.module.pms.dal.mysql.kb.content.PmsKnowledgeDocumentVersionMapper;
 import cn.iocoder.yudao.module.pms.enums.kb.content.PmsKnowledgeDocumentStatusEnum;
+import cn.iocoder.yudao.module.pms.enums.kb.content.PmsKnowledgeDocumentTypeEnum;
 import cn.iocoder.yudao.module.pms.service.kb.interaction.PmsKnowledgeFavoriteService;
 import cn.iocoder.yudao.module.pms.service.kb.interaction.PmsKnowledgeViewRecordService;
 import cn.iocoder.yudao.module.pms.service.kb.library.PmsKnowledgeLibraryMemberService;
 import cn.iocoder.yudao.module.pms.service.kb.recycle.PmsKnowledgeRecycleService;
 import jakarta.annotation.Resource;
+import org.apache.tika.Tika;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +44,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.io.ByteArrayInputStream;
 
 import static cn.hutool.core.util.ObjectUtil.notEqual;
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -39,7 +53,10 @@ import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOC
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_MOVE_INVALID;
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_MOVE_TARGET_INVALID;
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_NOT_EXISTS;
+import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_NUMBER_RULE_MISSING;
 import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_PARENT_INVALID;
+import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_VERSION_CONFLICT;
+import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_VERSION_NOT_EXISTS;
 
 /**
  * PMS 知识库文档 Service 实现类
@@ -50,8 +67,26 @@ import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOC
 @Validated
 public class PmsKnowledgeDocumentServiceImpl implements PmsKnowledgeDocumentService {
 
+    private static final Logger log = LoggerFactory.getLogger(PmsKnowledgeDocumentServiceImpl.class);
+    private static final int MAX_INDEX_FILE_BYTES = 20 * 1024 * 1024;
+    private static final Tika TIKA = new Tika();
+    static { TIKA.setMaxStringLength(200_000); }
+
     @Resource
     private PmsKnowledgeDocumentMapper documentMapper;
+    @Resource
+    private PmsKnowledgeDocumentDraftMapper draftMapper;
+    @Resource
+    private FileApi fileApi;
+    @Resource
+    private NumberRuleApi numberRuleApi;
+    @Resource
+    private PmsKnowledgeAttributeService attributeService;
+    @Resource
+    @Lazy
+    private PmsKnowledgeLibraryService libraryService;
+    @Resource
+    private PmsKnowledgeDocumentVersionMapper documentVersionMapper;
 
     @Resource
     private PmsKnowledgeFolderService folderService;
@@ -84,25 +119,248 @@ public class PmsKnowledgeDocumentServiceImpl implements PmsKnowledgeDocumentServ
         }
 
         // 2. 创建文档
+        Integer status = createReqVO.getStatus() == null ? PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus()
+                : createReqVO.getStatus();
+        if (!PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus().equals(status)
+                && !PmsKnowledgeDocumentStatusEnum.DRAFT.getStatus().equals(status)) {
+            throw exception(cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DRAFT_INVALID);
+        }
         document.setPermissionId(permissionId).setType(createReqVO.getType())
-                .setStatus(PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus());
+                .setStatus(status).setVersionNo(1L)
+                .setSearchText(buildSearchText(document));
         documentMapper.insert(document);
+        attributeService.saveValues(document.getId(), document.getLibraryId(), createReqVO.getAttributes());
+        Long numberRuleId = resolveNumberRuleId(document.getLibraryId(), document.getFolderId(), document.getParentId());
+        if (numberRuleId == null) throw exception(KNOWLEDGE_DOCUMENT_NUMBER_RULE_MISSING);
+        String code = numberRuleApi.issue(numberRuleId, "PMS_KB_DOCUMENT", document.getId());
+        documentMapper.updateById(new PmsKnowledgeDocumentDO().setId(document.getId()).setDocumentCode(code));
+        document.setDocumentCode(code);
+        if (PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus().equals(status)) {
+            saveDocumentVersion(document, userId);
+        }
         return document.getId();
     }
 
+    private Long resolveNumberRuleId(Long libraryId, Long folderId, Long parentId) {
+        // A child document inherits the containing folder through its parent document chain.
+        java.util.Set<Long> visitedDocuments = new java.util.HashSet<>();
+        while ((folderId == null || folderId == 0L) && parentId != null && parentId != 0L
+                && visitedDocuments.add(parentId)) {
+            PmsKnowledgeDocumentDO parent = documentMapper.selectById(parentId);
+            if (parent == null || !libraryId.equals(parent.getLibraryId())) break;
+            folderId = parent.getFolderId();
+            parentId = parent.getParentId();
+        }
+        if (folderId != null && folderId != 0L) {
+            PmsKnowledgeFolderDO folder = folderService.getFolder(folderId);
+            java.util.Set<Long> visited = new java.util.HashSet<>();
+            while (folder != null && visited.add(folder.getId())) {
+                if (folder.getParentId() == null || folder.getParentId() == 0L) {
+                    if (folder.getNumberRuleId() != null) return folder.getNumberRuleId();
+                    break;
+                }
+                folder = folderService.getFolder(folder.getParentId());
+            }
+        }
+        cn.iocoder.yudao.module.pms.dal.dataobject.kb.library.PmsKnowledgeLibraryDO library = libraryService.getLibrary(libraryId);
+        return library == null ? null : library.getNumberRuleId();
+    }
+
     @Override
+    public PmsKnowledgeDocumentDraftDO getDraft(Long documentId, Long userId) {
+        PmsKnowledgeDocumentDO document = getDocument(documentId, userId);
+        contentPermissionService.validateContentPermissionWritable(
+                document.getPermissionId(), document.getLibraryId(), userId);
+        return draftMapper.selectByDocumentAndUser(documentId, userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveDraft(PmsKnowledgeDocumentDraftSaveReqVO reqVO, Long userId) {
+        documentMapper.lockDocument(reqVO.getDocumentId());
+        PmsKnowledgeDocumentDO document = getDocument(reqVO.getDocumentId(), userId);
+        contentPermissionService.validateContentPermissionWritable(
+                document.getPermissionId(), document.getLibraryId(), userId);
+        if (!PmsKnowledgeDocumentTypeEnum.RICH_TEXT.getType().equals(document.getType())
+                || !reqVO.getBaseVersionNo().equals(document.getVersionNo())) {
+            throw exception(KNOWLEDGE_DOCUMENT_VERSION_CONFLICT);
+        }
+        documentLabelService.validateDocumentLabelList(reqVO.getLabelIds());
+        PmsKnowledgeDocumentDraftDO draft = draftMapper.selectByDocumentAndUser(document.getId(), userId);
+        if (draft == null) {
+            draft = new PmsKnowledgeDocumentDraftDO().setDocumentId(document.getId()).setUserId(userId);
+        }
+        draft.setBaseVersionNo(document.getVersionNo()).setTitle(reqVO.getTitle())
+                .setContent(reqVO.getContent()).setLabelIds(reqVO.getLabelIds());
+        if (draft.getId() == null) draftMapper.insert(draft);
+        else draftMapper.updateById(draft);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void publishDraft(Long documentId, Long userId) {
+        documentMapper.lockDocument(documentId);
+        PmsKnowledgeDocumentDO document = getDocument(documentId, userId);
+        contentPermissionService.validateContentPermissionWritable(
+                document.getPermissionId(), document.getLibraryId(), userId);
+        PmsKnowledgeDocumentDraftDO draft = draftMapper.selectByDocumentAndUser(documentId, userId);
+        if (draft == null || !draft.getBaseVersionNo().equals(document.getVersionNo())) {
+            throw exception(KNOWLEDGE_DOCUMENT_VERSION_CONFLICT);
+        }
+        if (draft.getContent() == null || draft.getContent().isBlank()) {
+            throw exception(cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DRAFT_INVALID);
+        }
+        if (PmsKnowledgeDocumentStatusEnum.DRAFT.getStatus().equals(document.getStatus())) {
+            PmsKnowledgeDocumentDO update = new PmsKnowledgeDocumentDO().setId(documentId)
+                    .setTitle(draft.getTitle()).setContent(draft.getContent())
+                    .setLabelIds(draft.getLabelIds()).setStatus(PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus())
+                    .setSearchText(buildSearchText(new PmsKnowledgeDocumentDO()
+                            .setTitle(draft.getTitle()).setContent(draft.getContent()).setType(document.getType())));
+            int changed = documentMapper.update(update, new LambdaUpdateWrapper<PmsKnowledgeDocumentDO>()
+                    .eq(PmsKnowledgeDocumentDO::getId, documentId)
+                    .eq(PmsKnowledgeDocumentDO::getStatus, PmsKnowledgeDocumentStatusEnum.DRAFT.getStatus())
+                    .eq(PmsKnowledgeDocumentDO::getVersionNo, draft.getBaseVersionNo()));
+            if (changed != 1) throw exception(KNOWLEDGE_DOCUMENT_VERSION_CONFLICT);
+            saveDocumentVersion(documentMapper.selectById(documentId), userId);
+        } else {
+            PmsKnowledgeDocumentUpdateReqVO update = new PmsKnowledgeDocumentUpdateReqVO();
+            update.setId(documentId).setExpectedVersionNo(draft.getBaseVersionNo())
+                    .setTitle(draft.getTitle()).setContent(draft.getContent()).setLabelIds(draft.getLabelIds());
+            updateDocument(update, userId);
+        }
+        draftMapper.deletePublishedDraft(draft.getId());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void updateDocument(PmsKnowledgeDocumentUpdateReqVO updateReqVO, Long userId) {
         // 1.1 校验文档存在
-        PmsKnowledgeDocumentDO document = validateDocumentExists(updateReqVO.getId());
-        // 1.2 校验所属知识库可读
-        libraryMemberService.validateLibraryReadable(document.getLibraryId(), userId);
+        PmsKnowledgeDocumentDO document = getDocument(updateReqVO.getId(), userId);
         // 1.3 校验内容编辑权限
         contentPermissionService.validateContentPermissionWritable(document.getPermissionId(), document.getLibraryId(), userId);
         // 1.4 校验标签均存在
         documentLabelService.validateDocumentLabelList(updateReqVO.getLabelIds());
 
-        // 2. 更新文档内容
-        documentMapper.updateById(BeanUtils.toBean(updateReqVO, PmsKnowledgeDocumentDO.class));
+        // 2. 原子地校验版本并更新，阻止两个编辑者相互覆盖。
+        Long currentVersionNo = document.getVersionNo();
+        if (updateReqVO.getExpectedVersionNo() != null
+                && !updateReqVO.getExpectedVersionNo().equals(currentVersionNo)) {
+            throw exception(KNOWLEDGE_DOCUMENT_VERSION_CONFLICT);
+        }
+        PmsKnowledgeDocumentDO update = BeanUtils.toBean(updateReqVO, PmsKnowledgeDocumentDO.class);
+        PmsKnowledgeDocumentDO indexed = new PmsKnowledgeDocumentDO()
+                .setTitle(updateReqVO.getTitle() != null ? updateReqVO.getTitle() : document.getTitle())
+                .setContent(updateReqVO.getContent() != null ? updateReqVO.getContent() : document.getContent())
+                .setType(document.getType())
+                .setFileSize(updateReqVO.getFileSize() != null ? updateReqVO.getFileSize() : document.getFileSize());
+        update.setSearchText(buildSearchText(indexed));
+        update.setId(null).setVersionNo(null);
+        int changed = documentMapper.update(update, new LambdaUpdateWrapper<PmsKnowledgeDocumentDO>()
+                .eq(PmsKnowledgeDocumentDO::getId, document.getId())
+                .eq(PmsKnowledgeDocumentDO::getVersionNo, currentVersionNo)
+                .setSql("version_no = version_no + 1"));
+        if (changed != 1) {
+            throw exception(KNOWLEDGE_DOCUMENT_VERSION_CONFLICT);
+        }
+        if (PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus().equals(document.getStatus())) {
+            saveDocumentVersion(documentMapper.selectById(document.getId()), userId);
+        }
+    }
+
+    private void saveDocumentVersion(PmsKnowledgeDocumentDO document, Long userId) {
+        PmsKnowledgeDocumentVersionDO version = new PmsKnowledgeDocumentVersionDO();
+        version.setDocumentId(document.getId());
+        version.setVersionNo(document.getVersionNo());
+        version.setTitle(document.getTitle());
+        version.setContent(document.getContent());
+        version.setType(document.getType());
+        version.setFileType(document.getFileType());
+        version.setFileSize(document.getFileSize());
+        version.setEditorUserId(userId);
+        documentVersionMapper.insert(version);
+    }
+
+    @Override
+    public int rebuildLibrarySearchIndex(Long libraryId, Long userId) {
+        libraryMemberService.validateLibraryAdmin(libraryId, userId);
+        int count = 0;
+        for (PmsKnowledgeDocumentDO document : documentMapper.selectListByLibraryId(libraryId)) {
+            if (!PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus().equals(document.getStatus())) continue;
+            count += documentMapper.update(new PmsKnowledgeDocumentDO().setSearchText(buildSearchText(document)),
+                    new LambdaUpdateWrapper<PmsKnowledgeDocumentDO>()
+                            .eq(PmsKnowledgeDocumentDO::getId, document.getId())
+                            .eq(PmsKnowledgeDocumentDO::getVersionNo, document.getVersionNo()));
+        }
+        return count;
+    }
+
+    private String buildSearchText(PmsKnowledgeDocumentDO document) {
+        String title = document.getTitle() == null ? "" : document.getTitle();
+        String body = "";
+        if (PmsKnowledgeDocumentTypeEnum.RICH_TEXT.getType().equals(document.getType())) {
+            // 正文以 Markdown 保存，保留原文供标题和正文检索。
+            body = document.getContent() == null ? "" : document.getContent();
+        } else if (PmsKnowledgeDocumentTypeEnum.FILE.getType().equals(document.getType())
+                && document.getContent() != null
+                && (document.getFileSize() == null || document.getFileSize() <= MAX_INDEX_FILE_BYTES)) {
+            try {
+                byte[] bytes = fileApi.getFileContentByUrl(document.getContent());
+                if (bytes != null && bytes.length <= MAX_INDEX_FILE_BYTES) {
+                    try (java.io.Reader reader = TIKA.parse(new ByteArrayInputStream(bytes))) {
+                        StringBuilder extracted = new StringBuilder();
+                        char[] buffer = new char[4096];
+                        int count;
+                        while (extracted.length() < 200_000 && (count = reader.read(buffer, 0,
+                                Math.min(buffer.length, 200_000 - extracted.length()))) != -1) {
+                            extracted.append(buffer, 0, count);
+                        }
+                        body = extracted.toString();
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("知识库附件正文提取失败，文档仍可按标题搜索: {}", document.getTitle(), e);
+            }
+        }
+        String combined = (title + " " + body).replaceAll("\\s+", " ").trim();
+        return combined.length() > 200_000 ? combined.substring(0, 200_000) : combined;
+    }
+
+    @Override
+    public List<PmsKnowledgeDocumentVersionDO> getDocumentVersionList(Long documentId, Long userId) {
+        getDocument(documentId, userId);
+        return documentVersionMapper.selectListByDocumentId(documentId);
+    }
+
+    @Override
+    public PmsKnowledgeDocumentVersionDO getDocumentVersion(Long documentId, Long versionNo, Long userId) {
+        getDocument(documentId, userId);
+        PmsKnowledgeDocumentVersionDO version = documentVersionMapper.selectByDocumentIdAndVersionNo(documentId, versionNo);
+        if (version == null) {
+            throw exception(KNOWLEDGE_DOCUMENT_VERSION_NOT_EXISTS);
+        }
+        return version;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void restoreDocumentVersion(Long documentId, Long versionNo, Long expectedVersionNo, Long userId) {
+        PmsKnowledgeDocumentDO document = getDocument(documentId, userId);
+        contentPermissionService.validateContentPermissionWritable(document.getPermissionId(), document.getLibraryId(), userId);
+        PmsKnowledgeDocumentVersionDO version = getDocumentVersion(documentId, versionNo, userId);
+        PmsKnowledgeDocumentUpdateReqVO update = new PmsKnowledgeDocumentUpdateReqVO();
+        update.setId(documentId);
+        update.setExpectedVersionNo(expectedVersionNo);
+        update.setTitle(version.getTitle());
+        update.setContent(version.getContent());
+        update.setFileType(version.getFileType());
+        update.setFileSize(version.getFileSize());
+        update.setLabelIds(document.getLabelIds());
+        updateDocument(update, userId);
+    }
+
+    @Override
+    public void deleteDocumentVersions(Collection<Long> documentIds) {
+        documentVersionMapper.deleteByDocumentIds(documentIds);
     }
 
     @Override
@@ -184,6 +442,10 @@ public class PmsKnowledgeDocumentServiceImpl implements PmsKnowledgeDocumentServ
         libraryMemberService.validateLibraryReadable(document.getLibraryId(), userId);
         // 2.2 校验内容读取权限
         contentPermissionService.validateContentPermissionReadable(document.getPermissionId(), document.getLibraryId(), userId);
+        if (PmsKnowledgeDocumentStatusEnum.DRAFT.getStatus().equals(document.getStatus())
+                && !String.valueOf(userId).equals(document.getCreator())) {
+            throw exception(KNOWLEDGE_DOCUMENT_NOT_EXISTS);
+        }
         return document;
     }
 
@@ -287,9 +549,9 @@ public class PmsKnowledgeDocumentServiceImpl implements PmsKnowledgeDocumentServ
             return PageResult.empty();
         }
 
-        // 2. 使用 MySQL 对标题和正文进行模糊搜索
+        // 草稿不进入公共搜索；PostgreSQL 通过 search_text 的 pg_trgm GIN 索引加速。
         return documentMapper.selectPage(pageReqVO, readableLibraryIds, readablePermissionIds,
-                PmsKnowledgeDocumentStatusEnum.ACTIVE_STATUSES);
+                Collections.singleton(PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus()));
     }
 
     @Override
@@ -300,6 +562,9 @@ public class PmsKnowledgeDocumentServiceImpl implements PmsKnowledgeDocumentServ
         // 2. 查询全部正常文档
         List<PmsKnowledgeDocumentDO> documents = documentMapper.selectListByLibraryIdAndStatus(
                 libraryId, PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus());
+        documents.addAll(documentMapper.selectListByLibraryIdAndStatus(
+                libraryId, PmsKnowledgeDocumentStatusEnum.DRAFT.getStatus()).stream()
+                .filter(document -> String.valueOf(userId).equals(document.getCreator())).toList());
         if (CollUtil.isEmpty(documents)) {
             return Collections.emptyList();
         }

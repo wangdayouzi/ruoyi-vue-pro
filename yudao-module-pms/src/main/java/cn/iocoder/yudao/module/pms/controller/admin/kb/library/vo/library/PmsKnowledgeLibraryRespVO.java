@@ -24,6 +24,9 @@ public class PmsKnowledgeLibraryRespVO {
     @Schema(description = "知识库封面")
     private String coverUrl;
 
+    @Schema(description = "默认文档编号规则 ID")
+    private Long numberRuleId;
+
     @Schema(description = "创建人用户编号", example = "1")
     private Long creatorUserId;
 

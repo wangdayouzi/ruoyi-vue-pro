@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.pms.service.kb.interaction;
 
 import cn.hutool.core.collection.CollUtil;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
@@ -17,6 +18,7 @@ import com.google.common.collect.Maps;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
@@ -45,6 +47,8 @@ import static cn.iocoder.yudao.module.pms.enums.MessageTemplateConstants.KNOWLED
 @Slf4j
 public class PmsKnowledgeDocumentShareServiceImpl implements PmsKnowledgeDocumentShareService {
 
+    private static final BCryptPasswordEncoder ACCESS_CODE_ENCODER = new BCryptPasswordEncoder();
+
     @Resource
     private PmsKnowledgeDocumentShareMapper documentShareMapper;
     @Resource
@@ -59,7 +63,8 @@ public class PmsKnowledgeDocumentShareServiceImpl implements PmsKnowledgeDocumen
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public PmsKnowledgeDocumentShareDO openShare(Long documentId, List<Long> shareUserIds, Long userId) {
+    public PmsKnowledgeDocumentShareDO openShare(Long documentId, List<Long> shareUserIds,
+            LocalDateTime expireTime, String accessCode, Long userId) {
         // 1.1 校验文档存在
         PmsKnowledgeDocumentDO document = validateDocumentExists(documentId);
         // 1.2 校验文档内容编辑权限
@@ -67,12 +72,13 @@ public class PmsKnowledgeDocumentShareServiceImpl implements PmsKnowledgeDocumen
                 document.getPermissionId(), document.getLibraryId(), userId);
         // 1.3 校验文档尚未开启分享
         PmsKnowledgeDocumentShareDO share = documentShareMapper.selectByDocumentId(documentId);
-        if (share != null && CommonStatusEnum.isEnable(share.getStatus())) {
+        if (share != null && isActive(share)) {
             throw exception(KNOWLEDGE_DOCUMENT_SHARE_ALREADY_OPEN);
         }
 
         // 1.4 校验并规范分享成员
         List<Long> normalizedShareUserIds = normalizeShareUserIds(shareUserIds);
+        validateExpireTime(expireTime);
 
         // 2. 新建或重新开启分享；重新开启时生成新的外部令牌
         if (share == null) {
@@ -80,6 +86,8 @@ public class PmsKnowledgeDocumentShareServiceImpl implements PmsKnowledgeDocumen
         }
         share.setShareUserIds(normalizedShareUserIds).setToken(generateShareToken())
                 .setStatus(CommonStatusEnum.ENABLE.getStatus())
+                .setExpireTime(expireTime)
+                .setAccessCodeHash(accessCode == null || accessCode.isBlank() ? null : ACCESS_CODE_ENCODER.encode(accessCode))
                 .setCloseUserId(null).setCloseTime(null);
         if (share.getId() == null) {
             documentShareMapper.insert(share);
@@ -90,6 +98,33 @@ public class PmsKnowledgeDocumentShareServiceImpl implements PmsKnowledgeDocumen
         // 3. 通知内部分享成员
         sendKnowledgeDocumentSharedNotify(normalizedShareUserIds, userId, share.getToken(), document.getTitle());
         return share;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PmsKnowledgeDocumentShareDO updateShare(Long documentId, List<Long> shareUserIds,
+            LocalDateTime expireTime, String accessCode, boolean removeAccessCode, Long userId) {
+        PmsKnowledgeDocumentDO document = validateDocumentExists(documentId);
+        contentPermissionService.validateContentPermissionWritable(
+                document.getPermissionId(), document.getLibraryId(), userId);
+        PmsKnowledgeDocumentShareDO share = validateActiveShare(documentId);
+        validateExpireTime(expireTime);
+        List<Long> normalized = normalizeShareUserIds(shareUserIds);
+        Set<Long> addedUserIds = new LinkedHashSet<>(normalized);
+        if (CollUtil.isNotEmpty(share.getShareUserIds())) share.getShareUserIds().forEach(addedUserIds::remove);
+        PmsKnowledgeDocumentShareDO update = new PmsKnowledgeDocumentShareDO()
+                .setId(share.getId()).setShareUserIds(normalized);
+        if (removeAccessCode || accessCode != null && !accessCode.isBlank()) {
+            update.setAccessCodeHash(removeAccessCode ? null : ACCESS_CODE_ENCODER.encode(accessCode));
+        }
+        // 更新公开链接设置时换令牌，已签发的分享预览票据也随之失效。
+        update.setToken(generateShareToken());
+        documentShareMapper.update(update, new LambdaUpdateWrapper<PmsKnowledgeDocumentShareDO>()
+                .eq(PmsKnowledgeDocumentShareDO::getId, share.getId())
+                .set(PmsKnowledgeDocumentShareDO::getExpireTime, expireTime)
+                .set(removeAccessCode, PmsKnowledgeDocumentShareDO::getAccessCodeHash, null));
+        sendKnowledgeDocumentSharedNotify(addedUserIds, userId, update.getToken(), document.getTitle());
+        return documentShareMapper.selectById(share.getId());
     }
 
     @Override
@@ -136,7 +171,7 @@ public class PmsKnowledgeDocumentShareServiceImpl implements PmsKnowledgeDocumen
     @Override
     public PmsKnowledgeDocumentShareDO getActiveDocumentShare(Long documentId) {
         PmsKnowledgeDocumentShareDO share = documentShareMapper.selectByDocumentId(documentId);
-        return share != null && CommonStatusEnum.isEnable(share.getStatus())
+        return share != null && isActive(share)
                 ? share : null;
     }
 
@@ -152,10 +187,12 @@ public class PmsKnowledgeDocumentShareServiceImpl implements PmsKnowledgeDocumen
     }
 
     @Override
-    public PmsKnowledgeDocumentDO getDocumentByShareToken(String token) {
+    public PmsKnowledgeDocumentDO getDocumentByShareToken(String token, String accessCode) {
         // 1. 校验分享令牌处于开启状态
         PmsKnowledgeDocumentShareDO share = documentShareMapper.selectByToken(token);
-        if (share == null || CommonStatusEnum.isDisable(share.getStatus())) {
+        if (share == null || !isActive(share) ||
+                share.getAccessCodeHash() != null && (accessCode == null ||
+                        !ACCESS_CODE_ENCODER.matches(accessCode, share.getAccessCodeHash()))) {
             throw exception(KNOWLEDGE_DOCUMENT_SHARE_INVALID);
         }
 
@@ -166,6 +203,24 @@ public class PmsKnowledgeDocumentShareServiceImpl implements PmsKnowledgeDocumen
             throw exception(KNOWLEDGE_DOCUMENT_SHARE_INVALID);
         }
         return document;
+    }
+
+    @Override
+    public boolean isShareActive(Long shareId, String token, Long documentId) {
+        PmsKnowledgeDocumentShareDO share = documentShareMapper.selectById(shareId);
+        return share != null && isActive(share) && token.equals(share.getToken())
+                && documentId.equals(share.getDocumentId());
+    }
+
+    private boolean isActive(PmsKnowledgeDocumentShareDO share) {
+        return CommonStatusEnum.isEnable(share.getStatus()) &&
+                (share.getExpireTime() == null || share.getExpireTime().isAfter(LocalDateTime.now()));
+    }
+
+    private void validateExpireTime(LocalDateTime expireTime) {
+        if (expireTime != null && !expireTime.isAfter(LocalDateTime.now())) {
+            throw exception(KNOWLEDGE_DOCUMENT_SHARE_INVALID);
+        }
     }
 
     @Override

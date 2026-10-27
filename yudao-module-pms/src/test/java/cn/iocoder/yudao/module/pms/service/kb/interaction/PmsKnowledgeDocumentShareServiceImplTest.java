@@ -200,6 +200,30 @@ public class PmsKnowledgeDocumentShareServiceImplTest extends BaseDbUnitTest {
         assertNull(documentShareMapper.selectByDocumentId(document.getId()));
     }
 
+    @Test
+    public void accessCodeExpiryAndSettingsRotationAreEnforced() {
+        var document = randomDocumentDO(1L);
+        documentMapper.insert(document);
+        var share = documentShareService.openShare(document.getId(), Collections.emptyList(),
+                java.time.LocalDateTime.now().plusHours(1), "secret-code", 7L);
+        assertNotEquals("secret-code", share.getAccessCodeHash());
+        String originalToken = share.getToken();
+        assertServiceException(() -> documentShareService.getDocumentByShareToken(originalToken, null),
+                KNOWLEDGE_DOCUMENT_SHARE_INVALID);
+        assertServiceException(() -> documentShareService.getDocumentByShareToken(originalToken, "wrong"),
+                KNOWLEDGE_DOCUMENT_SHARE_INVALID);
+        assertEquals(document.getId(), documentShareService.getDocumentByShareToken(originalToken, "secret-code").getId());
+        var changed = documentShareService.updateShare(document.getId(), Collections.emptyList(),
+                java.time.LocalDateTime.now().plusHours(2), null, false, 7L);
+        assertNotEquals(originalToken, changed.getToken());
+        assertServiceException(() -> documentShareService.getDocumentByShareToken(originalToken, "secret-code"),
+                KNOWLEDGE_DOCUMENT_SHARE_INVALID);
+        documentShareMapper.updateById(new PmsKnowledgeDocumentShareDO().setId(changed.getId())
+                .setExpireTime(java.time.LocalDateTime.now().minusMinutes(1)));
+        assertServiceException(() -> documentShareService.getDocumentByShareToken(changed.getToken(), "secret-code"),
+                KNOWLEDGE_DOCUMENT_SHARE_INVALID);
+    }
+
     // ========== 随机对象 ==========
 
     private PmsKnowledgeLibraryDO randomLibraryDO() {

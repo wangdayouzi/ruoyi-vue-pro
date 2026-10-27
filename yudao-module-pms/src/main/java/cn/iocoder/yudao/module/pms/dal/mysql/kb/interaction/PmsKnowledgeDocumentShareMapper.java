@@ -25,6 +25,8 @@ public interface PmsKnowledgeDocumentShareMapper extends BaseMapperX<PmsKnowledg
         return update(updateObj, new LambdaUpdateWrapper<PmsKnowledgeDocumentShareDO>()
                 .set(PmsKnowledgeDocumentShareDO::getCloseUserId, null)
                 .set(PmsKnowledgeDocumentShareDO::getCloseTime, null)
+                .set(PmsKnowledgeDocumentShareDO::getExpireTime, updateObj.getExpireTime())
+                .set(PmsKnowledgeDocumentShareDO::getAccessCodeHash, updateObj.getAccessCodeHash())
                 .eq(PmsKnowledgeDocumentShareDO::getId, updateObj.getId()));
     }
 

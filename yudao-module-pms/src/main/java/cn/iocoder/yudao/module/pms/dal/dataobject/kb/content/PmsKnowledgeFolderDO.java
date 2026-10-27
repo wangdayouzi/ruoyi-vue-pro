@@ -58,6 +58,8 @@ public class PmsKnowledgeFolderDO extends BaseDO {
      * 文件夹标题
      */
     private String title;
+    /** 仅一级文件夹可设置的编号规则覆盖值。 */
+    private Long numberRuleId;
     /**
      * 文件夹状态
      *

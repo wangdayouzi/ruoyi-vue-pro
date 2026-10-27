@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Schema(description = "管理后台 - PMS 知识库文档 Response VO")
 @Data
@@ -37,6 +38,15 @@ public class PmsKnowledgeDocumentRespVO {
     @Schema(description = "文档标题", requiredMode = Schema.RequiredMode.REQUIRED, example = "产品说明")
     private String title;
 
+    @Schema(description = "业务唯一编号")
+    private String documentCode;
+
+    @Schema(description = "自定义属性当前值")
+    private Map<String, String> attributes;
+
+    @Schema(description = "跨知识库移动后保留的来源库属性（只读）")
+    private List<Map<String, Object>> carriedAttributes;
+
     @Schema(description = "正文摘要")
     private String contentSummary;
 
@@ -54,6 +64,8 @@ public class PmsKnowledgeDocumentRespVO {
 
     @Schema(description = "文件大小，单位：字节", example = "102400")
     private Long fileSize;
+    @Schema(description = "当前内容版本号")
+    private Long versionNo;
 
     @Schema(description = "文档状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer status;

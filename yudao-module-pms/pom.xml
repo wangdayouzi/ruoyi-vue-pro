@@ -29,6 +29,11 @@
             <artifactId>yudao-module-infra</artifactId>
             <version>${revision}</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+            <version>3.3.1</version>
+        </dependency>
 
         <!-- Web 相关 -->
         <dependency>

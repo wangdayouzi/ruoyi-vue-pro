@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.library.vo.library.PmsKnowledgeLibraryPageReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.library.vo.library.PmsKnowledgeLibrarySaveReqVO;
+import cn.iocoder.yudao.module.infra.api.number.NumberRuleApi;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.library.PmsKnowledgeLibraryDO;
 import cn.iocoder.yudao.module.pms.dal.mysql.kb.library.PmsKnowledgeLibraryMapper;
 import cn.iocoder.yudao.module.pms.enums.kb.content.PmsKnowledgeDocumentStatusEnum;
@@ -22,6 +23,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
 
 
 /**
@@ -46,6 +49,8 @@ public class PmsKnowledgeLibraryServiceImpl implements PmsKnowledgeLibraryServic
     private PmsKnowledgeRecycleService recycleService;
     @Resource
     private PmsKnowledgeLibraryTemplateService libraryTemplateService;
+    @Resource
+    private NumberRuleApi numberRuleApi;
 
     @Resource
     private PermissionApi permissionApi;
@@ -53,6 +58,12 @@ public class PmsKnowledgeLibraryServiceImpl implements PmsKnowledgeLibraryServic
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createLibrary(PmsKnowledgeLibrarySaveReqVO saveReqVO, Long userId) {
+        if (saveReqVO.getTemplateId() != null && saveReqVO.getNumberRuleId() == null) {
+            throw invalidParamException("使用模板创建知识库时，请选择默认编号规则");
+        }
+        if (saveReqVO.getNumberRuleId() != null && !numberRuleApi.isEnabled(saveReqVO.getNumberRuleId())) {
+            throw invalidParamException("默认编号规则不存在或已停用");
+        }
         // 1. 创建知识库
         PmsKnowledgeLibraryDO library = BeanUtils.toBean(saveReqVO, PmsKnowledgeLibraryDO.class)
                 .setStatus(PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus());
@@ -72,6 +83,9 @@ public class PmsKnowledgeLibraryServiceImpl implements PmsKnowledgeLibraryServic
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateLibrary(PmsKnowledgeLibrarySaveReqVO saveReqVO, Long userId) {
+        if (saveReqVO.getNumberRuleId() != null && !numberRuleApi.isEnabled(saveReqVO.getNumberRuleId())) {
+            throw invalidParamException("默认编号规则不存在或已停用");
+        }
         // 1.1 普通库设置由管理员维护
         PmsKnowledgeLibraryDO library = memberService.validateLibraryAdmin(saveReqVO.getId(), userId);
         // 1.2 公开库转私有仅限创建人

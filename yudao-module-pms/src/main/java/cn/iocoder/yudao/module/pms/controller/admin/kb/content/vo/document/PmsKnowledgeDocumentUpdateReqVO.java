@@ -16,6 +16,8 @@ public class PmsKnowledgeDocumentUpdateReqVO {
     @Schema(description = "文档编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
     @NotNull(message = "文档编号不能为空")
     private Long id;
+    @Schema(description = "编辑时读取的版本号，用于避免覆盖其他人的修改")
+    private Long expectedVersionNo;
 
     @Schema(description = "文档标题", example = "产品说明")
     @Size(max = 255, message = "文档标题不能超过 255 个字符")

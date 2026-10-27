@@ -5,6 +5,7 @@ import cn.iocoder.yudao.module.pms.dal.dataobject.kb.interaction.PmsKnowledgeDoc
 
 import java.util.Collection;
 import java.util.List;
+import java.time.LocalDateTime;
 
 /**
  * PMS 知识库文档分享 Service 接口
@@ -21,7 +22,15 @@ public interface PmsKnowledgeDocumentShareService {
      * @param userId 用户编号
      * @return 分享信息
      */
-    PmsKnowledgeDocumentShareDO openShare(Long documentId, List<Long> shareUserIds, Long userId);
+    default PmsKnowledgeDocumentShareDO openShare(Long documentId, List<Long> shareUserIds, Long userId) {
+        return openShare(documentId, shareUserIds, null, null, userId);
+    }
+
+    PmsKnowledgeDocumentShareDO openShare(Long documentId, List<Long> shareUserIds,
+            LocalDateTime expireTime, String accessCode, Long userId);
+
+    PmsKnowledgeDocumentShareDO updateShare(Long documentId, List<Long> shareUserIds,
+            LocalDateTime expireTime, String accessCode, boolean removeAccessCode, Long userId);
 
     /**
      * 更新文档的内部分享成员，只通知本次新增的成员
@@ -63,7 +72,14 @@ public interface PmsKnowledgeDocumentShareService {
      * @param token 分享令牌
      * @return 文档
      */
-    PmsKnowledgeDocumentDO getDocumentByShareToken(String token);
+    default PmsKnowledgeDocumentDO getDocumentByShareToken(String token) {
+        return getDocumentByShareToken(token, null);
+    }
+
+    PmsKnowledgeDocumentDO getDocumentByShareToken(String token, String accessCode);
+
+    /** 用于校验已经签发的公开预览票据，关闭、过期或换令牌后立即失效。 */
+    boolean isShareActive(Long shareId, String token, Long documentId);
 
     /**
      * 删除文档的分享记录

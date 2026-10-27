@@ -60,6 +60,7 @@ public interface PmsKnowledgeLibraryMapper extends BaseMapperX<PmsKnowledgeLibra
         return update(updateObj, new LambdaUpdateWrapper<PmsKnowledgeLibraryDO>()
                 .set(updateObj.getDescription() == null, PmsKnowledgeLibraryDO::getDescription, null)
                 .set(updateObj.getCoverUrl() == null, PmsKnowledgeLibraryDO::getCoverUrl, null)
+                .set(updateObj.getNumberRuleId() == null, PmsKnowledgeLibraryDO::getNumberRuleId, null)
                 .eq(PmsKnowledgeLibraryDO::getId, updateObj.getId()));
     }
 

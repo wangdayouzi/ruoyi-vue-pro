@@ -3,7 +3,7 @@ package cn.iocoder.yudao.module.pms.controller.admin.kb.interaction;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.tenant.core.aop.TenantIgnore;
-import cn.iocoder.yudao.module.infra.api.file.FileApi;
+import cn.iocoder.yudao.module.pms.service.kb.content.PmsKnowledgeOfficePreviewService;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.interaction.vo.share.PmsKnowledgeDocumentSharePublicRespVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.interaction.vo.share.PmsKnowledgeDocumentShareRespVO;
 import cn.iocoder.yudao.module.pms.controller.admin.kb.interaction.vo.share.PmsKnowledgeDocumentShareSaveReqVO;
@@ -42,7 +42,7 @@ public class PmsKnowledgeDocumentShareController {
     private PmsKnowledgeDocumentShareService documentShareService;
 
     @Resource
-    private FileApi fileApi;
+    private PmsKnowledgeOfficePreviewService officePreviewService;
 
     @PostMapping("/open")
     @Operation(summary = "开启文档分享")
@@ -50,8 +50,19 @@ public class PmsKnowledgeDocumentShareController {
     public CommonResult<PmsKnowledgeDocumentShareRespVO> openShare(
             @Valid @RequestBody PmsKnowledgeDocumentShareSaveReqVO reqVO) {
         PmsKnowledgeDocumentShareDO share = documentShareService.openShare(reqVO.getDocumentId(),
-                reqVO.getShareUserIds(), getLoginUserId());
-        return success(BeanUtils.toBean(share, PmsKnowledgeDocumentShareRespVO.class));
+                reqVO.getShareUserIds(), reqVO.getExpireTime(), reqVO.getAccessCode(), getLoginUserId());
+        return success(toShareVO(share));
+    }
+
+    @PutMapping("/update")
+    @Operation(summary = "更新分享成员、有效期和访问码")
+    @PreAuthorize("@ss.hasPermission('pms:kb:library:update')")
+    public CommonResult<PmsKnowledgeDocumentShareRespVO> updateShare(
+            @Valid @RequestBody PmsKnowledgeDocumentShareSaveReqVO reqVO) {
+        PmsKnowledgeDocumentShareDO share = documentShareService.updateShare(reqVO.getDocumentId(),
+                reqVO.getShareUserIds(), reqVO.getExpireTime(), reqVO.getAccessCode(),
+                Boolean.TRUE.equals(reqVO.getRemoveAccessCode()), getLoginUserId());
+        return success(toShareVO(share));
     }
 
     @PutMapping("/update-member-list")
@@ -78,7 +89,7 @@ public class PmsKnowledgeDocumentShareController {
     @PreAuthorize("@ss.hasPermission('pms:kb:library:query')")
     public CommonResult<PmsKnowledgeDocumentShareRespVO> getDocumentShare(@RequestParam("documentId") Long documentId) {
         PmsKnowledgeDocumentShareDO share = documentShareService.getActiveDocumentShare(documentId, getLoginUserId());
-        return success(BeanUtils.toBean(share, PmsKnowledgeDocumentShareRespVO.class));
+        return success(share == null ? null : toShareVO(share));
     }
 
     @GetMapping("/get-by-token")
@@ -87,15 +98,43 @@ public class PmsKnowledgeDocumentShareController {
     @PermitAll
     @TenantIgnore
     public CommonResult<PmsKnowledgeDocumentSharePublicRespVO> getDocumentByToken(
-            @RequestParam("token") @NotBlank(message = "分享令牌不能为空") String token) {
-        PmsKnowledgeDocumentDO document = documentShareService.getDocumentByShareToken(token);
+            @RequestParam("token") @NotBlank(message = "分享令牌不能为空") String token,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Knowledge-Share-Code", required = false) String accessCode) {
+        PmsKnowledgeDocumentDO document = documentShareService.getDocumentByShareToken(token, accessCode);
         PmsKnowledgeDocumentSharePublicRespVO documentVO = BeanUtils.toBean(
                 document, PmsKnowledgeDocumentSharePublicRespVO.class);
         if (PmsKnowledgeDocumentTypeEnum.FILE.getType().equals(document.getType())) {
-            documentVO.setContent(null).setPreviewUrl(
-                    fileApi.presignGetUrl(document.getContent(), null));
+            documentVO.setContent(null).setPreviewUrl(officePreviewService.isPreviewAvailable()
+                    && officePreviewService.isPreviewSourceRegistered(document)
+                    ? officePreviewService.buildSharePreviewUrl(document, getValidatedShare(document.getId(), token)) : null);
         }
         return success(documentVO);
+    }
+
+    @GetMapping("/office-preview-config-by-token")
+    @Operation(summary = "通过分享令牌获得 Office 文件只读预览配置")
+    @PermitAll
+    @TenantIgnore
+    public CommonResult<java.util.Map<String, Object>> getOfficePreviewConfigByToken(
+            @RequestParam("token") @NotBlank String token,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Knowledge-Share-Code", required = false) String accessCode) {
+        PmsKnowledgeDocumentDO document = documentShareService.getDocumentByShareToken(token, accessCode);
+        return success(officePreviewService.buildSharePreviewConfig(document,
+                getValidatedShare(document.getId(), token)));
+    }
+
+    private PmsKnowledgeDocumentShareDO getValidatedShare(Long documentId, String token) {
+        PmsKnowledgeDocumentShareDO share = documentShareService.getActiveDocumentShare(documentId);
+        if (share == null || !token.equals(share.getToken())) {
+            throw cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception(
+                    cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOCUMENT_SHARE_INVALID);
+        }
+        return share;
+    }
+
+    private PmsKnowledgeDocumentShareRespVO toShareVO(PmsKnowledgeDocumentShareDO share) {
+        return BeanUtils.toBean(share, PmsKnowledgeDocumentShareRespVO.class)
+                .setAccessCodeRequired(share.getAccessCodeHash() != null);
     }
 
 }

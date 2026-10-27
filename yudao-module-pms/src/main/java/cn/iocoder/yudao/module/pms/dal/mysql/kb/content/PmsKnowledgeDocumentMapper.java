@@ -26,6 +26,14 @@ import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.
 @Mapper
 public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocumentDO> {
 
+    @org.apache.ibatis.annotations.Select("SELECT id FROM pms_knowledge_document WHERE id = #{id} AND deleted = 0 FOR UPDATE")
+    Long lockDocument(Long id);
+
+    default List<PmsKnowledgeDocumentDO> selectListByLabelId(Long labelId) {
+        return selectList(new LambdaQueryWrapperX<PmsKnowledgeDocumentDO>()
+                .apply(MyBatisUtils.findInSet("label_ids"), labelId));
+    }
+
     default Set<Long> selectExistingPermissionIdSet(Collection<Long> permissionIds) {
         return convertSet(selectList(new LambdaQueryWrapperX<PmsKnowledgeDocumentDO>()
                 .in(PmsKnowledgeDocumentDO::getPermissionId, permissionIds)
@@ -134,9 +142,8 @@ public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocu
                 .eqIfPresent(PmsKnowledgeDocumentDO::getCreator,
                         Convert.toStr(pageReqVO.getCreatorUserId()))
                 .betweenIfPresent(PmsKnowledgeDocumentDO::getUpdateTime, pageReqVO.getUpdateTime())
-                .and(StrUtil.isNotBlank(pageReqVO.getKeyword()),
-                        wrapper -> wrapper.like(PmsKnowledgeDocumentDO::getTitle, pageReqVO.getKeyword())
-                        .or().like(PmsKnowledgeDocumentDO::getContent, pageReqVO.getKeyword()))
+                .like(StrUtil.isNotBlank(pageReqVO.getKeyword()),
+                        PmsKnowledgeDocumentDO::getSearchText, pageReqVO.getKeyword())
                 .orderByDesc(PmsKnowledgeDocumentDO::getUpdateTime)
                 .orderByDesc(PmsKnowledgeDocumentDO::getId));
     }

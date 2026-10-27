@@ -72,10 +72,14 @@ public class PmsKnowledgeDocumentDO extends BaseDO {
      * 文档标题
      */
     private String title;
+    /** 固定的业务编号，与数据库 ID、文件来源编号和内容版本号分开。 */
+    private String documentCode;
     /**
      * 文档内容或文件地址
      */
     private String content;
+    /** 标题、正文及抽取的附件正文，用于全文检索；不直接返回给客户端。 */
+    private String searchText;
     /**
      * 文档类型
      *
@@ -90,6 +94,8 @@ public class PmsKnowledgeDocumentDO extends BaseDO {
      * 文件大小，单位：字节
      */
     private Long fileSize;
+    /** 当前内容版本号；文件替换和富文本保存均递增 */
+    private Long versionNo;
     /**
      * 文档状态
      *

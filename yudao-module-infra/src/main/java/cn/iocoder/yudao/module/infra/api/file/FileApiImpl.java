@@ -27,4 +27,14 @@ public class FileApiImpl implements FileApi {
         return fileService.presignGetUrl(url, expirationSeconds);
     }
 
+    @Override
+    public boolean isFileRegistered(String url) {
+        return fileService.isFileRegistered(url);
+    }
+
+    @Override
+    public byte[] getFileContentByUrl(String url) throws Exception {
+        return fileService.getFileContentByUrl(url);
+    }
+
 }

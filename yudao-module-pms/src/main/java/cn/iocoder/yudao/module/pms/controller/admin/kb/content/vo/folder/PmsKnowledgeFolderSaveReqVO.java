@@ -26,4 +26,7 @@ public class PmsKnowledgeFolderSaveReqVO {
     @Size(max = 255, message = "文件夹标题不能超过 255 个字符")
     private String title;
 
+    @Schema(description = "一级文件夹编号规则覆盖值；子文件夹必须为空")
+    private Long numberRuleId;
+
 }

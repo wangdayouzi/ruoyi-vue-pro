@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import java.util.Map;
 
 @Schema(description = "管理后台 - PMS 知识库文档新增 Request VO")
 @Data
@@ -47,5 +48,11 @@ public class PmsKnowledgeDocumentCreateReqVO {
     @Min(value = 0, message = "文件大小不能小于 0")
     @Max(value = 104857600, message = "文件大小不能超过 100 MB")
     private Long fileSize;
+
+    @Schema(description = "创建状态：0 草稿、1 已发布；默认已发布")
+    private Integer status;
+
+    @Schema(description = "自定义属性当前值，键为属性编码")
+    private Map<String, String> attributes;
 
 }
