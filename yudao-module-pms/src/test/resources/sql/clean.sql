@@ -1,3 +1,4 @@
+DELETE FROM "pms_knowledge_document_draft";
 DELETE FROM "pms_knowledge_document_version";
 DELETE FROM "pms_knowledge_document";
 DELETE FROM "pms_knowledge_library_member";

@@ -50,6 +50,7 @@ import static cn.iocoder.yudao.module.pms.enums.ErrorCodeConstants.KNOWLEDGE_DOC
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -111,6 +112,7 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
 
     @Test
     public void testCreateDocument_folderWinsParent() {
+        mockNumberRule();
         // mock 数据
         Long userId = randomLongId();
         PmsKnowledgeLibraryDO library = randomLibraryDO();
@@ -142,6 +144,7 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
 
     @Test
     public void testCreateDocument_fileDocument() {
+        mockNumberRule();
         // mock 数据
         Long userId = randomLongId();
         PmsKnowledgeLibraryDO library = randomLibraryDO();
@@ -219,6 +222,7 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
 
     @Test
     public void testDocumentVersion_updateConflictAndRestore() {
+        mockNumberRule();
         Long userId = randomLongId();
         PmsKnowledgeLibraryDO library = randomLibraryDO();
         libraryMapper.insert(library);
@@ -554,6 +558,7 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
 
     @Test
     public void archiveRoundTripPreservesHistoricalContentAndVersionNumbers() throws Exception {
+        mockNumberRule();
         var source = randomDocumentDO(1L, 0L, 0L).setVersionNo(2L).setContent("current content");
         documentMapper.insert(source);
         var oldest = new cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeDocumentVersionDO()
@@ -596,6 +601,13 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
     }
 
     // ========== 随机对象 ==========
+
+    private void mockNumberRule() {
+        when(libraryService.getLibrary(anyLong())).thenAnswer(invocation ->
+                new PmsKnowledgeLibraryDO().setId(invocation.getArgument(0)).setNumberRuleId(1L));
+        when(numberRuleApi.issue(eq(1L), eq("PMS_KB_DOCUMENT"), anyLong())).thenAnswer(invocation ->
+                "TEST-" + invocation.getArgument(2));
+    }
 
     private PmsKnowledgeLibraryDO randomLibraryDO() {
         return randomPojo(PmsKnowledgeLibraryDO.class, library -> library.setId(null).setName("测试知识库")
