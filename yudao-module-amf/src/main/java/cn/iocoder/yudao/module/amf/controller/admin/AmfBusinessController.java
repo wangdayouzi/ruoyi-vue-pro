@@ -35,6 +35,8 @@ import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 @RequestMapping("/amf/business")
 @Validated
 public class AmfBusinessController {
+    @Resource
+    private cn.iocoder.yudao.module.system.api.user.AdminUserApi officeUserApi;
 
     @Resource
     private AmfBusinessService amfBusinessService;
@@ -152,8 +154,11 @@ public class AmfBusinessController {
             @RequestParam("versionId") Long versionId,
             HttpServletRequest request) {
         // 从当前登录用户获取 userId 和 userName（简化处理，实际应从安全上下文获取）
-        String userId = "1";
-        String userName = "admin";
+        Long currentUserId = cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils.getLoginUserId();
+        String userId = String.valueOf(currentUserId);
+        var currentUser = officeUserApi.getUser(currentUserId);
+        String userName = currentUser != null && currentUser.getNickname() != null && !currentUser.getNickname().isBlank()
+                ? currentUser.getNickname() : "用户" + userId;
         Map<String, Object> config = amfOnlyOfficeService.buildEditorConfig(versionId, userId, userName);
         return success(config);
     }

@@ -37,5 +37,6 @@ public interface ErrorCodeConstants {
     // ========== 领用台账（1-050-005-000） ==========
     ErrorCode SAMPLE_LOAN_NOT_EXISTS = new ErrorCode(1_050_005_000, "领用记录不存在");
     ErrorCode SAMPLE_LOAN_NOT_BORROWING = new ErrorCode(1_050_005_002, "该领用记录已结束，不能重复操作");
+    ErrorCode SAMPLE_LOAN_LOCATION_INVALID = new ErrorCode(1_050_005_003, "站点或楼层未启用，请重新选择");
 
 }

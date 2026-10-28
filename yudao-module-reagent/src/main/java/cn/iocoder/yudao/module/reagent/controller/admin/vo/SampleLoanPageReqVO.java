@@ -14,6 +14,10 @@ public class SampleLoanPageReqVO extends PageParam {
 
     @Schema(description = "BAS 号", example = "BAS-001")
     private String basNo;
+    @Schema(description = "领用站点")
+    private String site;
+    @Schema(description = "领用楼层")
+    private String location;
     @Schema(description = "需求人用户 ID", example = "1")
     private Long requesterId;
     @Schema(description = "状态，1-可领用；2-已归还；3-无需归还", example = "1")

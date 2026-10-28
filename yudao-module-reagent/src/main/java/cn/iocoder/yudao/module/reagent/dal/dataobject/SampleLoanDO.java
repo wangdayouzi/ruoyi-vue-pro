@@ -32,7 +32,9 @@ public class SampleLoanDO extends TenantBaseDO {
     private String basNo;
     /** 领用类型：SAMPLE-样品，REAGENT-试剂 */
     private String materialType;
-    /** 领用地点：4楼、8楼 */
+    /** 领用站点，字典 sample_loan_site */
+    private String site;
+    /** 领用楼层，按站点对应的字典配置 */
     private String location;
     /** 需求人用户 ID */
     private Long requesterId;

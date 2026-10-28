@@ -357,7 +357,7 @@ public class ThirdPartySyncService {
         // 不为同步账户设置可预测的共享初始密码；首次钉钉认证后由用户自行设置本地密码。
         user.setPassword(passwordEncoder.encode(IdUtil.fastSimpleUUID()));
         user.setPasswordInitialized(false);
-        user.setStatus(1); // 停用：由管理员核验账号与权限后手动启用
+        user.setStatus(0); // 停用：由管理员核验账号与权限后手动启用
 
         // 设置部门：取第一个匹配的部门
         if (CollUtil.isNotEmpty(dto.getDeptIds())) {

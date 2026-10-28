@@ -103,5 +103,6 @@ services:
     volumes:
       - ./yudao-ui-admin/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./yudao-ui-admin/dist:/usr/share/nginx/html:ro
+      - ./yudao-ui-uniapp/dist/build/h5:/usr/share/nginx/h5:ro
     depends_on:
       - server

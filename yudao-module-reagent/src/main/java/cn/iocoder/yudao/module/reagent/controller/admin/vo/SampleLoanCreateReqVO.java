@@ -22,9 +22,14 @@ public class SampleLoanCreateReqVO {
     @Pattern(regexp = "SAMPLE|REAGENT", message = "领用类型不合法")
     private String materialType;
 
+    @Schema(description = "领用站点", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "请选择站点")
+    @Size(max = 32, message = "站点长度不能超过32个字符")
+    private String site;
+
     @Schema(description = "领用地点", requiredMode = Schema.RequiredMode.REQUIRED, example = "4楼")
     @NotBlank(message = "地点不能为空")
-    @Pattern(regexp = "4楼|8楼", message = "地点不合法")
+    @Size(max = 32, message = "楼层长度不能超过32个字符")
     private String location;
 
     @Schema(description = "需求人用户 ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")

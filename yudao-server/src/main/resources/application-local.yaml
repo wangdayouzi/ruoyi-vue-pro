@@ -231,8 +231,8 @@ yudao:
 
 # OnlyOffice 相关配置
 onlyoffice:
-  doc-server-url: http://172.16.20.37:8088 # OnlyOffice Document Server 地址（浏览器直接访问，走端口映射）
-  callback-url: http://172.16.20.37:48080/admin-api/amf/onlyoffice/callback # 回调地址（容器内部访问宿主机）
+  doc-server-url: ${ONLYOFFICE_DOC_URL:http://localhost:8088} # 本机浏览器访问映射端口；其他设备访问时设置可达地址
+  callback-url: ${ONLYOFFICE_CALLBACK_URL:http://host.docker.internal:48080/admin-api/amf/onlyoffice/callback} # 容器访问宿主机后端
   jwt-secret: yudao-onlyoffice-jwt-2026 # JWT 密钥（与 OnlyOffice 容器 JWT_SECRET 一致）
 
 --- #################### 微信公众号、小程序相关配置 ####################

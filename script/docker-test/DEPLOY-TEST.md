@@ -39,7 +39,7 @@ su - postgres -c "psql -d yudao_test -c 'select count(*) from information_schema
 ## 2. 建服务器目录 + 上传文件
 
 ```bash
-mkdir -p /home/yudao-test/{redis/data,uploadfile,logs/server,yudao-server,yudao-ui-admin/dist}
+mkdir -p /home/yudao-test/{redis/data,uploadfile,logs/server,yudao-server,yudao-ui-admin/dist,yudao-ui-uniapp/dist/build/h5}
 ```
 
 | 本地路径 | 服务器路径 |
@@ -49,9 +49,10 @@ mkdir -p /home/yudao-test/{redis/data,uploadfile,logs/server,yudao-server,yudao-
 | `ruoyi-vue-pro/script/docker-test/yudao-ui-admin/nginx.conf` | `/home/yudao-test/yudao-ui-admin/nginx.conf` |
 | `yudao-server/target/yudao-server.jar` | `/home/yudao-test/yudao-server/yudao-server.jar` |
 | `yudao-ui-admin-vue3-xn/dist/*` | `/home/yudao-test/yudao-ui-admin/dist/` |
+| `yudao-ui-admin-uniapp/dist/build/h5/*` | `/home/yudao-test/yudao-ui-uniapp/dist/build/h5/` |
 
 > 管理后台前端产物可直接复用生产同一套 `dist`（API 由 nginx 代理决定，前端不写死）。
-> 手机端 H5 / OnlyOffice 测试环境默认不部署（nginx.conf 未含 `/h5/` 与 ssl）。
+> 手机端使用 `pnpm build:h5:prod` 构建，产物通过测试环境的 `/h5/` 提供，接口由测试 Nginx 代理到测试后端。OnlyOffice 测试环境默认不部署。
 
 ## 3. 核对 `.env`（服务器上）
 

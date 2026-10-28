@@ -86,7 +86,8 @@ public class AmfOnlyOfficeService {
 
         // 自定义
         Map<String, Object> customization = new LinkedHashMap<>();
-        customization.put("forcesave", true);
+        customization.put("forcesave", false);
+        customization.put("anonymous", Map.of("request", false));
         customization.put("compactHeader", false);
         customization.put("plugins", false);  // 隐藏插件（AI 等）
         customization.put("about", false);    // 隐藏"关于"
@@ -102,10 +103,15 @@ public class AmfOnlyOfficeService {
         // 权限配置（chat 从 customization 移到 permissions）
         Map<String, Object> permissions = new LinkedHashMap<>();
         permissions.put("chat", false);
-        editorConfig.put("permissions", permissions);
+        permissions.put("edit", false);
+        permissions.put("review", false);
+        permissions.put("comment", false);
+        permissions.put("fillForms", false);
+        document.put("permissions", permissions);
 
         config.put("editorConfig", editorConfig);
-        config.put("type", getDocumentType(fileExt));
+        config.put("documentType", getDocumentType(fileExt));
+        config.put("type", "desktop");
 
         // 高度和宽度
         config.put("height", "100%");
@@ -263,11 +269,11 @@ public class AmfOnlyOfficeService {
      */
     private String getDocumentType(String extension) {
         return switch (extension.toLowerCase()) {
-            case "doc", "docx", "odt", "rtf", "txt", "html", "mht", "epub" -> "text";
-            case "xls", "xlsx", "ods", "csv" -> "spreadsheet";
-            case "ppt", "pptx", "odp" -> "presentation";
+            case "doc", "docx", "odt", "rtf", "txt", "html", "mht", "epub" -> "word";
+            case "xls", "xlsx", "ods", "csv" -> "cell";
+            case "ppt", "pptx", "odp" -> "slide";
             case "pdf", "djvu", "xps" -> "pdf";
-            default -> "text";
+            default -> "word";
         };
     }
 

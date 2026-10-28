@@ -1215,6 +1215,10 @@ INSERT INTO pms_work_item_work_log (id, project_id, work_item_id, actual_hours, 
 
 -- The source snapshot has work item statuses without matching board columns.
 -- Add only missing columns so imported work items appear in board view.
+-- Explicit board IDs were imported above. Advance the identity before inserting
+-- generated rows, otherwise the first generated ID collides with ID 1.
+SELECT setval(pg_get_serial_sequence('pms_work_item_board', 'id'),
+              GREATEST(COALESCE((SELECT MAX(id) FROM pms_work_item_board), 0), 1), true);
 WITH ranked_board_names AS (
     SELECT s.project_id, s.work_item_type, s.board_name AS name, s.tenant_id,
            ROW_NUMBER() OVER (

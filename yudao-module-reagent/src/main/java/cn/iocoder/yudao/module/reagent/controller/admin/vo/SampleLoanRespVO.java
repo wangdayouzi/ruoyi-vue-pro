@@ -11,6 +11,7 @@ public class SampleLoanRespVO {
     private Long id;
     private String basNo;
     private String materialType;
+    private String site;
     private String location;
     private Long requesterId;
     private String requester;
