@@ -20,6 +20,9 @@ public class PmsKnowledgeDocumentSearchPageReqVO extends PageParam {
     @Schema(description = "搜索关键字", example = "产品方案")
     private String keyword;
 
+    @Schema(description = "属性值关键字")
+    private String attributeKeyword;
+
     @Schema(description = "知识库编号", example = "1024")
     private Long libraryId;
 

@@ -112,23 +112,6 @@ public class PmsKnowledgeLibraryMemberServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testValidateLibraryReadable_parentDeptMemberDenied() {
-        // mock 数据
-        Long libraryId = randomLongId();
-        Long userId = randomLongId();
-        Long deptId = randomLongId();
-        Long parentDeptId = randomLongId();
-        when(libraryService.getLibrary(libraryId)).thenReturn(randomLibraryDO(libraryId, false));
-        when(adminUserApi.getUser(userId)).thenReturn(new AdminUserRespDTO().setId(userId).setDeptId(deptId));
-        memberMapper.insert(randomMemberDO(libraryId, null, parentDeptId,
-                PmsKnowledgeLibraryMemberLevelEnum.MEMBER.getLevel()));
-
-        // 调用，并断言异常
-        assertServiceException(() -> memberService.validateLibraryReadable(libraryId, userId),
-                KNOWLEDGE_LIBRARY_ACCESS_DENIED);
-    }
-
-    @Test
     public void testGetJoinedLibraryIdList_filterInvalidLibrary() {
         // mock 数据
         Long userId = randomLongId();

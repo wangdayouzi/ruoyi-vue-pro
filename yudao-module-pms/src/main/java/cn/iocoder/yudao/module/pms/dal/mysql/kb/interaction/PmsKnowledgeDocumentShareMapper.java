@@ -22,11 +22,14 @@ public interface PmsKnowledgeDocumentShareMapper extends BaseMapperX<PmsKnowledg
     }
 
     default int updateToReopen(PmsKnowledgeDocumentShareDO updateObj) {
-        return update(updateObj, new LambdaUpdateWrapper<PmsKnowledgeDocumentShareDO>()
+        // Wrapper 与实体同时设置同一列会生成重复赋值，PostgreSQL 会直接拒绝。
+        int updated = updateById(updateObj);
+        if (updated == 0) return 0;
+        return update(null, new LambdaUpdateWrapper<PmsKnowledgeDocumentShareDO>()
                 .set(PmsKnowledgeDocumentShareDO::getCloseUserId, null)
                 .set(PmsKnowledgeDocumentShareDO::getCloseTime, null)
-                .set(PmsKnowledgeDocumentShareDO::getExpireTime, updateObj.getExpireTime())
-                .set(PmsKnowledgeDocumentShareDO::getAccessCodeHash, updateObj.getAccessCodeHash())
+                .set(updateObj.getExpireTime() == null, PmsKnowledgeDocumentShareDO::getExpireTime, null)
+                .set(updateObj.getAccessCodeHash() == null, PmsKnowledgeDocumentShareDO::getAccessCodeHash, null)
                 .eq(PmsKnowledgeDocumentShareDO::getId, updateObj.getId()));
     }
 

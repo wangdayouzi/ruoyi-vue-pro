@@ -95,31 +95,6 @@ public class PmsKnowledgeContentPermissionServiceImplTest extends BaseDbUnitTest
     }
 
     @Test
-    public void testGetCurrentUserLevel_openBeforeUserAndDept() {
-        // mock 数据
-        Long libraryId = randomLongId();
-        Long userId = randomLongId();
-        Long deptId = randomLongId();
-        PmsKnowledgeContentPermissionDO permission = randomPermissionDO(libraryId, true,
-                PmsKnowledgeContentLevelEnum.PREVIEW.getLevel());
-        permissionMapper.insert(permission);
-        permissionMemberMapper.insert(new PmsKnowledgeContentPermissionMemberDO().setPermissionId(permission.getId()).setDeptId(deptId)
-                .setLevel(PmsKnowledgeContentLevelEnum.DOWNLOAD.getLevel()));
-        permissionMemberMapper.insert(new PmsKnowledgeContentPermissionMemberDO().setPermissionId(permission.getId()).setUserId(userId)
-                .setLevel(PmsKnowledgeContentLevelEnum.EDIT.getLevel()));
-
-        // mock 方法
-        when(libraryMemberService.isLibraryAdmin(libraryId, userId)).thenReturn(false);
-        when(adminUserApi.getUser(userId)).thenReturn(new AdminUserRespDTO().setId(userId).setDeptId(deptId));
-
-        // 调用
-        Integer level = permissionService.getCurrentUserContentPermissionLevel(permission.getId(), libraryId, userId);
-
-        // 断言
-        assertEquals(PmsKnowledgeContentLevelEnum.PREVIEW.getLevel(), level);
-    }
-
-    @Test
     public void testGetContentPermissionMemberList_readableUser() {
         // mock 数据
         Long libraryId = randomLongId();

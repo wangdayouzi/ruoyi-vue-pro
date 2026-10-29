@@ -142,6 +142,12 @@ public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocu
                 .eqIfPresent(PmsKnowledgeDocumentDO::getCreator,
                         Convert.toStr(pageReqVO.getCreatorUserId()))
                 .betweenIfPresent(PmsKnowledgeDocumentDO::getUpdateTime, pageReqVO.getUpdateTime())
+                .apply(StrUtil.isNotBlank(pageReqVO.getAttributeKeyword()),
+                        "EXISTS (SELECT 1 FROM pms_knowledge_attribute_value av "
+                                + "WHERE av.document_id = pms_knowledge_document.id AND av.deleted = 0 "
+                                + "AND av.tenant_id = pms_knowledge_document.tenant_id "
+                                + "AND av.value_text LIKE CONCAT('%', {0}, '%'))",
+                        pageReqVO.getAttributeKeyword() == null ? "" : pageReqVO.getAttributeKeyword().trim())
                 .like(StrUtil.isNotBlank(pageReqVO.getKeyword()),
                         PmsKnowledgeDocumentDO::getSearchText, pageReqVO.getKeyword())
                 .orderByDesc(PmsKnowledgeDocumentDO::getUpdateTime)

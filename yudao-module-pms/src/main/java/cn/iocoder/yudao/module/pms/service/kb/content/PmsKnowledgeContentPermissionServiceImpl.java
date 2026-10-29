@@ -16,6 +16,7 @@ import cn.iocoder.yudao.module.pms.enums.kb.content.PmsKnowledgeContentLevelEnum
 import cn.iocoder.yudao.module.pms.enums.kb.library.PmsKnowledgeLibraryMemberLevelEnum;
 import cn.iocoder.yudao.module.pms.service.kb.library.PmsKnowledgeLibraryMemberService;
 import cn.iocoder.yudao.module.system.api.dept.DeptApi;
+import cn.iocoder.yudao.module.system.api.dept.dto.DeptRespDTO;
 import cn.iocoder.yudao.module.system.api.permission.PermissionApi;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -209,25 +211,20 @@ public class PmsKnowledgeContentPermissionServiceImpl implements PmsKnowledgeCon
             return levelMap;
         }
 
-        // 2. 公开权限优先；私有内容再按用户、部门顺序匹配显式权限
+        // 当前用户获得的公开、个人和各级部门权限取并集。
         AdminUserRespDTO user = adminUserApi.getUser(userId);
-        Long deptId = user != null ? user.getDeptId() : null;
-        Map<Long, PmsKnowledgeContentPermissionMemberDO> userMemberMap = new LinkedHashMap<>();
-        Map<Long, PmsKnowledgeContentPermissionMemberDO> deptMemberMap = new LinkedHashMap<>();
+        List<Long> deptIds = getDeptAndParentIds(user != null ? user.getDeptId() : null);
+        Map<Long, Integer> explicitLevels = new LinkedHashMap<>();
         for (PmsKnowledgeContentPermissionMemberDO member : permissionMemberMapper.selectListByPermissionIds(permissionIds)) {
-            if (userId.equals(member.getUserId())) {
-                userMemberMap.put(member.getPermissionId(), member);
-            } else if (deptId != null && deptId.equals(member.getDeptId())) {
-                deptMemberMap.put(member.getPermissionId(), member);
+            if (userId.equals(member.getUserId()) || member.getDeptId() != null && deptIds.contains(member.getDeptId())) {
+                explicitLevels.merge(member.getPermissionId(), member.getLevel(), this::unionLevel);
             }
         }
         for (PmsKnowledgeContentPermissionDO permission : permissions) {
-            PmsKnowledgeContentPermissionMemberDO userMember = userMemberMap.get(permission.getId());
-            PmsKnowledgeContentPermissionMemberDO deptMember = deptMemberMap.get(permission.getId());
-            Integer level = Boolean.TRUE.equals(permission.getOpenStatus()) ? permission.getOpenLevel()
-                    : userMember != null ? userMember.getLevel()
-                    : deptMember != null ? deptMember.getLevel()
-                    : null;
+            Integer level = explicitLevels.get(permission.getId());
+            if (Boolean.TRUE.equals(permission.getOpenStatus())) {
+                level = level == null ? permission.getOpenLevel() : unionLevel(level, permission.getOpenLevel());
+            }
             levelMap.put(permission.getId(), level);
         }
         return levelMap;
@@ -249,29 +246,16 @@ public class PmsKnowledgeContentPermissionServiceImpl implements PmsKnowledgeCon
             return permissionIds;
         }
 
-        // 2.1 一次查询当前用户及其部门的知识库成员身份，用户身份优先于部门身份
+        // 2.1 用户及所有上级部门中只要有管理员身份，就可管理该库内容。
         AdminUserRespDTO user = adminUserApi.getUser(userId);
-        Long deptId = user != null ? user.getDeptId() : null;
-        Map<Long, PmsKnowledgeLibraryMemberDO> userLibraryMemberMap = new LinkedHashMap<>();
-        Map<Long, PmsKnowledgeLibraryMemberDO> deptLibraryMemberMap = new LinkedHashMap<>();
+        List<Long> deptIds = getDeptAndParentIds(user != null ? user.getDeptId() : null);
+        Set<Long> adminLibraryIds = new LinkedHashSet<>();
         List<PmsKnowledgeLibraryMemberDO> libraryMembers = libraryMemberMapper.selectListByLibraryIds(libraryIds);
         for (PmsKnowledgeLibraryMemberDO member : libraryMembers) {
-            if (userId.equals(member.getUserId())) {
-                userLibraryMemberMap.putIfAbsent(member.getLibraryId(), member);
-            } else if (deptId != null && deptId.equals(member.getDeptId())) {
-                deptLibraryMemberMap.putIfAbsent(member.getLibraryId(), member);
-            }
-        }
-        Set<Long> adminLibraryIds = new LinkedHashSet<>();
-        for (Long libraryId : libraryIds) {
-            PmsKnowledgeLibraryMemberDO member = userLibraryMemberMap.get(libraryId);
-            if (member == null) {
-                member = deptLibraryMemberMap.get(libraryId);
-            }
-            if (member != null && equalsAny(member.getLevel(),
-                    PmsKnowledgeLibraryMemberLevelEnum.CREATOR.getLevel(),
+            if ((userId.equals(member.getUserId()) || member.getDeptId() != null && deptIds.contains(member.getDeptId()))
+                    && equalsAny(member.getLevel(), PmsKnowledgeLibraryMemberLevelEnum.CREATOR.getLevel(),
                     PmsKnowledgeLibraryMemberLevelEnum.ADMIN.getLevel())) {
-                adminLibraryIds.add(libraryId);
+                adminLibraryIds.add(member.getLibraryId());
             }
         }
         // 2.2 一次查询当前用户及其部门的内容协作权限，用户权限优先于部门权限
@@ -280,7 +264,7 @@ public class PmsKnowledgeContentPermissionServiceImpl implements PmsKnowledgeCon
         for (PmsKnowledgeContentPermissionMemberDO member : permissionMemberMapper.selectListByPermissionIds(permissionIds)) {
             if (userId.equals(member.getUserId())) {
                 userPermissionMemberMap.put(member.getPermissionId(), member);
-            } else if (deptId != null && deptId.equals(member.getDeptId())) {
+            } else if (member.getDeptId() != null && deptIds.contains(member.getDeptId())) {
                 deptPermissionMemberMap.put(member.getPermissionId(), member);
             }
         }
@@ -332,26 +316,54 @@ public class PmsKnowledgeContentPermissionServiceImpl implements PmsKnowledgeCon
                     library.getId());
             Set<Long> libraryUserIds = convertSet(libraryMembers, PmsKnowledgeLibraryMemberDO::getUserId);
             Set<Long> libraryDeptIds = convertSet(libraryMembers, PmsKnowledgeLibraryMemberDO::getDeptId);
-            if (!libraryUserIds.containsAll(userIds)) {
+            if (userIds.stream().anyMatch(id -> {
+                if (libraryUserIds.contains(id)) return false;
+                AdminUserRespDTO targetUser = adminUserApi.getUser(id);
+                return targetUser == null || getDeptAndParentIds(targetUser.getDeptId()).stream()
+                        .noneMatch(libraryDeptIds::contains);
+            })) {
                 throw exception(KNOWLEDGE_CONTENT_PERMISSION_MEMBERS_INVALID);
             }
-            // 1.9 私有知识库的部门协作者必须是知识库成员
-            if (!libraryDeptIds.containsAll(deptIds)) {
+            // 私有库的子部门也属于已加入的上级部门。
+            if (deptIds.stream().anyMatch(id -> getDeptAndParentIds(id).stream()
+                    .noneMatch(libraryDeptIds::contains))) {
                 throw exception(KNOWLEDGE_CONTENT_PERMISSION_MEMBERS_INVALID);
             }
         }
 
-        // 2. 更新公开权限并重建协作者
+        // 2. 更新公开权限，协作者按差量维护，避免每次保存都产生软删除历史行。
         permissionMapper.updateById(BeanUtils.toBean(updateReqVO, PmsKnowledgeContentPermissionDO.class)
                 .setId(permission.getId()).setLibraryId(null));
-        permissionMemberMapper.deleteByPermissionId(permission.getId());
-        List<PmsKnowledgeContentPermissionMemberDO> members = convertList(updateReqVO.getMembers(), member ->
-                new PmsKnowledgeContentPermissionMemberDO().setPermissionId(permission.getId()).setUserId(member.getUserId())
-                        .setDeptId(member.getDeptId()).setLevel(member.getLevel()));
-        members.add(0, new PmsKnowledgeContentPermissionMemberDO().setPermissionId(permission.getId())
-                .setUserId(NumberUtils.parseLong(permission.getCreator()))
-                .setLevel(PmsKnowledgeContentLevelEnum.MANAGE.getLevel()));
-        permissionMemberMapper.insertBatch(members);
+        List<PmsKnowledgeContentPermissionMemberDO> existing = permissionMemberMapper.selectListByPermissionId(permission.getId());
+        Long creatorId = NumberUtils.parseLong(permission.getCreator());
+        if (existing.stream().noneMatch(member -> creatorId.equals(member.getUserId()))) {
+            permissionMemberMapper.insert(new PmsKnowledgeContentPermissionMemberDO()
+                    .setPermissionId(permission.getId()).setUserId(creatorId)
+                    .setLevel(PmsKnowledgeContentLevelEnum.MANAGE.getLevel()));
+        }
+        for (PmsKnowledgeContentPermissionMemberDO member : existing) {
+            if (creatorId.equals(member.getUserId())) continue;
+            PmsKnowledgeContentPermissionUpdateReqVO.Member requested = updateReqVO.getMembers().stream()
+                    .filter(item -> member.getUserId() != null
+                            ? member.getUserId().equals(item.getUserId())
+                            : member.getDeptId().equals(item.getDeptId()))
+                    .findFirst().orElse(null);
+            if (requested == null) {
+                permissionMemberMapper.deleteById(member.getId());
+            } else if (!ObjectUtil.equals(member.getLevel(), requested.getLevel())) {
+                permissionMemberMapper.updateById(new PmsKnowledgeContentPermissionMemberDO()
+                        .setId(member.getId()).setLevel(requested.getLevel()));
+            }
+        }
+        for (PmsKnowledgeContentPermissionUpdateReqVO.Member requested : updateReqVO.getMembers()) {
+            if (existing.stream().noneMatch(member -> requested.getUserId() != null
+                    ? requested.getUserId().equals(member.getUserId())
+                    : requested.getDeptId().equals(member.getDeptId()))) {
+                permissionMemberMapper.insert(new PmsKnowledgeContentPermissionMemberDO()
+                        .setPermissionId(permission.getId()).setUserId(requested.getUserId())
+                        .setDeptId(requested.getDeptId()).setLevel(requested.getLevel()));
+            }
+        }
     }
 
     @Override
@@ -412,6 +424,27 @@ public class PmsKnowledgeContentPermissionServiceImpl implements PmsKnowledgeCon
             throw exception(KNOWLEDGE_CONTENT_PERMISSION_NOT_EXISTS);
         }
         return permission;
+    }
+
+    private List<Long> getDeptAndParentIds(Long deptId) {
+        if (deptId == null) return Collections.emptyList();
+        List<Long> ids = new ArrayList<>();
+        ids.add(deptId);
+        List<DeptRespDTO> parents = deptApi.getParentDeptList(deptId);
+        if (parents != null) parents.forEach(parent -> ids.add(parent.getId()));
+        return ids;
+    }
+
+    private Integer unionLevel(Integer left, Integer right) {
+        return levelRank(left) >= levelRank(right) ? left : right;
+    }
+
+    private int levelRank(Integer level) {
+        if (PmsKnowledgeContentLevelEnum.MANAGE.getLevel().equals(level)) return 5;
+        if (PmsKnowledgeContentLevelEnum.EDIT.getLevel().equals(level)) return 4;
+        if (PmsKnowledgeContentLevelEnum.UPLOAD_DOWNLOAD.getLevel().equals(level)) return 3;
+        if (PmsKnowledgeContentLevelEnum.DOWNLOAD.getLevel().equals(level)) return 2;
+        return 1;
     }
 
 }

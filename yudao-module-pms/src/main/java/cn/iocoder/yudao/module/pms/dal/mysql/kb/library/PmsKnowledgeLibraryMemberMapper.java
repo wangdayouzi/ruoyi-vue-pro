@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.library.PmsKnowledgeLibraryMemberDO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Delete;
 
 import java.util.Collection;
 import java.util.List;
@@ -44,10 +45,14 @@ public interface PmsKnowledgeLibraryMemberMapper extends BaseMapperX<PmsKnowledg
     }
 
     default List<Long> selectLibraryIdListByUserIdOrDeptId(Long userId, Long deptId) {
+        return selectLibraryIdListByUserIdOrDeptIds(userId, deptId == null ? List.of() : List.of(deptId));
+    }
+
+    default List<Long> selectLibraryIdListByUserIdOrDeptIds(Long userId, Collection<Long> deptIds) {
         LambdaQueryWrapperX<PmsKnowledgeLibraryMemberDO> query = new LambdaQueryWrapperX<>();
         query.eq(PmsKnowledgeLibraryMemberDO::getUserId, userId);
-        if (deptId != null) {
-            query.or().eq(PmsKnowledgeLibraryMemberDO::getDeptId, deptId);
+        if (!deptIds.isEmpty()) {
+            query.or().in(PmsKnowledgeLibraryMemberDO::getDeptId, deptIds);
         }
         return convertList(selectList(query), PmsKnowledgeLibraryMemberDO::getLibraryId);
     }
@@ -58,14 +63,17 @@ public interface PmsKnowledgeLibraryMemberMapper extends BaseMapperX<PmsKnowledg
                 .in(PmsKnowledgeLibraryMemberDO::getLevel, levels));
     }
 
+    // 成员表的唯一索引包含 deleted；重复软删除会与旧的 deleted=1 行冲突。
+    @Delete("DELETE FROM pms_knowledge_library_member WHERE id = #{id} AND deleted = 0")
+    int deleteActiveByIdPermanently(Long id);
+
     default void deleteByLibraryId(Long libraryId) {
         delete(PmsKnowledgeLibraryMemberDO::getLibraryId, libraryId);
     }
 
     default void deleteByLibraryIdAndUserId(Long libraryId, Long userId) {
-        delete(new LambdaQueryWrapperX<PmsKnowledgeLibraryMemberDO>()
-                .eq(PmsKnowledgeLibraryMemberDO::getLibraryId, libraryId)
-                .eq(PmsKnowledgeLibraryMemberDO::getUserId, userId));
+        PmsKnowledgeLibraryMemberDO member = selectByLibraryIdAndUserId(libraryId, userId);
+        if (member != null) deleteActiveByIdPermanently(member.getId());
     }
 
 }

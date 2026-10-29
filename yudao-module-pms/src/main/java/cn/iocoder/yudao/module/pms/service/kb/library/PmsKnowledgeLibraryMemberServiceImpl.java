@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.pms.enums.kb.content.PmsKnowledgeDocumentStatusEn
 import cn.iocoder.yudao.module.pms.enums.kb.library.PmsKnowledgeLibraryMemberLevelEnum;
 import cn.iocoder.yudao.module.pms.service.kb.content.PmsKnowledgeContentPermissionService;
 import cn.iocoder.yudao.module.system.api.dept.DeptApi;
+import cn.iocoder.yudao.module.system.api.dept.dto.DeptRespDTO;
 import cn.iocoder.yudao.module.system.api.permission.PermissionApi;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
@@ -234,14 +235,30 @@ public class PmsKnowledgeLibraryMemberServiceImpl implements PmsKnowledgeLibrary
         // 1.6 校验部门成员存在
         deptApi.validateDeptList(memberDeptIds);
 
-        // 2. 保留创建人并重建管理员和普通成员
-        memberMapper.deleteByLibraryIdAndLevels(updateReqVO.getLibraryId(), Arrays.asList(
-                PmsKnowledgeLibraryMemberLevelEnum.ADMIN.getLevel(),
-                PmsKnowledgeLibraryMemberLevelEnum.MEMBER.getLevel()));
-        if (CollUtil.isNotEmpty(updateReqVO.getMembers())) {
-            memberMapper.insertBatch(convertList(updateReqVO.getMembers(), member ->
-                    BeanUtils.toBean(member, PmsKnowledgeLibraryMemberDO.class)
-                            .setLibraryId(updateReqVO.getLibraryId())));
+        // 2. 按身份做差量更新，避免未变化的成员被反复软删除。
+        List<PmsKnowledgeLibraryMemberDO> existing = oldMembers.stream()
+                .filter(member -> !PmsKnowledgeLibraryMemberLevelEnum.CREATOR.getLevel().equals(member.getLevel()))
+                .toList();
+        for (PmsKnowledgeLibraryMemberDO member : existing) {
+            PmsKnowledgeLibraryUpdateMemberListReqVO.Member requested = updateReqVO.getMembers().stream()
+                    .filter(item -> member.getUserId() != null
+                            ? member.getUserId().equals(item.getUserId())
+                            : member.getDeptId().equals(item.getDeptId()))
+                    .findFirst().orElse(null);
+            if (requested == null) {
+                memberMapper.deleteActiveByIdPermanently(member.getId());
+            } else if (!Objects.equals(member.getLevel(), requested.getLevel())) {
+                memberMapper.updateById(new PmsKnowledgeLibraryMemberDO()
+                        .setId(member.getId()).setLevel(requested.getLevel()));
+            }
+        }
+        for (PmsKnowledgeLibraryUpdateMemberListReqVO.Member requested : updateReqVO.getMembers()) {
+            if (existing.stream().noneMatch(member -> requested.getUserId() != null
+                    ? requested.getUserId().equals(member.getUserId())
+                    : requested.getDeptId().equals(member.getDeptId()))) {
+                memberMapper.insert(BeanUtils.toBean(requested, PmsKnowledgeLibraryMemberDO.class)
+                        .setLibraryId(updateReqVO.getLibraryId()));
+            }
         }
 
         // 3. 移除已退出知识库成员的内容级协作权限
@@ -303,7 +320,7 @@ public class PmsKnowledgeLibraryMemberServiceImpl implements PmsKnowledgeLibrary
 
     @Override
     public List<Long> getLibraryIdListByUserIdOrDeptId(Long userId, Long deptId) {
-        return memberMapper.selectLibraryIdListByUserIdOrDeptId(userId, deptId);
+        return memberMapper.selectLibraryIdListByUserIdOrDeptIds(userId, getDeptAndParentIds(deptId));
     }
 
     private PmsKnowledgeLibraryDO validateLibraryExists(Long libraryId) {
@@ -324,14 +341,24 @@ public class PmsKnowledgeLibraryMemberServiceImpl implements PmsKnowledgeLibrary
 
     private PmsKnowledgeLibraryMemberDO getLibraryMember(Long libraryId, Long userId) {
         PmsKnowledgeLibraryMemberDO member = getMemberByLibraryIdAndUserId(libraryId, userId);
-        if (member != null) {
-            return member;
-        }
         AdminUserRespDTO user = adminUserApi.getUser(userId);
         if (user == null || user.getDeptId() == null) {
-            return null;
+            return member;
         }
-        return getMemberByLibraryIdAndDeptId(libraryId, user.getDeptId());
+        for (Long deptId : getDeptAndParentIds(user.getDeptId())) {
+            PmsKnowledgeLibraryMemberDO deptMember = getMemberByLibraryIdAndDeptId(libraryId, deptId);
+            if (deptMember != null && (member == null || deptMember.getLevel() < member.getLevel())) member = deptMember;
+        }
+        return member;
+    }
+
+    private List<Long> getDeptAndParentIds(Long deptId) {
+        if (deptId == null) return Collections.emptyList();
+        List<Long> ids = new ArrayList<>();
+        ids.add(deptId);
+        List<DeptRespDTO> parents = deptApi.getParentDeptList(deptId);
+        if (parents != null) parents.forEach(parent -> ids.add(parent.getId()));
+        return ids;
     }
 
 }
