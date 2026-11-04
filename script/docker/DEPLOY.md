@@ -1,4 +1,6 @@
 # =============================================
+
+首次部署时，从本目录的 `.env.example` 复制一份 `.env`，填入对应环境的密码和密钥。已有部署继续使用服务器上的 `.env`。
 # RuoYi-Vue-Pro Docker 部署指南
 # =============================================
 # 
@@ -21,7 +23,7 @@
 ```
 /home/yudao/
 ├── docker-compose.yml          # 编排文件
-├── .env                        # 环境变量（从 docker.env 重命名）
+├── .env                        # 环境变量（从 .env.example 复制后填写）
 ├── redis/
 │   └── data/                   # Redis 持久化数据
 ├── onlyoffice/
@@ -138,7 +140,7 @@ pnpm build:h5:prod
 | 本地路径 | 服务器路径 |
 |---|---|
 | `script/docker/docker-compose.yml` | `/home/yudao/docker-compose.yml` |
-| `script/docker/.env` | `/home/yudao/.env` |
+| `script/docker/.env.example` | `/home/yudao/.env` |
 | `yudao-server/target/yudao-server.jar` | `/home/yudao/yudao-server/yudao-server.jar` |
 | `yudao-ui-admin-vue3-xn/nginx.conf` | `/home/yudao/yudao-ui-admin/nginx.conf` |
 | `yudao-ui-admin-vue3-xn/dist/*` | `/home/yudao/yudao-ui-admin/dist/` |

@@ -1,5 +1,7 @@
 # 测试库部署执行清单（同一台服务器，与生产完全隔离）
 
+首次部署时，从本目录的 `.env.example` 复制一份 `.env`，填入对应环境的密码和密钥。已有部署继续使用服务器上的 `.env`。
+
 > 目的：在同服务器 `/home/yudao-test/` 搭一套 yudao 测试环境。
 > 前提（用户已确认）：钉钉登录使用测试回调，消息发送按 `.env` 开关配置、Stream 默认关闭、不跑老ERP同步；数据库已手动建好 `yudao_test` 并迁移完成；密码沿用生产。
 > 隔离设计：容器/项目名带 `-test`、端口 48081/8081/16380、独立 `.env`、独立数据目录 —— 与生产（`/home/yudao/`，端口 48080/8080/16379）零冲突。
@@ -45,7 +47,7 @@ mkdir -p /home/yudao-test/{redis/data,uploadfile,logs/server,yudao-server,yudao-
 | 本地路径 | 服务器路径 |
 |---|---|
 | `ruoyi-vue-pro/script/docker-test/docker-compose.yml` | `/home/yudao-test/docker-compose.yml` |
-| `ruoyi-vue-pro/script/docker-test/.env` | `/home/yudao-test/.env` |
+| `ruoyi-vue-pro/script/docker-test/.env.example` | `/home/yudao-test/.env` |
 | `ruoyi-vue-pro/script/docker-test/yudao-ui-admin/nginx.conf` | `/home/yudao-test/yudao-ui-admin/nginx.conf` |
 | `yudao-server/target/yudao-server.jar` | `/home/yudao-test/yudao-server/yudao-server.jar` |
 | `yudao-ui-admin-vue3-xn/dist/*` | `/home/yudao-test/yudao-ui-admin/dist/` |
@@ -124,7 +126,7 @@ docker compose --env-file .env down
   如果使用旧版社交登录入口，还需配置 `https://cms.accurantbio.com:8081/social-login`。
 - 后端需要重新打包：新增环境变量配置在 `application-prod.yaml` 中，旧 JAR 不会读取它们。
 - 管理端可继续复用相对 API 地址的生产 dist；使用测试构建时，`.env.test` 已改为相对 API 和根路径，输出 `dist-test`，上传其内容至服务器 `yudao-ui-admin/dist/`。
-- 测试 `.env` 已配置独立 OnlyOffice JWT 密钥，Compose 将同一密钥传给测试后端和测试文档容器；不要覆盖为正式密钥。
+- 在测试 `.env` 配置独立的 OnlyOffice JWT 密钥，Compose 将同一密钥传给测试后端和测试文档容器；不要覆盖为正式密钥。
 - 文档数据、日志、字体分别保存在测试目录 `onlyoffice/data`、`onlyoffice/log`、`onlyoffice/fonts`。
 - 文档下载和保存回调通过 `http://yudao-test-server:48080/admin-api/...` 走测试 Compose 内网，无需公网回流。
 - 测试发送消息时，在 `.env` 设置 `DINGTALK_INTEGRATION_ENABLED=true`；`DINGTALK_STREAM_ENABLED=false` 保持不消费正式应用事件。OAuth2 登录不依赖这两个开关。

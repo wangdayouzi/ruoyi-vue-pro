@@ -53,3 +53,8 @@ application-my.yaml
 /yudao-ui-app/unpackage/
 .DS_Store
 **/.DS_Store
+# Local Docker Compose configuration
+/script/docker/.env
+/script/docker/.env.local
+/script/docker-test/.env
+/script/docker-test/.env.local
