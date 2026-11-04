@@ -7,13 +7,12 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.QueryWrapperX;
-import cn.iocoder.yudao.framework.mybatis.core.util.JdbcUtils;
+import cn.iocoder.yudao.framework.mybatis.core.util.SqlDialectUtils;
 import cn.iocoder.yudao.module.pms.controller.admin.pm.workbench.vo.PmsWorkbenchPageReqVO;
 import cn.iocoder.yudao.module.pms.controller.admin.pm.workitem.vo.workitem.PmsWorkItemPageReqVO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.pm.workitem.PmsWorkItemDO;
 import cn.iocoder.yudao.module.pms.enums.pm.workitem.PmsWorkItemLifecycleStatusEnum;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.annotation.DbType;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.LocalDateTime;
@@ -335,14 +334,12 @@ public interface PmsWorkItemMapper extends BaseMapperX<PmsWorkItemDO> {
             queryWrapper.and(wrapper -> wrapper.notIn(PmsWorkItemDO::getIterationId,
                     pageReqVO.getExcludedIterationIds()).or().isNull(PmsWorkItemDO::getIterationId));
         }
-        // label_ids 为 JSON 数组列；PostgreSQL 和 MySQL 使用各自的包含查询。
+        // label_ids 为 JSON 数组列，匹配任一标签；数据库差异由公共方言工具处理
         if (CollUtil.isNotEmpty(pageReqVO.getLabelIds())) {
-            boolean postgreSql = DbType.POSTGRE_SQL == JdbcUtils.getDbType();
+            String labelCondition = SqlDialectUtils.jsonArrayContains("label_ids", true);
             queryWrapper.and(labelWrapper -> {
                 for (Long labelId : pageReqVO.getLabelIds()) {
-                    labelWrapper.or().apply(postgreSql
-                            ? "label_ids @> jsonb_build_array({0})"
-                            : "JSON_CONTAINS(label_ids, JSON_ARRAY({0}))", labelId);
+                    labelWrapper.or().apply(labelCondition, labelId);
                 }
             });
         }
