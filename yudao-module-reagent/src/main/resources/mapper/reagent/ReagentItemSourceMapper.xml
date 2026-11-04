@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.reagent.dal.mysql.ReagentItemSourceMapper">
+
+    <!-- 老样本系统 MySQL：项目号全量（left join 临床方案取名称/编号）。
+         create_time/update_time 为 unix 秒，Java 侧统一转成 Asia/Shanghai 时间。 -->
+    <select id="selectAll" resultType="cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentItemSourceDTO">
+        SELECT i.id,
+               i.cityid        AS cityId,
+               i.baseid        AS baseId,
+               i.clinical_id   AS clinicalId,
+               c.name          AS clinicalName,
+               c.number        AS clinicalNumber,
+               i.person_id     AS personId,
+               i.type_id       AS typeId,
+               i.is_aging      AS isAging,
+               i.review_status AS reviewStatus,
+               i.reviewer      AS reviewer,
+               i.is_report     AS isReport,
+               i.is_pm         AS isPm,
+               i.create_time   AS createTime,
+               i.update_time   AS updateTime
+        FROM think_items i
+        LEFT JOIN think_clinical c ON c.id = i.clinical_id
+        ORDER BY i.id
+    </select>
+
+</mapper>

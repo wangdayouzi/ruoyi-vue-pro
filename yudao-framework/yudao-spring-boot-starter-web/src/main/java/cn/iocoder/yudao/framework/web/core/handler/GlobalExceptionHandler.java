@@ -79,7 +79,7 @@ public class GlobalExceptionHandler {
      */
     public CommonResult<?> allExceptionHandler(HttpServletRequest request, Throwable ex) {
         if (ex instanceof MissingServletRequestParameterException) {
-            return missingServletRequestParameterExceptionHandler((MissingServletRequestParameterException) ex);
+            return missingServletRequestParameterExceptionHandler(request, (MissingServletRequestParameterException) ex);
         }
         if (ex instanceof MethodArgumentTypeMismatchException) {
             return methodArgumentTypeMismatchExceptionHandler((MethodArgumentTypeMismatchException) ex);
@@ -126,8 +126,10 @@ public class GlobalExceptionHandler {
      * 例如说，接口上设置了 @RequestParam("xx") 参数，结果并未传递 xx 参数
      */
     @ExceptionHandler(value = MissingServletRequestParameterException.class)
-    public CommonResult<?> missingServletRequestParameterExceptionHandler(MissingServletRequestParameterException ex) {
-        log.warn("[missingServletRequestParameterExceptionHandler]", ex);
+    public CommonResult<?> missingServletRequestParameterExceptionHandler(HttpServletRequest request,
+                                                                           MissingServletRequestParameterException ex) {
+        log.warn("[missingServletRequestParameterExceptionHandler] 请求 {} 缺少参数: {}",
+                request.getRequestURI(), ex.getParameterName());
         return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数缺失:%s", ex.getParameterName()));
     }
 

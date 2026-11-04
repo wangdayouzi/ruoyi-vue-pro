@@ -22,6 +22,7 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -124,7 +125,13 @@ public class PmsKnowledgeOfficePreviewService {
         editor.put("mode", "view");
         editor.put("lang", "zh-CN");
         editor.put("user", Map.of("id", viewerId, "name", viewerName));
-        editor.put("customization", Map.of("anonymous", Map.of("request", false)));
+        // Keep ordinary plugins (including Translator) available while blocking the AI Tools plugin.
+        // plugins.disable is supported by ONLYOFFICE Docs 9.4; ai.disabled is supported from 10.0.
+        editor.put("customization", Map.of(
+                "anonymous", Map.of("request", false),
+                "plugins", true,
+                "ai", Map.of("disabled", true)));
+        editor.put("plugins", Map.of("disable", List.of("asc.{9DC93CDB-B576-4F0C-B55E-FCC9C48DD007}")));
         file.put("permissions", permissions);
         permissions.put("comment", false);
         permissions.put("review", false);

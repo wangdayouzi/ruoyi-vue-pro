@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.reagent.dal.mysql.ReagentClinicalSourceMapper">
+
+    <!-- 老样本系统 MySQL：临床方案全量。
+         不查询 is_auto_receive（是否自动发送寄送通知邮件），该字段由本地维护、同步不覆盖。
+         create_time/update_time 为 unix 秒，Java 侧统一转成 Asia/Shanghai 时间。 -->
+    <select id="selectAll" resultType="cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentClinicalSourceDTO">
+        SELECT id,
+               name,
+               number,
+               sponsor_id      AS sponsorId,
+               is_upload       AS isUpload,
+               effective_date  AS effectiveDate,
+               version_number  AS versionNumber,
+               create_time     AS createTime,
+               update_time     AS updateTime
+        FROM think_clinical
+        ORDER BY id
+    </select>
+
+</mapper>

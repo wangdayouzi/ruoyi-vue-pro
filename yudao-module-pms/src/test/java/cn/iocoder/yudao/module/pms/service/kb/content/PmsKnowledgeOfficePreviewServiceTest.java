@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -60,6 +61,11 @@ class PmsKnowledgeOfficePreviewServiceTest {
         assertEquals("view", editorConfig.get("mode"));
         assertEquals(false, permissions.get("edit"));
         assertEquals(false, permissions.get("download"));
+        Map<String, Object> customization = (Map<String, Object>) editorConfig.get("customization");
+        assertEquals(true, customization.get("plugins"));
+        assertEquals(true, ((Map<String, Object>) customization.get("ai")).get("disabled"));
+        assertEquals(List.of("asc.{9DC93CDB-B576-4F0C-B55E-FCC9C48DD007}"),
+                ((Map<String, Object>) editorConfig.get("plugins")).get("disable"));
         assertEquals("pms-42-v2", file.get("key"));
         assertNotNull(config.get("token"));
         document.setFileType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");

@@ -4,6 +4,8 @@ import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeReviewRecordDO;
 import cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeReviewRuleDO;
 import cn.iocoder.yudao.module.pms.service.kb.content.PmsKnowledgeReviewService;
+import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
+import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
 import jakarta.annotation.Resource;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +20,7 @@ import static cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUti
 @RequestMapping("/pms/kb/review")
 public class PmsKnowledgeReviewController {
     @Resource private PmsKnowledgeReviewService service;
+    @Resource private AdminUserApi adminUserApi;
 
     @GetMapping("/rules")
     @PreAuthorize("@ss.hasPermission('pms:kb:library:query')")
@@ -45,9 +48,22 @@ public class PmsKnowledgeReviewController {
 
     @GetMapping("/history")
     @PreAuthorize("@ss.hasPermission('pms:kb:library:query')")
-    public CommonResult<List<PmsKnowledgeReviewRecordDO>> history(@RequestParam Long documentId) {
-        return success(service.history(documentId, getLoginUserId()));
+    public CommonResult<List<ReviewHistoryItem>> history(@RequestParam Long documentId) {
+        List<PmsKnowledgeReviewRecordDO> records = service.history(documentId, getLoginUserId());
+        Map<Long, AdminUserRespDTO> users = adminUserApi.getUserMap(records.stream()
+                .map(PmsKnowledgeReviewRecordDO::getReviewerId).filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet()));
+        return success(records.stream().map(record -> {
+            AdminUserRespDTO user = users.get(record.getReviewerId());
+            return new ReviewHistoryItem(record.getId(), record.getDocumentId(), record.getResult(),
+                    record.getReviewDate() == null ? "" : record.getReviewDate().toString(),
+                    record.getRemark(), record.getReviewerId(),
+                    user == null ? "未知用户" : user.getNickname());
+        }).toList());
     }
+
+    public record ReviewHistoryItem(Long id, Long documentId, String result, String reviewDate,
+                                    String remark, Long reviewerId, String reviewerName) {}
 
     @GetMapping("/summary")
     @PreAuthorize("@ss.hasPermission('pms:kb:library:query')")

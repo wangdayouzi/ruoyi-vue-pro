@@ -92,6 +92,12 @@ spring:
           password: postgres
           druid:
             validation-query: SELECT 1
+        yangben: # 临床方案/项目号同步 - 老样本系统 MySQL（只读），库 yangben_com
+          lazy: true # 开启懒加载，保证启动速度
+          url: jdbc:mysql://${YANGBEN_DB_HOST:192.168.10.236}:${YANGBEN_DB_PORT:3306}/${YANGBEN_DB_NAME:yangben_com}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          username: ${YANGBEN_DB_USERNAME:yangben_com}
+          password: ${YANGBEN_DB_PASSWORD:Dt6cz5r2FtaMFSMN} # TODO 请填写数据库密码（或设置环境变量 YANGBEN_DB_PASSWORD）
 #        tdengine: # IoT 数据库（需要 IoT 物联网，且 yudao.iot.storage.type 为 tdengine 再开启噢！）
 #          lazy: true # 开启懒加载，保证启动速度
 #          url: jdbc:TAOS-WS://127.0.0.1:6041/ruoyi_vue_pro?varcharAsString=true&enableAutoReconnect=true # 参见：https://t.zsxq.com/qaX9c，开启 TDengine WebSocket 自动重连

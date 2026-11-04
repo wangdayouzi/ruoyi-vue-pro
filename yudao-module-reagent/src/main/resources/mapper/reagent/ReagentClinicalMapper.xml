@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.reagent.dal.mysql.ReagentClinicalMapper">
+
+    <!-- 批量 upsert 临床方案：按 id 幂等。
+         注意：is_auto_receive（是否自动发送寄送通知邮件）不参与插入/更新，保留页面本地维护值。
+         源表已删除的行由 disableMissingBatch 统一停用。 -->
+    <insert id="batchUpsertClinical">
+        INSERT INTO reagent_clinical
+          (id, name, number, sponsor_id, is_upload, effective_date, version_number,
+           src_create_time, src_update_time, status, sync_batch, sync_time,
+           tenant_id, creator, create_time, updater, update_time, deleted)
+        VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.id}, #{it.name}, #{it.number}, #{it.sponsorId}, #{it.isUpload}, #{it.effectiveDate}, #{it.versionNumber},
+           #{it.srcCreateTime}, #{it.srcUpdateTime}, #{it.status}, #{it.syncBatch}, now(),
+           1, 'sync', now(), 'sync', now(), 0)
+        </foreach>
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          number = EXCLUDED.number,
+          sponsor_id = EXCLUDED.sponsor_id,
+          is_upload = EXCLUDED.is_upload,
+          effective_date = EXCLUDED.effective_date,
+          version_number = EXCLUDED.version_number,
+          src_create_time = EXCLUDED.src_create_time,
+          src_update_time = EXCLUDED.src_update_time,
+          status = EXCLUDED.status,
+          sync_batch = EXCLUDED.sync_batch,
+          sync_time = now(),
+          update_time = now(),
+          deleted = 0
+    </insert>
+
+    <!-- 全量同步：停用本次同步批次未出现的正常行（源缺失 → status=1） -->
+    <update id="disableMissingBatch">
+        UPDATE reagent_clinical SET status = 1, update_time = now()
+        WHERE status = 0 AND (sync_batch IS DISTINCT FROM #{batch})
+    </update>
+
+</mapper>

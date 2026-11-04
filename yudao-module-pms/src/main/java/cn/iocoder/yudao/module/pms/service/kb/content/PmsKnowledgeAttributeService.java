@@ -36,6 +36,8 @@ public class PmsKnowledgeAttributeService {
     @Transactional(rollbackFor = Exception.class)
     public Long saveDefinition(PmsKnowledgeAttributeDO input, Long userId) {
         memberService.validateLibraryAdmin(input.getLibraryId(), userId);
+        if (input.getId() == null && (input.getFieldCode() == null || input.getFieldCode().isBlank()))
+            input.setFieldCode("attr_" + java.util.UUID.randomUUID().toString().replace("-", ""));
         if (input.getFieldCode() == null || !input.getFieldCode().matches("[a-z][a-z0-9_]{1,63}"))
             throw invalidParamException("属性编码须为小写字母、数字或下划线");
         if (input.getFieldName() == null || input.getFieldName().isBlank()) throw invalidParamException("属性名称不能为空");

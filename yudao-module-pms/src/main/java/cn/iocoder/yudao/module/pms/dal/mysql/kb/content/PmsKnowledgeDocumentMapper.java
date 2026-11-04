@@ -142,6 +142,13 @@ public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocu
                 .eqIfPresent(PmsKnowledgeDocumentDO::getCreator,
                         Convert.toStr(pageReqVO.getCreatorUserId()))
                 .betweenIfPresent(PmsKnowledgeDocumentDO::getUpdateTime, pageReqVO.getUpdateTime())
+                .like(StrUtil.isNotBlank(pageReqVO.getDocumentCode()),
+                        PmsKnowledgeDocumentDO::getDocumentCode, pageReqVO.getDocumentCode() == null ? "" : pageReqVO.getDocumentCode().trim())
+                .apply("unreviewed".equals(pageReqVO.getReviewResult()),
+                        "NOT EXISTS (SELECT 1 FROM pms_knowledge_review_record rr WHERE rr.document_id = pms_knowledge_document.id AND rr.deleted = 0 AND rr.tenant_id = pms_knowledge_document.tenant_id)")
+                .apply(pageReqVO.getReviewResult() != null && java.util.Set.of("valid", "pending", "replaced", "abolished").contains(pageReqVO.getReviewResult()),
+                        "(SELECT rr.result FROM pms_knowledge_review_record rr WHERE rr.document_id = pms_knowledge_document.id AND rr.deleted = 0 AND rr.tenant_id = pms_knowledge_document.tenant_id ORDER BY rr.id DESC LIMIT 1) = {0}",
+                        pageReqVO.getReviewResult())
                 .apply(StrUtil.isNotBlank(pageReqVO.getAttributeKeyword()),
                         "EXISTS (SELECT 1 FROM pms_knowledge_attribute_value av "
                                 + "WHERE av.document_id = pms_knowledge_document.id AND av.deleted = 0 "

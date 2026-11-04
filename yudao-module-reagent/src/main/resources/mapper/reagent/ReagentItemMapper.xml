@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iocoder.yudao.module.reagent.dal.mysql.ReagentItemMapper">
+
+    <!-- 批量 upsert 项目号：按 id 幂等；方案名称/编号随源表 join 结果一并刷新。
+         源表已删除的行由 disableMissingBatch 统一停用。 -->
+    <insert id="batchUpsertItem">
+        INSERT INTO reagent_item
+          (id, city_id, base_id, clinical_id, clinical_name, clinical_number,
+           person_id, type_id, is_aging, review_status, reviewer, is_report, is_pm,
+           src_create_time, src_update_time, status, sync_batch, sync_time,
+           tenant_id, creator, create_time, updater, update_time, deleted)
+        VALUES
+        <foreach collection="list" item="it" separator=",">
+          (#{it.id}, #{it.cityId}, #{it.baseId}, #{it.clinicalId}, #{it.clinicalName}, #{it.clinicalNumber},
+           #{it.personId}, #{it.typeId}, #{it.isAging}, #{it.reviewStatus}, #{it.reviewer}, #{it.isReport}, #{it.isPm},
+           #{it.srcCreateTime}, #{it.srcUpdateTime}, #{it.status}, #{it.syncBatch}, now(),
+           1, 'sync', now(), 'sync', now(), 0)
+        </foreach>
+        ON CONFLICT (id) DO UPDATE SET
+          city_id = EXCLUDED.city_id,
+          base_id = EXCLUDED.base_id,
+          clinical_id = EXCLUDED.clinical_id,
+          clinical_name = EXCLUDED.clinical_name,
+          clinical_number = EXCLUDED.clinical_number,
+          person_id = EXCLUDED.person_id,
+          type_id = EXCLUDED.type_id,
+          is_aging = EXCLUDED.is_aging,
+          review_status = EXCLUDED.review_status,
+          reviewer = EXCLUDED.reviewer,
+          is_report = EXCLUDED.is_report,
+          is_pm = EXCLUDED.is_pm,
+          src_create_time = EXCLUDED.src_create_time,
+          src_update_time = EXCLUDED.src_update_time,
+          status = EXCLUDED.status,
+          sync_batch = EXCLUDED.sync_batch,
+          sync_time = now(),
+          update_time = now(),
+          deleted = 0
+    </insert>
+
+    <!-- 全量同步：停用本次同步批次未出现的正常行（源缺失 → status=1） -->
+    <update id="disableMissingBatch">
+        UPDATE reagent_item SET status = 1, update_time = now()
+        WHERE status = 0 AND (sync_batch IS DISTINCT FROM #{batch})
+    </update>
+
+</mapper>

@@ -41,6 +41,9 @@ public class PmsKnowledgeDocumentRespVO {
     @Schema(description = "业务唯一编号")
     private String documentCode;
 
+    @Schema(description = "最新有效性审阅结论")
+    private String reviewResult;
+
     @Schema(description = "自定义属性当前值")
     private Map<String, String> attributes;
 

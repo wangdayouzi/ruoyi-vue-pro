@@ -19,6 +19,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.dingtalk.open</groupId>
+            <artifactId>dingtalk-stream</artifactId>
+            <version>1.3.12</version>
+        </dependency>
+        <dependency>
             <groupId>cn.iocoder.boot</groupId>
             <artifactId>yudao-module-infra</artifactId>
             <version>${revision}</version>

@@ -39,4 +39,8 @@ public interface ErrorCodeConstants {
     ErrorCode SAMPLE_LOAN_NOT_BORROWING = new ErrorCode(1_050_005_002, "该领用记录已结束，不能重复操作");
     ErrorCode SAMPLE_LOAN_LOCATION_INVALID = new ErrorCode(1_050_005_003, "站点或楼层未启用，请重新选择");
 
+    // ========== 临床方案 / 项目号同步（1-050-006-000） ==========
+    ErrorCode REAGENT_CLINICAL_NOT_EXISTS = new ErrorCode(1_050_006_000, "临床方案不存在");
+    ErrorCode REAGENT_BASIC_DATA_SOURCE_EMPTY = new ErrorCode(1_050_006_001, "源库 think_clinical / think_items 均为空，已中止同步，避免误停用本地数据");
+
 }

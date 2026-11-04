@@ -89,7 +89,8 @@ public class AmfOnlyOfficeService {
         customization.put("forcesave", false);
         customization.put("anonymous", Map.of("request", false));
         customization.put("compactHeader", false);
-        customization.put("plugins", false);  // 隐藏插件（AI 等）
+        customization.put("plugins", true);   // 保留翻译等普通插件
+        customization.put("ai", Map.of("disabled", true)); // Docs 10.0 起支持
         customization.put("about", false);    // 隐藏"关于"
         customization.put("feedback", false); // 隐藏"反馈"
 
@@ -99,6 +100,7 @@ public class AmfOnlyOfficeService {
         logo.put("imageEmbedded", "");
         customization.put("logo", logo);
         editorConfig.put("customization", customization);
+        editorConfig.put("plugins", Map.of("disable", List.of("asc.{9DC93CDB-B576-4F0C-B55E-FCC9C48DD007}"))); // Docs 9.4 起屏蔽 AI Tools
 
         // 权限配置（chat 从 customization 移到 permissions）
         Map<String, Object> permissions = new LinkedHashMap<>();

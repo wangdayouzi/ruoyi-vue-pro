@@ -373,3 +373,14 @@ yudao:
       type: tdengine # 时序存储的类型：tdengine、iotdb，需要配置同名的 spring.datasource.dynamic.datasource 数据源
 
 debug: false
+
+
+# 钉钉通用接入：复用当前环境的登录应用凭证，支持独立应用覆盖。
+dingtalk:
+  integration:
+    enabled: ${DINGTALK_INTEGRATION_ENABLED:false}
+    stream-enabled: ${DINGTALK_STREAM_ENABLED:false}
+    client-id: ${DINGTALK_INTEGRATION_CLIENT_ID:${dingtalk.oauth2.client-id:}}
+    client-secret: ${DINGTALK_INTEGRATION_CLIENT_SECRET:${dingtalk.oauth2.client-secret:}}
+    consume-threads: 4
+    robot-code: ${DINGTALK_ROBOT_CODE:${dingtalk.integration.client-id:}}

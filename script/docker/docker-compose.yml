@@ -22,7 +22,7 @@ services:
 
   onlyoffice:
     container_name: yudao-onlyoffice
-    image: onlyoffice/documentserver:8.3
+    image: onlyoffice/documentserver:9.4.0.1
     restart: unless-stopped
     ports:
       - "8088:443"
@@ -64,6 +64,12 @@ services:
       STG_PM_DB_NAME: ${STG_PM_DB_NAME:-yudao_stg_pm}
       STG_PM_DB_USERNAME: ${STG_PM_DB_USERNAME:-postgres}
       STG_PM_DB_PASSWORD: ${STG_PM_DB_PASSWORD:-postgres}
+      # 老样本系统 MySQL（临床方案/项目号同步源，只读）
+      YANGBEN_DB_HOST: ${YANGBEN_DB_HOST:-192.168.10.236}
+      YANGBEN_DB_PORT: ${YANGBEN_DB_PORT:-3306}
+      YANGBEN_DB_NAME: ${YANGBEN_DB_NAME:-yangben_com}
+      YANGBEN_DB_USERNAME: ${YANGBEN_DB_USERNAME:-yangben_com}
+      YANGBEN_DB_PASSWORD: ${YANGBEN_DB_PASSWORD:-Dt6cz5r2FtaMFSMN}
       REDIS_HOST: ${REDIS_HOST:-yudao-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}

@@ -68,6 +68,12 @@ spring:
           password: ${STG_PM_DB_PASSWORD:postgres}
           druid:
             validation-query: SELECT 1
+        yangben: # 临床方案/项目号同步 - 老样本系统 MySQL（只读），库 yangben_com
+          lazy: true # 开启懒加载，保证启动速度
+          url: jdbc:mysql://${YANGBEN_DB_HOST:192.168.10.236}:${YANGBEN_DB_PORT:3306}/${YANGBEN_DB_NAME:yangben_com}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          username: ${YANGBEN_DB_USERNAME:yangben_com}
+          password: ${YANGBEN_DB_PASSWORD:Dt6cz5r2FtaMFSMN} # 生产环境请通过环境变量 YANGBEN_DB_PASSWORD 注入
 
   # Redis 配置
   data:
@@ -262,8 +268,11 @@ justauth:
 
 # 钉钉新版 OAuth2（login.dingtalk.com，支持账号密码+扫码）
 dingtalk:
+  integration:
+    enabled: ${DINGTALK_INTEGRATION_ENABLED:true}
+    stream-enabled: ${DINGTALK_STREAM_ENABLED:true}
   oauth2:
     client-id: dingvd9yfoaadmg7emoe     # 钉钉应用 Client ID
     client-secret: zYfVeGBQ4R-RPqSqq3oE6CA0J8p91_-OzOLOfaBPdUDUWVuI6eSd2MkJ4lNuzN5L
-    redirect-uri: https://cms.accurantbio.com:64234/admin-api/system/auth/dingtalk/callback
-    frontend-url: https://cms.accurantbio.com:64234
+    redirect-uri: ${DINGTALK_OAUTH2_REDIRECT_URI:https://cms.accurantbio.com:64234/admin-api/system/auth/dingtalk/callback}
+    frontend-url: ${DINGTALK_OAUTH2_FRONTEND_URL:https://cms.accurantbio.com:64234}

@@ -86,6 +86,8 @@ public class PmsKnowledgeDocumentController {
     private PmsKnowledgeViewRecordService viewRecordService;
     @Resource
     private PmsKnowledgeLibraryService libraryService;
+    @Resource
+    private cn.iocoder.yudao.module.pms.dal.mysql.kb.content.PmsKnowledgeReviewRecordMapper reviewRecordMapper;
 
     @Resource
     private AdminUserApi adminUserApi;
@@ -303,10 +305,17 @@ public class PmsKnowledgeDocumentController {
                 convertSet(documents, PmsKnowledgeDocumentDO::getLibraryId));
         Map<Long, AdminUserRespDTO> userMap = adminUserApi.getUserMap(convertSet(documents,
                 document -> NumberUtils.parseLong(document.getCreator())));
+        Map<Long, String> reviewResults = new java.util.HashMap<>();
+        reviewRecordMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeReviewRecordDO>()
+                .in(cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeReviewRecordDO::getDocumentId,
+                        convertSet(documents, PmsKnowledgeDocumentDO::getId))
+                .orderByDesc(cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeReviewRecordDO::getId))
+                .forEach(record -> reviewResults.putIfAbsent(record.getDocumentId(), record.getResult()));
         return convertList(documents, document -> {
             PmsKnowledgeDocumentRespVO documentVO = BeanUtils.toBean(document, PmsKnowledgeDocumentRespVO.class)
                     .setContent(null).setContentSummary(buildContentSummary(document.getSearchText(), keyword))
-                    .setCreatorUserId(NumberUtils.parseLong(document.getCreator()));
+                    .setCreatorUserId(NumberUtils.parseLong(document.getCreator()))
+                    .setReviewResult(reviewResults.getOrDefault(document.getId(), "unreviewed"));
             findAndThen(libraryMap, document.getLibraryId(),
                     library -> documentVO.setLibraryName(library.getName()));
             findAndThen(userMap, documentVO.getCreatorUserId(),
