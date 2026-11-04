@@ -12,13 +12,13 @@
         FROM sdpm026 WITH (NOLOCK)
         LEFT JOIN sdpm027 WITH (NOLOCK) ON sdpm027.pm02701 = sdpm026.pm02601
         LEFT JOIN sdpm002 WITH (NOLOCK) ON sdpm002.pm00200 = sdpm027.pm02703
-        WHERE sdpm026.pm02603 LIKE '%' + #{basId} + '%'   /* BASID 模糊查询 */
+        WHERE LOWER(sdpm026.pm02603) LIKE '%' + LOWER(#{basId}) + '%'   /* BASID 模糊查询 */
     -->
     <sql id="labelPrintFromWhere">
         FROM dbo.sdpm026 WITH (NOLOCK)
         LEFT JOIN dbo.sdpm027 WITH (NOLOCK) ON sdpm027.pm02701 = sdpm026.pm02601
         LEFT JOIN dbo.sdpm002 WITH (NOLOCK) ON sdpm002.pm00200 = sdpm027.pm02703
-        WHERE sdpm026.pm02603 LIKE '%' + #{basId} + '%'
+        WHERE LOWER(sdpm026.pm02603) LIKE '%' + LOWER(#{basId}) + '%'
     </sql>
 
     <select id="selectCountByBasId" resultType="long">

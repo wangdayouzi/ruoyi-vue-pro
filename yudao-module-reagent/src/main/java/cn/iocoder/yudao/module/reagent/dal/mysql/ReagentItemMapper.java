@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.dal.mysql;
 
+import org.springframework.util.StringUtils;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
@@ -21,10 +22,10 @@ public interface ReagentItemMapper extends BaseMapperX<ReagentItemDO> {
 
     default PageResult<ReagentItemDO> selectPage(ReagentItemPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ReagentItemDO>()
-                .likeIfPresent(ReagentItemDO::getBaseId, reqVO.getBaseId())
+                .apply(StringUtils.hasText(reqVO.getBaseId()), "base_id ILIKE {0}", "%" + reqVO.getBaseId() + "%")
                 .eqIfPresent(ReagentItemDO::getClinicalId, reqVO.getClinicalId())
-                .likeIfPresent(ReagentItemDO::getClinicalNumber, reqVO.getClinicalNumber())
-                .likeIfPresent(ReagentItemDO::getClinicalName, reqVO.getClinicalName())
+                .apply(StringUtils.hasText(reqVO.getClinicalNumber()), "clinical_number ILIKE {0}", "%" + reqVO.getClinicalNumber() + "%")
+                .apply(StringUtils.hasText(reqVO.getClinicalName()), "clinical_name ILIKE {0}", "%" + reqVO.getClinicalName() + "%")
                 .eqIfPresent(ReagentItemDO::getCityId, reqVO.getCityId())
                 .eqIfPresent(ReagentItemDO::getReviewStatus, reqVO.getReviewStatus())
                 .eqIfPresent(ReagentItemDO::getStatus, reqVO.getStatus())
@@ -39,9 +40,9 @@ public interface ReagentItemMapper extends BaseMapperX<ReagentItemDO> {
                 .eq(ReagentItemDO::getStatus, 0)
                 .eqIfPresent(ReagentItemDO::getClinicalId, clinicalId)
                 .and(StrUtil.isNotBlank(keyword), w -> w
-                        .like(ReagentItemDO::getBaseId, keyword)
-                        .or().like(ReagentItemDO::getClinicalName, keyword)
-                        .or().like(ReagentItemDO::getClinicalNumber, keyword))
+                        .apply("base_id ILIKE {0}", "%" + keyword + "%")
+                        .or().apply("clinical_name ILIKE {0}", "%" + keyword + "%")
+                        .or().apply("clinical_number ILIKE {0}", "%" + keyword + "%"))
                 .orderByAsc(ReagentItemDO::getBaseId)
                 .last("LIMIT 50"));
     }

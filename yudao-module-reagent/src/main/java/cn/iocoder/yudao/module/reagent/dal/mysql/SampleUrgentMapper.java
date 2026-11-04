@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.dal.mysql;
 
+import org.springframework.util.StringUtils;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
@@ -16,13 +17,13 @@ public interface SampleUrgentMapper extends BaseMapperX<SampleUrgentDO> {
     default PageResult<SampleUrgentDO> page(SampleUrgentPageReqVO req, Long userId) {
         var q = new LambdaQueryWrapperX<SampleUrgentDO>();
         if (req.getKeyword()!=null && !req.getKeyword().isBlank()) {
-            q.and(w -> w.like(SampleUrgentDO::getProjectNo,req.getKeyword())
-                    .or().like(SampleUrgentDO::getBasNos,req.getKeyword())
-                    .or().like(SampleUrgentDO::getSampleScope,req.getKeyword())
-                    .or().like(SampleUrgentDO::getRemark,req.getKeyword())
-                    .or().like(SampleUrgentDO::getLogisticsNo,req.getKeyword()));
+            q.and(w -> w.apply("project_no ILIKE {0}", "%" + req.getKeyword() + "%")
+                    .or().apply("bas_nos ILIKE {0}", "%" + req.getKeyword() + "%")
+                    .or().apply("sample_scope ILIKE {0}", "%" + req.getKeyword() + "%")
+                    .or().apply("remark ILIKE {0}", "%" + req.getKeyword() + "%")
+                    .or().apply("logistics_no ILIKE {0}", "%" + req.getKeyword() + "%"));
         }
-        q.likeIfPresent(SampleUrgentDO::getContacts,req.getContacts())
+        q.apply(StringUtils.hasText(req.getContacts()), "contacts ILIKE {0}", "%" + req.getContacts() + "%")
                 .eqIfPresent(SampleUrgentDO::getStatus,req.getStatus());
         if (Boolean.TRUE.equals(req.getExceptionOnly())) q.ne(SampleUrgentDO::getExceptionType,"NONE");
         if ("MINE".equals(req.getView())) q.and(w->w.apply("appointment_user_ids::jsonb @> {0}::jsonb","["+userId+"]")

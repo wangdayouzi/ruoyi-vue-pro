@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.dal.mysql;
 
+import org.springframework.util.StringUtils;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
@@ -20,7 +21,7 @@ public interface ReagentShipmentMapper extends BaseMapperX<ReagentShipmentDO> {
     default PageResult<ReagentShipmentDO> selectPage(ReagentShipmentPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ReagentShipmentDO>()
                 .eqIfPresent(ReagentShipmentDO::getApplyId, reqVO.getApplyId())
-                .likeIfPresent(ReagentShipmentDO::getShipmentNo, reqVO.getShipmentNo())
+                .apply(StringUtils.hasText(reqVO.getShipmentNo()), "shipment_no ILIKE {0}", "%" + reqVO.getShipmentNo() + "%")
                 .orderByDesc(ReagentShipmentDO::getId));
     }
 

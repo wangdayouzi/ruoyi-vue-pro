@@ -18,8 +18,8 @@ public interface ReagentApplyMapper extends BaseMapperX<ReagentApplyDO> {
 
     default PageResult<ReagentApplyDO> selectPage(ReagentApplyPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ReagentApplyDO>()
-                .likeIfPresent(ReagentApplyDO::getApplyNo, reqVO.getApplyNo())
-                .likeIfPresent(ReagentApplyDO::getReceiverUnit, reqVO.getReceiverUnit())
+                .apply(StringUtils.hasText(reqVO.getApplyNo()), "apply_no ILIKE {0}", "%" + reqVO.getApplyNo() + "%")
+                .apply(StringUtils.hasText(reqVO.getReceiverUnit()), "receiver_unit ILIKE {0}", "%" + reqVO.getReceiverUnit() + "%")
                 .exists(StringUtils.hasText(reqVO.getTrackingNumber()),
                         "SELECT 1 FROM reagent_shipment shipment "
                                 + "WHERE shipment.apply_id = reagent_apply.id "
@@ -29,7 +29,7 @@ public interface ReagentApplyMapper extends BaseMapperX<ReagentApplyDO> {
                         "SELECT 1 FROM reagent_apply_item item "
                                 + "WHERE item.apply_id = reagent_apply.id "
                                 + "AND item.deleted = 0 "
-                                + "AND item.reagent_name LIKE CONCAT('%', {0}, '%')", reqVO.getReagentName())
+                                + "AND item.reagent_name ILIKE CONCAT('%', {0}, '%')", reqVO.getReagentName())
                 .eqIfPresent(ReagentApplyDO::getStatus, reqVO.getStatus())
                 .orderByDesc(ReagentApplyDO::getId));
     }

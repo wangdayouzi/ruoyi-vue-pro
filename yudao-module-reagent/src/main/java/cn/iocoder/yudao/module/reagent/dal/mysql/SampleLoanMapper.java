@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.dal.mysql;
 
+import org.springframework.util.StringUtils;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
@@ -15,7 +16,7 @@ public interface SampleLoanMapper extends BaseMapperX<SampleLoanDO> {
 
     default PageResult<SampleLoanDO> selectPage(SampleLoanPageReqVO reqVO) {
         LambdaQueryWrapperX<SampleLoanDO> query = new LambdaQueryWrapperX<SampleLoanDO>()
-                .likeIfPresent(SampleLoanDO::getBasNo, reqVO.getBasNo());
+                .apply(StringUtils.hasText(reqVO.getBasNo()), "bas_no ILIKE {0}", "%" + reqVO.getBasNo() + "%");
         if ("NINGBO".equals(reqVO.getSite())) {
             query.and(wrapper -> wrapper.eq(SampleLoanDO::getSite, "NINGBO")
                     .or().isNull(SampleLoanDO::getSite));

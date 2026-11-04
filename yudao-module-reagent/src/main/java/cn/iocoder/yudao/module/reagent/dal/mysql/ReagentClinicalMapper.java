@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.dal.mysql;
 
+import org.springframework.util.StringUtils;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.mybatis.core.mapper.BaseMapperX;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
@@ -21,8 +22,8 @@ public interface ReagentClinicalMapper extends BaseMapperX<ReagentClinicalDO> {
 
     default PageResult<ReagentClinicalDO> selectPage(ReagentClinicalPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ReagentClinicalDO>()
-                .likeIfPresent(ReagentClinicalDO::getName, reqVO.getName())
-                .likeIfPresent(ReagentClinicalDO::getNumber, reqVO.getNumber())
+                .apply(StringUtils.hasText(reqVO.getName()), "name ILIKE {0}", "%" + reqVO.getName() + "%")
+                .apply(StringUtils.hasText(reqVO.getNumber()), "number ILIKE {0}", "%" + reqVO.getNumber() + "%")
                 .eqIfPresent(ReagentClinicalDO::getSponsorId, reqVO.getSponsorId())
                 .eqIfPresent(ReagentClinicalDO::getStatus, reqVO.getStatus())
                 .orderByDesc(ReagentClinicalDO::getSyncTime)
@@ -35,8 +36,8 @@ public interface ReagentClinicalMapper extends BaseMapperX<ReagentClinicalDO> {
         return selectList(new LambdaQueryWrapperX<ReagentClinicalDO>()
                 .eq(ReagentClinicalDO::getStatus, 0)
                 .and(StrUtil.isNotBlank(keyword), w -> w
-                        .like(ReagentClinicalDO::getName, keyword)
-                        .or().like(ReagentClinicalDO::getNumber, keyword))
+                        .apply("name ILIKE {0}", "%" + keyword + "%")
+                        .or().apply("number ILIKE {0}", "%" + keyword + "%"))
                 .orderByAsc(ReagentClinicalDO::getNumber)
                 .last("LIMIT 50"));
     }

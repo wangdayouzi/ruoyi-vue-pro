@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.reagent.dal.mysql;
 
+import org.springframework.util.StringUtils;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageParam;
@@ -25,14 +26,14 @@ public interface ReagentBaseFlatMapper extends BaseMapperX<ReagentBaseFlatDO> {
 
     default PageResult<ReagentBaseFlatDO> selectPage(ReagentBaseFlatPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ReagentBaseFlatDO>()
-                .likeIfPresent(ReagentBaseFlatDO::getBasId, reqVO.getBasId())
-                .likeIfPresent(ReagentBaseFlatDO::getReagentCode, reqVO.getReagentCode())
-                .likeIfPresent(ReagentBaseFlatDO::getReagentName, reqVO.getReagentName())
-                .likeIfPresent(ReagentBaseFlatDO::getCatNo, reqVO.getCatNo())
-                .likeIfPresent(ReagentBaseFlatDO::getItemCategory, reqVO.getItemCategory())
-                .likeIfPresent(ReagentBaseFlatDO::getWarehouse, reqVO.getWarehouse())
-                .likeIfPresent(ReagentBaseFlatDO::getVendor, reqVO.getVendor())
-                .likeIfPresent(ReagentBaseFlatDO::getBrand, reqVO.getBrand())
+                .apply(StringUtils.hasText(reqVO.getBasId()), "bas_id ILIKE {0}", "%" + reqVO.getBasId() + "%")
+                .apply(StringUtils.hasText(reqVO.getReagentCode()), "reagent_code ILIKE {0}", "%" + reqVO.getReagentCode() + "%")
+                .apply(StringUtils.hasText(reqVO.getReagentName()), "reagent_name ILIKE {0}", "%" + reqVO.getReagentName() + "%")
+                .apply(StringUtils.hasText(reqVO.getCatNo()), "cat_no ILIKE {0}", "%" + reqVO.getCatNo() + "%")
+                .apply(StringUtils.hasText(reqVO.getItemCategory()), "item_category ILIKE {0}", "%" + reqVO.getItemCategory() + "%")
+                .apply(StringUtils.hasText(reqVO.getWarehouse()), "warehouse ILIKE {0}", "%" + reqVO.getWarehouse() + "%")
+                .apply(StringUtils.hasText(reqVO.getVendor()), "vendor ILIKE {0}", "%" + reqVO.getVendor() + "%")
+                .apply(StringUtils.hasText(reqVO.getBrand()), "brand ILIKE {0}", "%" + reqVO.getBrand() + "%")
                 .eqIfPresent(ReagentBaseFlatDO::getStatus, reqVO.getStatus())
                 .orderByDesc(ReagentBaseFlatDO::getSyncTime)
                 .orderByDesc(ReagentBaseFlatDO::getId));
@@ -41,13 +42,13 @@ public interface ReagentBaseFlatMapper extends BaseMapperX<ReagentBaseFlatDO> {
     /** 分页简易搜索（申请单选批号用；关键词 + 仓库） */
     default PageResult<ReagentBaseFlatDO> selectSimplePage(ReagentBaseFlatSimplePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ReagentBaseFlatDO>()
-                .likeIfPresent(ReagentBaseFlatDO::getWarehouse, reqVO.getWarehouse())
+                .apply(StringUtils.hasText(reqVO.getWarehouse()), "warehouse ILIKE {0}", "%" + reqVO.getWarehouse() + "%")
                 .and(StrUtil.isNotBlank(reqVO.getKeyword()), w -> w
-                        .like(ReagentBaseFlatDO::getBasId, reqVO.getKeyword())
-                        .or().like(ReagentBaseFlatDO::getReagentCode, reqVO.getKeyword())
-                        .or().like(ReagentBaseFlatDO::getReagentName, reqVO.getKeyword())
-                        .or().like(ReagentBaseFlatDO::getCatNo, reqVO.getKeyword())
-                        .or().like(ReagentBaseFlatDO::getBrand, reqVO.getKeyword()))
+                        .apply("bas_id ILIKE {0}", "%" + reqVO.getKeyword() + "%")
+                        .or().apply("reagent_code ILIKE {0}", "%" + reqVO.getKeyword() + "%")
+                        .or().apply("reagent_name ILIKE {0}", "%" + reqVO.getKeyword() + "%")
+                        .or().apply("cat_no ILIKE {0}", "%" + reqVO.getKeyword() + "%")
+                        .or().apply("brand ILIKE {0}", "%" + reqVO.getKeyword() + "%"))
                 .orderByDesc(ReagentBaseFlatDO::getSyncTime)
                 .orderByDesc(ReagentBaseFlatDO::getId));
     }
