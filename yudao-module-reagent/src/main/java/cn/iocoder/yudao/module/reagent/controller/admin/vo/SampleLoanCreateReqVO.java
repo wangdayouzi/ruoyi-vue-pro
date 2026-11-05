@@ -36,20 +36,6 @@ public class SampleLoanCreateReqVO {
     @NotNull(message = "需求人不能为空")
     private Long requesterId;
 
-    @Schema(description = "需求人", requiredMode = Schema.RequiredMode.REQUIRED, example = "张三")
-    @NotBlank(message = "需求人不能为空")
-    @Size(max = 64, message = "需求人长度不能超过64个字符")
-    private String requester;
-
-    @Schema(description = "提单人用户 ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
-    @NotNull(message = "提单人不能为空")
-    private Long submitterId;
-
-    @Schema(description = "提单人", requiredMode = Schema.RequiredMode.REQUIRED, example = "李四")
-    @NotBlank(message = "提单人不能为空")
-    @Size(max = 64, message = "提单人长度不能超过64个字符")
-    private String submitter;
-
     @Schema(description = "物料信息", example = "血清样品")
     @Size(max = 500, message = "物料信息长度不能超过500个字符")
     private String sampleInfo;

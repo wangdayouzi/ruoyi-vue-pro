@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationGuard;
 import cn.iocoder.yudao.module.system.api.dingtalk.dto.DingTalkMessageSendReqDTO;
 import cn.iocoder.yudao.module.system.controller.admin.dingtalk.vo.DingTalkQueuePageReqVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,8 @@ import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionU
 public class DingTalkNotificationManageService {
     private final JdbcTemplate jdbc;
     private final List<DingTalkNotificationGuard> guards;
+    @Value("${yudao.tenant.enable:true}")
+    private boolean tenantEnabled = true;
     private long tenant() { return Objects.requireNonNullElse(TenantContextHolder.getTenantId(),1L); }
     public record Notice(long id,String requestId,String businessId,long userId,String userName,
                          String templateCode,int status,LocalDateTime sendAfter,LocalDateTime expiresAt,
@@ -33,7 +36,10 @@ public class DingTalkNotificationManageService {
                 rs.getObject("retry_of",Long.class),rs.getInt("retry_no"),rs.getObject("operator_id",Long.class),
                 rs.getString("operation_reason"),req.getParams());
     }
-    private String from() { return " FROM system_dingtalk_notification_queue q LEFT JOIN system_users u ON u.id=q.user_id AND u.tenant_id=q.tenant_id AND u.deleted=0 "; }
+    private String from() {
+        return " FROM system_dingtalk_notification_queue q LEFT JOIN system_users u ON u.id=q.user_id AND u.deleted=0 "
+                + (tenantEnabled ? "AND u.tenant_id=q.tenant_id " : "");
+    }
     public PageResult<Notice> page(DingTalkQueuePageReqVO req) {
         String where=" WHERE q.tenant_id=?";
         List<Object> args=new ArrayList<>(); args.add(tenant());

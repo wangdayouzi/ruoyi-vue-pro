@@ -7,7 +7,6 @@ import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanCreateReqVO
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanPageReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanOptionRespVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanRespVO;
-import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanSelfCreateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanSelfUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.SampleLoanDO;
@@ -55,13 +54,6 @@ public class SampleLoanController {
     @PreAuthorize("@ss.hasPermission('reagent:sample-loan:create')")
     public CommonResult<Long> createSampleLoan(@Valid @RequestBody SampleLoanCreateReqVO createReqVO) {
         return success(sampleLoanService.createSampleLoan(createReqVO));
-    }
-
-    @PostMapping("/create-self")
-    @Operation(summary = "移动端登记本人领用")
-    @PreAuthorize("@ss.hasPermission('reagent:sample-loan:create')")
-    public CommonResult<SampleLoanRespVO> createSelfSampleLoan(@Valid @RequestBody SampleLoanSelfCreateReqVO createReqVO) {
-        return success(BeanUtils.toBean(sampleLoanService.createSelfSampleLoan(createReqVO), SampleLoanRespVO.class));
     }
 
     @GetMapping("/page-self")

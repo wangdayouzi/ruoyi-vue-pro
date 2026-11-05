@@ -2,7 +2,6 @@ package cn.iocoder.yudao.module.reagent.service;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanCreateReqVO;
-import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanSelfCreateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanSelfUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanPageReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanUpdateReqVO;
@@ -13,7 +12,6 @@ import java.util.List;
 
 public interface SampleLoanService {
     Long createSampleLoan(SampleLoanCreateReqVO createReqVO);
-    SampleLoanDO createSelfSampleLoan(SampleLoanSelfCreateReqVO createReqVO);
     void updateSelfSampleLoan(SampleLoanSelfUpdateReqVO updateReqVO);
     void returnSelfSampleLoan(Long id);
     void noReturnSelfSampleLoan(Long id);

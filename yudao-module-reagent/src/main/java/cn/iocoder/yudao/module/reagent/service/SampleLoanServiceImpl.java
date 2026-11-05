@@ -6,13 +6,14 @@ import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanCreateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanPageReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanOptionRespVO;
-import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanSelfCreateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanSelfUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.SampleLoanDO;
 import cn.iocoder.yudao.module.reagent.dal.mysql.SampleLoanMapper;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import cn.iocoder.yudao.module.system.api.dict.DictDataApi;
+import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue;
+import cn.iocoder.yudao.module.system.api.dingtalk.dto.DingTalkMessageSendReqDTO;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import jakarta.annotation.Resource;
@@ -22,6 +23,7 @@ import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -43,6 +45,9 @@ public class SampleLoanServiceImpl implements SampleLoanService {
 
     @Resource
     private DictDataApi dictDataApi;
+
+    @Resource
+    private DingTalkNotificationQueue notificationQueue;
 
     private List<SampleLoanOptionRespVO> enabledOptions(String dictType) {
         return dictDataApi.getDictDataList(dictType).stream()
@@ -74,40 +79,47 @@ public class SampleLoanServiceImpl implements SampleLoanService {
     @Transactional(rollbackFor = Exception.class)
     public Long createSampleLoan(SampleLoanCreateReqVO createReqVO) {
         validateLocation(createReqVO.getSite(), createReqVO.getLocation());
-        String basNo = StrUtil.trim(createReqVO.getBasNo());
-        SampleLoanDO sampleLoan = BeanUtils.toBean(createReqVO, SampleLoanDO.class);
-        sampleLoan.setBasNo(basNo)
-                .setMaterialType(StrUtil.trim(createReqVO.getMaterialType()))
-                .setSite(StrUtil.trim(createReqVO.getSite()))
-                .setLocation(StrUtil.trim(createReqVO.getLocation()))
-                .setRequester(StrUtil.trim(createReqVO.getRequester()))
-                .setSubmitter(StrUtil.trim(createReqVO.getSubmitter()))
-                .setStatus(STATUS_BORROWING);
-        sampleLoanMapper.insert(sampleLoan);
-        return sampleLoan.getId();
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public SampleLoanDO createSelfSampleLoan(SampleLoanSelfCreateReqVO createReqVO) {
-        validateLocation(createReqVO.getSite(), createReqVO.getLocation());
         Long userId = Objects.requireNonNull(SecurityFrameworkUtils.getLoginUserId(), "请先登录");
         AdminUserRespDTO user = Objects.requireNonNull(adminUserApi.getUser(userId), "当前用户不存在");
         String userName = StrUtil.blankToDefault(user.getNickname(), userId.toString());
+        Long requesterId = createReqVO.getRequesterId();
+        AdminUserRespDTO requester = userId.equals(requesterId) ? user : adminUserApi.validateUser(requesterId);
         SampleLoanDO sampleLoan = new SampleLoanDO();
         sampleLoan.setBasNo(StrUtil.trim(createReqVO.getBasNo()))
                 .setMaterialType(createReqVO.getMaterialType())
                 .setSite(createReqVO.getSite())
                 .setLocation(createReqVO.getLocation())
-                .setRequesterId(userId)
-                .setRequester(userName)
+                .setRequesterId(requesterId)
+                .setRequester(StrUtil.blankToDefault(requester.getNickname(), requesterId.toString()))
                 .setSubmitterId(userId)
                 .setSubmitter(userName)
                 .setSampleInfo(StrUtil.trim(createReqVO.getSampleInfo()))
                 .setRemark(StrUtil.trim(createReqVO.getRemark()))
                 .setStatus(STATUS_BORROWING);
         sampleLoanMapper.insert(sampleLoan);
-        return sampleLoan;
+        enqueueCreatedNotification(sampleLoan);
+        return sampleLoan.getId();
+    }
+
+    private void enqueueCreatedNotification(SampleLoanDO sampleLoan) {
+        String businessId = "sample-loan:" + sampleLoan.getId();
+        DingTalkMessageSendReqDTO request = new DingTalkMessageSendReqDTO();
+        request.setBusinessId(businessId);
+        request.setRequestId(businessId + ":created");
+        request.setTemplateCode("sample_loan_created");
+        request.setUserIds(List.of(sampleLoan.getRequesterId()));
+        String siteName = getSiteOptions().stream()
+                .filter(option -> option.getValue().equals(sampleLoan.getSite()))
+                .map(SampleLoanOptionRespVO::getLabel)
+                .findFirst().orElse(sampleLoan.getSite());
+        request.setParams(Map.of(
+                "basNo", sampleLoan.getBasNo(),
+                "materialType", "REAGENT".equals(sampleLoan.getMaterialType()) ? "试剂" : "样品",
+                "site", siteName,
+                "location", sampleLoan.getLocation(),
+                "requester", sampleLoan.getRequester(),
+                "submitter", sampleLoan.getSubmitter()));
+        notificationQueue.enqueue(request, LocalDateTime.now(), null, null, null);
     }
 
     @Override
