@@ -55,12 +55,32 @@ public class PmsKnowledgeArchiveService {
     @Resource private ObjectMapper objectMapper;
 
     public byte[] exportLibrary(Long libraryId, List<Long> selectedDocumentIds, Long userId) throws Exception {
+        return exportLibrary(libraryId, selectedDocumentIds, null, userId);
+    }
+
+    public byte[] exportLibrary(Long libraryId, List<Long> selectedDocumentIds, Long selectedFolderId, Long userId) throws Exception {
         libraryMemberService.validateLibraryAdmin(libraryId, userId);
         List<PmsKnowledgeFolderDO> folders = folderMapper.selectListByLibraryIdAndStatus(
                 libraryId, PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus());
-        List<PmsKnowledgeDocumentDO> documents = documentMapper.selectListByLibraryId(libraryId).stream()
+        Set<Long> scope = new HashSet<>();
+        if (selectedFolderId != null && selectedFolderId != 0) {
+            if (folders.stream().noneMatch(f -> selectedFolderId.equals(f.getId()))) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
+            scope.add(selectedFolderId);
+            boolean changed;
+            do {
+                changed = false;
+                for (PmsKnowledgeFolderDO folder : folders) {
+                    if (scope.contains(folder.getParentId())) changed |= scope.add(folder.getId());
+                }
+            } while (changed);
+        }
+        List<PmsKnowledgeDocumentDO> allDocuments = documentMapper.selectListByLibraryId(libraryId);
+        Map<Long, PmsKnowledgeDocumentDO> documentById = new HashMap<>();
+        allDocuments.forEach(d -> documentById.put(d.getId(), d));
+        List<PmsKnowledgeDocumentDO> documents = allDocuments.stream()
                 .filter(d -> PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus().equals(d.getStatus())
                         || PmsKnowledgeDocumentStatusEnum.DRAFT.getStatus().equals(d.getStatus()))
+                .filter(d -> scope.isEmpty() || scope.contains(containingFolder(d, documentById)))
                 .filter(d -> selectedDocumentIds == null || selectedDocumentIds.isEmpty()
                         || selectedDocumentIds.contains(d.getId()))
                 .toList();
@@ -68,14 +88,30 @@ public class PmsKnowledgeArchiveService {
                 && documents.size() != new HashSet<>(selectedDocumentIds).size()) {
             throw exception(KNOWLEDGE_ARCHIVE_INVALID);
         }
+        if (!scope.isEmpty()) folders = folders.stream().filter(f -> scope.contains(f.getId())).toList();
+        if (selectedDocumentIds != null && !selectedDocumentIds.isEmpty()) {
+            Set<Long> required = new HashSet<>();
+            for (PmsKnowledgeDocumentDO document : documents) {
+                Long id = containingFolder(document, documentById);
+                while (id != null && id != 0 && required.add(id)) {
+                    Long currentId = id;
+                    PmsKnowledgeFolderDO folder = folders.stream().filter(f -> currentId.equals(f.getId())).findFirst().orElse(null);
+                    id = folder == null ? 0L : folder.getParentId();
+                }
+            }
+            folders = folders.stream().filter(f -> required.contains(f.getId())).toList();
+        }
+        Set<Long> exportedFolderIds = new HashSet<>();
+        folders.forEach(f -> exportedFolderIds.add(f.getId()));
         if (folders.size() + documents.size() > MAX_ITEMS) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
         List<ArchiveFolder> folderItems = folders.stream()
-                .map(f -> new ArchiveFolder(f.getId(), f.getParentId(), f.getTitle())).toList();
+                .map(f -> new ArchiveFolder(f.getId(), exportedFolderIds.contains(f.getParentId()) ? f.getParentId() : 0L, f.getTitle())).toList();
         List<ArchiveDocument> documentItems = new ArrayList<>();
         Set<Long> exportedDocumentIds = new HashSet<>();
         documents.forEach(document -> exportedDocumentIds.add(document.getId()));
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         long rawSize = 0;
+        int revisionCount = 0;
         try (ZipOutputStream zip = new ZipOutputStream(bytes, StandardCharsets.UTF_8)) {
             for (PmsKnowledgeDocumentDO document : documents) {
                 List<PmsKnowledgeDocumentVersionDO> versions = versionMapper.selectListByDocumentId(document.getId());
@@ -85,6 +121,8 @@ public class PmsKnowledgeArchiveService {
                             .setContent(document.getContent()).setType(document.getType())
                             .setFileType(document.getFileType()).setFileSize(document.getFileSize()));
                 }
+                revisionCount += versions.size();
+                if (versions.size() > MAX_ITEMS || revisionCount > MAX_ITEMS * 5) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
                 List<ArchiveVersion> versionItems = new ArrayList<>();
                 for (PmsKnowledgeDocumentVersionDO version : versions) {
                     String content = version.getContent();
@@ -100,7 +138,7 @@ public class PmsKnowledgeArchiveService {
                     versionItems.add(new ArchiveVersion(version.getVersionNo(), version.getTitle(), content,
                             version.getType(), version.getFileType(), version.getFileSize(), version.getCreateTime(), version.getEditorUserId()));
                 }
-                documentItems.add(new ArchiveDocument(document.getId(), document.getFolderId(),
+                documentItems.add(new ArchiveDocument(document.getId(), exportedDocumentIds.contains(document.getParentId()) ? 0L : containingFolder(document, documentById),
                         exportedDocumentIds.contains(document.getParentId()) ? document.getParentId() : 0L,
                         document.getStatus(), versionItems));
             }
@@ -110,12 +148,20 @@ public class PmsKnowledgeArchiveService {
             zip.write(manifest);
             zip.closeEntry();
         }
+        if (bytes.size() > MAX_ARCHIVE_BYTES) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
         return bytes.toByteArray();
     }
 
     @Transactional(rollbackFor = Exception.class)
     public int importLibrary(Long targetLibraryId, byte[] archiveBytes, Long userId) throws Exception {
+        return importLibrary(targetLibraryId, archiveBytes, 0L, userId);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public int importLibrary(Long targetLibraryId, byte[] archiveBytes, Long targetFolderId, Long userId) throws Exception {
         libraryMemberService.validateLibraryAdmin(targetLibraryId, userId);
+        if (targetFolderId != 0 && !targetLibraryId.equals(folderService.getFolder(targetFolderId, userId).getLibraryId()))
+            throw exception(KNOWLEDGE_ARCHIVE_INVALID);
         if (archiveBytes == null || archiveBytes.length > MAX_ARCHIVE_BYTES) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
         Map<String, byte[]> entries = readArchive(archiveBytes);
         ArchiveManifest manifest;
@@ -127,7 +173,7 @@ public class PmsKnowledgeArchiveService {
         }
         validateManifest(manifest, entries);
         Map<Long, Long> folderIds = new HashMap<>();
-        folderIds.put(0L, 0L);
+        folderIds.put(0L, targetFolderId);
         List<ArchiveFolder> pendingFolders = new ArrayList<>(manifest.folders());
         while (!pendingFolders.isEmpty()) {
             int before = pendingFolders.size();
@@ -159,7 +205,7 @@ public class PmsKnowledgeArchiveService {
                     }
                     ArchiveVersion current = revisions.get(revisions.size() - 1);
                     Long newId = documentService.createDocument(new PmsKnowledgeDocumentCreateReqVO()
-                            .setLibraryId(targetLibraryId).setFolderId(folderId).setParentId(parentId)
+                            .setLibraryId(targetLibraryId).setFolderId(parentId == 0 ? folderId : 0L).setParentId(parentId)
                             .setTitle(current.title()).setContent(restoredContent.get(current.versionNo()))
                             .setType(current.type()).setFileType(current.fileType()).setFileSize(current.fileSize())
                             .setStatus(item.status()), userId);
@@ -196,6 +242,17 @@ public class PmsKnowledgeArchiveService {
             if (pendingDocuments.size() == before) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
         }
         return manifest.documents().size();
+    }
+
+    private Long containingFolder(PmsKnowledgeDocumentDO document, Map<Long, PmsKnowledgeDocumentDO> documents) {
+        Set<Long> seen = new HashSet<>();
+        while ((document.getFolderId() == null || document.getFolderId() == 0)
+                && document.getParentId() != null && document.getParentId() != 0 && seen.add(document.getId())) {
+            PmsKnowledgeDocumentDO parent = documents.get(document.getParentId());
+            if (parent == null) break;
+            document = parent;
+        }
+        return document.getFolderId() == null ? 0L : document.getFolderId();
     }
 
     private Map<String, byte[]> readArchive(byte[] archiveBytes) throws IOException {

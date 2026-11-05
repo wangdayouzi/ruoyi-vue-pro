@@ -130,6 +130,18 @@ public class LambdaQueryWrapperX<T> extends LambdaQueryWrapper<T> {
     // ========== 重写父类方法，方便链式调用 ==========
 
     @Override
+    public LambdaQueryWrapperX<T> apply(boolean condition, String applySql, Object... values) {
+        super.apply(condition, applySql, values);
+        return this;
+    }
+
+    @Override
+    public LambdaQueryWrapperX<T> apply(String applySql, Object... values) {
+        super.apply(applySql, values);
+        return this;
+    }
+
+    @Override
     public LambdaQueryWrapperX<T> eq(boolean condition, SFunction<T, ?> column, Object val) {
         super.eq(condition, column, val);
         return this;

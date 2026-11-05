@@ -30,6 +30,8 @@ spring:
       time-to-live: 1h # 设置过期时间为 1 小时
 
 server:
+  tomcat:
+    max-part-count: 2100 # 知识库目录导入：最多 1000 个文件及其相对路径字段
   servlet:
     encoding:
       enabled: true

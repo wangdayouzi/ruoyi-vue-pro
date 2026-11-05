@@ -57,6 +57,63 @@ class PmsKnowledgeArchiveServiceTest {
     }
 
     @Test
+    void folderExportIncludesDescendantsAndExcludesUnrelatedContent() throws Exception {
+        when(folders.selectListByLibraryIdAndStatus(1L, 1)).thenReturn(List.of(
+                new PmsKnowledgeFolderDO().setId(2L).setParentId(1L).setTitle("选中目录"),
+                new PmsKnowledgeFolderDO().setId(3L).setParentId(2L).setTitle("子目录"),
+                new PmsKnowledgeFolderDO().setId(4L).setParentId(0L).setTitle("无关目录")));
+        when(documents.selectListByLibraryId(1L)).thenReturn(List.of(
+                new PmsKnowledgeDocumentDO().setId(10L).setFolderId(3L).setParentId(0L).setStatus(1),
+                new PmsKnowledgeDocumentDO().setId(11L).setFolderId(0L).setParentId(10L).setStatus(1),
+                new PmsKnowledgeDocumentDO().setId(12L).setFolderId(4L).setParentId(0L).setStatus(1)));
+        var revision = new PmsKnowledgeDocumentVersionDO().setVersionNo(1L).setTitle("正文")
+                .setType(cn.iocoder.yudao.module.pms.enums.kb.content.PmsKnowledgeDocumentTypeEnum.RICH_TEXT.getType()).setContent("test");
+        when(versions.selectListByDocumentId(anyLong())).thenReturn(List.of(revision));
+        var manifest = manifest(service.exportLibrary(1L, List.of(), 2L, 7L));
+        assertEquals(List.of(2L, 3L), manifest.folders().stream().map(PmsKnowledgeArchiveService.ArchiveFolder::id).toList());
+        assertEquals(0L, manifest.folders().get(0).parentId());
+        assertEquals(List.of(10L, 11L), manifest.documents().stream().map(PmsKnowledgeArchiveService.ArchiveDocument::id).toList());
+        assertEquals(0L, manifest.documents().get(1).folderId());
+        assertEquals(10L, manifest.documents().get(1).parentId());
+        verify(versions, never()).selectListByDocumentId(12L);
+
+        var selected = manifest(service.exportLibrary(1L, List.of(11L), null, 7L));
+        assertEquals(1, selected.documents().size());
+        assertEquals(0L, selected.documents().get(0).parentId());
+        assertEquals(3L, selected.documents().get(0).folderId());
+        assertEquals(2, selected.folders().size());
+    }
+
+    @Test
+    void restoresSelectedFolderPackageUnderTargetDirectory() throws Exception {
+        var folderService = mock(PmsKnowledgeFolderService.class);
+        ReflectionTestUtils.setField(service, "folderService", folderService);
+        when(folderService.getFolder(99L, 7L)).thenReturn(new PmsKnowledgeFolderDO().setLibraryId(1L));
+        when(folderService.createFolder(any(), eq(7L))).thenReturn(100L);
+        var manifest = new PmsKnowledgeArchiveService.ArchiveManifest(1,
+                List.of(new PmsKnowledgeArchiveService.ArchiveFolder(2L, 0L, "目录")), List.of());
+        var bytes = new ByteArrayOutputStream();
+        try (var zip = new ZipOutputStream(bytes)) {
+            zip.putNextEntry(new ZipEntry("manifest.json"));
+            zip.write(json.writeValueAsBytes(manifest));
+        }
+        assertEquals(0, service.importLibrary(1L, bytes.toByteArray(), 99L, 7L));
+        verify(folderService).createFolder(argThat(request -> request.getParentId().equals(99L)
+                && request.getLibraryId().equals(1L) && request.getTitle().equals("目录")), eq(7L));
+    }
+
+    private PmsKnowledgeArchiveService.ArchiveManifest manifest(byte[] bytes) throws Exception {
+        try (var zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
+            ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (entry.getName().equals("manifest.json"))
+                    return json.readValue(zip.readAllBytes(), PmsKnowledgeArchiveService.ArchiveManifest.class);
+            }
+        }
+        throw new AssertionError("Missing manifest");
+    }
+
+    @Test
     void invalidArchivePathIsRejectedBeforeAnyFileWrite() throws Exception {
         var bytes = new ByteArrayOutputStream();
         try (var zip = new ZipOutputStream(bytes)) {

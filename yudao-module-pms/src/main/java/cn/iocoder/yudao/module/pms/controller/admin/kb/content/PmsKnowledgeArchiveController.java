@@ -46,8 +46,9 @@ public class PmsKnowledgeArchiveController {
     @GetMapping("/export")
     @PreAuthorize("@ss.hasPermission('pms:kb:library:query')")
     public ResponseEntity<byte[]> exportLibrary(@RequestParam("libraryId") Long libraryId,
-            @RequestParam(value = "documentIds", required = false) List<Long> documentIds) throws Exception {
-        byte[] archive = archiveService.exportLibrary(libraryId, documentIds, getLoginUserId());
+            @RequestParam(value = "documentIds", required = false) List<Long> documentIds,
+            @RequestParam(value = "folderId", required = false) Long folderId) throws Exception {
+        byte[] archive = archiveService.exportLibrary(libraryId, documentIds, folderId, getLoginUserId());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=knowledge-library-" + libraryId + ".zip")
                 .contentType(MediaType.parseMediaType("application/zip")).body(archive);
@@ -56,9 +57,10 @@ public class PmsKnowledgeArchiveController {
     @PostMapping(value = "/restore", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@ss.hasPermission('pms:kb:library:update')")
     public CommonResult<Integer> restoreLibrary(@RequestParam("libraryId") Long libraryId,
-            @RequestParam("file") MultipartFile file) throws Exception {
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "folderId", defaultValue = "0") Long folderId) throws Exception {
         if (file.isEmpty() || file.getSize() > 100L * 1024 * 1024) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
-        return success(archiveService.importLibrary(libraryId, file.getBytes(), getLoginUserId()));
+        return success(archiveService.importLibrary(libraryId, file.getBytes(), folderId, getLoginUserId()));
     }
 
     @PostMapping(value = "/batch-import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -66,8 +68,9 @@ public class PmsKnowledgeArchiveController {
     @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
     public CommonResult<List<Long>> batchImportFiles(@RequestParam("libraryId") Long libraryId,
             @RequestParam("folderId") Long folderId, @RequestParam("parentId") Long parentId,
-            @RequestParam("files") List<MultipartFile> files) throws Exception {
-        if (files.isEmpty() || files.size() > 20 || files.stream().mapToLong(MultipartFile::getSize).sum() > 100L * 1024 * 1024) {
+            @RequestParam("files") List<MultipartFile> files,
+            @RequestParam(value = "paths", required = false) List<String> paths) throws Exception {
+        if (files.isEmpty() || files.size() > 1000 || files.stream().mapToLong(MultipartFile::getSize).sum() > 100L * 1024 * 1024) {
             throw exception(KNOWLEDGE_ARCHIVE_INVALID);
         }
         libraryMemberService.validateLibraryAdmin(libraryId, getLoginUserId());
@@ -76,6 +79,19 @@ public class PmsKnowledgeArchiveController {
         }
         if (parentId != 0 && !libraryId.equals(documentService.getDocument(parentId, getLoginUserId()).getLibraryId())) {
             throw exception(KNOWLEDGE_ARCHIVE_INVALID);
+        }
+        if (paths != null && (paths.size() != files.size() || parentId != 0)) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
+        List<String[]> relativePaths = new ArrayList<>();
+        if (paths != null) {
+            for (String path : paths) {
+                String[] parts = path.replace('\\', '/').split("/", -1);
+                if (parts.length > 32) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
+                for (String part : parts) {
+                    if (part.isBlank() || part.equals(".") || part.equals("..") || part.length() > 255
+                            || part.contains(":") || part.chars().anyMatch(c -> c < 32)) throw exception(KNOWLEDGE_ARCHIVE_INVALID);
+                }
+                relativePaths.add(parts);
+            }
         }
         List<PmsKnowledgeDocumentCreateReqVO> requests = new ArrayList<>();
         for (MultipartFile file : files) {
@@ -94,8 +110,25 @@ public class PmsKnowledgeArchiveController {
                     .setFileType(ext).setFileSize(file.getSize()));
         }
         List<Long> ids = new ArrayList<>();
+        java.util.Map<String, Long> importedFolders = new java.util.HashMap<>();
         for (int i = 0; i < files.size(); i++) {
             PmsKnowledgeDocumentCreateReqVO request = requests.get(i);
+            if (paths != null) {
+                String[] parts = relativePaths.get(i);
+                Long destination = folderId;
+                String key = "";
+                for (int j = 0; j < parts.length - 1; j++) {
+                    key += "/" + parts[j];
+                    Long existing = importedFolders.get(key);
+                    if (existing == null) {
+                        existing = folderService.createFolder(new cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.folder.PmsKnowledgeFolderSaveReqVO()
+                                .setLibraryId(libraryId).setParentId(destination).setTitle(parts[j]), getLoginUserId());
+                        importedFolders.put(key, existing);
+                    }
+                    destination = existing;
+                }
+                request.setFolderId(destination);
+            }
             request.setContent(fileApi.createFile(files.get(i).getBytes(), request.getTitle() + "." + request.getFileType()));
             ids.add(documentService.createDocument(request, getLoginUserId()));
         }

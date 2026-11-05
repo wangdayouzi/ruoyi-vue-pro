@@ -18,6 +18,7 @@ import java.util.List;
 import static cn.iocoder.yudao.framework.test.core.util.RandomUtils.randomLongId;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @Import(DatabaseTableServiceImpl.class)
@@ -77,9 +78,9 @@ public class DatabaseTableServiceImplTest extends BaseDbUnitTest {
     }
 
     private static TableField.MetaInfo buildMetaInfo(JdbcType jdbcType, String typeName) {
-        TableField.MetaInfo metaInfo = new TableField.MetaInfo(null, null);
-        metaInfo.setJdbcType(jdbcType);
-        metaInfo.setTypeName(typeName);
+        TableField.MetaInfo metaInfo = mock(TableField.MetaInfo.class);
+        when(metaInfo.getJdbcType()).thenReturn(jdbcType);
+        when(metaInfo.getTypeName()).thenReturn(typeName);
         return metaInfo;
     }
 
