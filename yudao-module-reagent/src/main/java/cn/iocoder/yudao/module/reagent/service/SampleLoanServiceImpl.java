@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.reagent.service;
 
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
@@ -15,6 +17,7 @@ import cn.iocoder.yudao.module.system.api.dict.DictDataApi;
 import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue;
 import cn.iocoder.yudao.module.system.api.dingtalk.dto.DingTalkMessageSendReqDTO;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -22,11 +25,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
 import static cn.iocoder.yudao.module.reagent.enums.ErrorCodeConstants.*;
 
 @Service
@@ -77,6 +82,8 @@ public class SampleLoanServiceImpl implements SampleLoanService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "登记领用",
+            bizNo = "{{#_ret}}", success = "登记领用，业务编号 {{#_ret}}，BAS号 {{#createReqVO.basNo}}，领用类型 {{#createReqVO.materialType}}，站点 {{#createReqVO.site}}，楼层 {{#createReqVO.location}}，需求人编号 {{#createReqVO.requesterId}}")
     public Long createSampleLoan(SampleLoanCreateReqVO createReqVO) {
         validateLocation(createReqVO.getSite(), createReqVO.getLocation());
         Long userId = Objects.requireNonNull(SecurityFrameworkUtils.getLoginUserId(), "请先登录");
@@ -130,6 +137,8 @@ public class SampleLoanServiceImpl implements SampleLoanService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "修改领用",
+            bizNo = "{{#updateReqVO.id}}", success = "修改领用，业务编号 {{#updateReqVO.id}}，{{#loanChanges}}")
     public void updateSelfSampleLoan(SampleLoanSelfUpdateReqVO updateReqVO) {
         validateLocation(updateReqVO.getSite(), updateReqVO.getLocation());
         Long userId = Objects.requireNonNull(SecurityFrameworkUtils.getLoginUserId(), "请先登录");
@@ -145,7 +154,39 @@ public class SampleLoanServiceImpl implements SampleLoanService {
         updateObj.setLocation(updateReqVO.getLocation());
         updateObj.setSampleInfo(StrUtil.nullToEmpty(StrUtil.trim(updateReqVO.getSampleInfo())));
         updateObj.setRemark(StrUtil.nullToEmpty(StrUtil.trim(updateReqVO.getRemark())));
-        sampleLoanMapper.updateById(updateObj);
+        updateObj.setCreateTime(updateReqVO.getCreateTime());
+        updateObj.setReturnTime(updateReqVO.getReturnTime());
+        updateLoan(existing, updateObj);
+        recordLoanChanges(existing, updateObj);
+    }
+
+    private void recordLoanChanges(SampleLoanDO before, SampleLoanDO update) {
+        List<String> changes = new ArrayList<>();
+        addChange(changes, "BAS号", before.getBasNo(), update.getBasNo());
+        addChange(changes, "领用类型", before.getMaterialType(), update.getMaterialType());
+        addChange(changes, "站点", before.getSite(), update.getSite());
+        addChange(changes, "楼层", before.getLocation(), update.getLocation());
+        addChange(changes, "需求人编号", before.getRequesterId(), update.getRequesterId());
+        addChange(changes, "需求人", before.getRequester(), update.getRequester());
+        addChange(changes, "提单人编号", before.getSubmitterId(), update.getSubmitterId());
+        addChange(changes, "提单人", before.getSubmitter(), update.getSubmitter());
+        addChange(changes, "物料信息", before.getSampleInfo(), update.getSampleInfo());
+        addChange(changes, "备注", before.getRemark(), update.getRemark());
+        addChange(changes, "领用时间", before.getCreateTime(), update.getCreateTime());
+        addChange(changes, "归还时间", before.getReturnTime(), update.getReturnTime());
+        LogRecordContext.putVariable("loanChanges", changes.isEmpty() ? "字段值未变化" : String.join("；", changes));
+    }
+
+    private void addChange(List<String> changes, String label, Object before, Object after) {
+        // 更新对象中的 null 字段由 Mapper 忽略。
+        if (after != null && !Objects.equals(before, after)) {
+            changes.add(label + "【" + logValue(before) + "】→【" + logValue(after) + "】");
+        }
+    }
+
+    private String logValue(Object value) {
+        String text = Objects.toString(value, "");
+        return text.length() <= 80 ? text : text.substring(0, 79) + "…";
     }
 
     private SampleLoanDO getOwnSampleLoan(Long id) {
@@ -159,6 +200,8 @@ public class SampleLoanServiceImpl implements SampleLoanService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "归还",
+            bizNo = "{{#id}}", success = "归还，业务编号 {{#id}}，状态：领用中 → 已归还，归还时间 {{#loanReturnTime}}")
     public void returnSelfSampleLoan(Long id) {
         getOwnSampleLoan(id);
         returnSampleLoan(id);
@@ -166,6 +209,8 @@ public class SampleLoanServiceImpl implements SampleLoanService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "标记无需归还",
+            bizNo = "{{#id}}", success = "标记无需归还，业务编号 {{#id}}，状态：领用中 → 无需归还")
     public void noReturnSelfSampleLoan(Long id) {
         getOwnSampleLoan(id);
         noReturnSampleLoan(id);
@@ -173,13 +218,17 @@ public class SampleLoanServiceImpl implements SampleLoanService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "删除领用",
+            bizNo = "{{#id}}", success = "删除领用，业务编号 {{#id}}，BAS号 {{#deletedLoan.basNo}}，领用类型 {{#deletedLoan.materialType}}")
     public void deleteSelfSampleLoan(Long id) {
-        getOwnSampleLoan(id);
+        LogRecordContext.putVariable("deletedLoan", getOwnSampleLoan(id));
         sampleLoanMapper.deleteById(id);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "修改领用",
+            bizNo = "{{#updateReqVO.id}}", success = "修改领用，业务编号 {{#updateReqVO.id}}，{{#loanChanges}}")
     public void updateSampleLoan(SampleLoanUpdateReqVO updateReqVO) {
         validateLocation(updateReqVO.getSite(), updateReqVO.getLocation());
         SampleLoanDO sampleLoan = sampleLoanMapper.selectById(updateReqVO.getId());
@@ -194,15 +243,43 @@ public class SampleLoanServiceImpl implements SampleLoanService {
                 .setLocation(StrUtil.trim(updateReqVO.getLocation()))
                 .setRequester(StrUtil.trim(updateReqVO.getRequester()))
                 .setSubmitter(StrUtil.trim(updateReqVO.getSubmitter()));
-        sampleLoanMapper.updateById(updateObj);
+        updateLoan(sampleLoan, updateObj);
+        recordLoanChanges(sampleLoan, updateObj);
+    }
+
+    private void updateLoan(SampleLoanDO existing, SampleLoanDO update) {
+        if (update.getCreateTime() == null && update.getReturnTime() == null) {
+            sampleLoanMapper.updateById(update);
+            return;
+        }
+        if (update.getReturnTime() != null && !Integer.valueOf(STATUS_RETURNED).equals(existing.getStatus())) {
+            throw invalidParamException("只有已归还的记录可以修改归还时间");
+        }
+        LocalDateTime createTime = update.getCreateTime() != null ? update.getCreateTime() : existing.getCreateTime();
+        LocalDateTime returnTime = update.getReturnTime() != null ? update.getReturnTime() : existing.getReturnTime();
+        if (createTime != null && returnTime != null && returnTime.isBefore(createTime)) {
+            throw invalidParamException("归还时间不能早于领用时间");
+        }
+        int updated = sampleLoanMapper.update(update, new LambdaUpdateWrapper<SampleLoanDO>()
+                .eq(SampleLoanDO::getId, existing.getId())
+                .eq(SampleLoanDO::getStatus, existing.getStatus())
+                .eq(existing.getUpdateTime() != null, SampleLoanDO::getUpdateTime, existing.getUpdateTime())
+                .isNull(existing.getUpdateTime() == null, SampleLoanDO::getUpdateTime));
+        if (updated == 0) {
+            throw invalidParamException("领用记录已变更，请刷新后重试");
+        }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "删除领用",
+            bizNo = "{{#id}}", success = "删除领用，业务编号 {{#id}}，BAS号 {{#deletedLoan.basNo}}，领用类型 {{#deletedLoan.materialType}}")
     public void deleteSampleLoan(Long id) {
-        if (sampleLoanMapper.selectById(id) == null) {
+        SampleLoanDO sampleLoan = sampleLoanMapper.selectById(id);
+        if (sampleLoan == null) {
             throw exception(SAMPLE_LOAN_NOT_EXISTS);
         }
+        LogRecordContext.putVariable("deletedLoan", sampleLoan);
         sampleLoanMapper.deleteById(id);
     }
 
@@ -214,6 +291,8 @@ public class SampleLoanServiceImpl implements SampleLoanService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "归还",
+            bizNo = "{{#id}}", success = "归还，业务编号 {{#id}}，状态：领用中 → 已归还，归还时间 {{#loanReturnTime}}")
     public void returnSampleLoan(Long id) {
         SampleLoanDO sampleLoan = sampleLoanMapper.selectById(id);
         if (sampleLoan == null) {
@@ -226,11 +305,17 @@ public class SampleLoanServiceImpl implements SampleLoanService {
         updateObj.setId(id);
         updateObj.setStatus(STATUS_RETURNED);
         updateObj.setReturnTime(LocalDateTime.now());
-        sampleLoanMapper.updateById(updateObj);
+        Long userId = Objects.requireNonNull(SecurityFrameworkUtils.getLoginUserId(), "请先登录");
+        AdminUserRespDTO user = Objects.requireNonNull(adminUserApi.getUser(userId), "当前用户不存在");
+        updateObj.setReturner(StrUtil.blankToDefault(user.getNickname(), userId.toString()));
+        LogRecordContext.putVariable("loanReturnTime", updateObj.getReturnTime());
+        updateBorrowingStatus(updateObj);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @LogRecord(type = "试剂管理-领用", subType = "标记无需归还",
+            bizNo = "{{#id}}", success = "标记无需归还，业务编号 {{#id}}，状态：领用中 → 无需归还")
     public void noReturnSampleLoan(Long id) {
         SampleLoanDO sampleLoan = sampleLoanMapper.selectById(id);
         if (sampleLoan == null) {
@@ -242,7 +327,16 @@ public class SampleLoanServiceImpl implements SampleLoanService {
         SampleLoanDO updateObj = new SampleLoanDO();
         updateObj.setId(id);
         updateObj.setStatus(STATUS_NO_RETURN);
-        sampleLoanMapper.updateById(updateObj);
+        updateBorrowingStatus(updateObj);
+    }
+
+    private void updateBorrowingStatus(SampleLoanDO updateObj) {
+        int updated = sampleLoanMapper.update(updateObj, new LambdaUpdateWrapper<SampleLoanDO>()
+                .eq(SampleLoanDO::getId, updateObj.getId())
+                .eq(SampleLoanDO::getStatus, STATUS_BORROWING));
+        if (updated == 0) {
+            throw exception(SAMPLE_LOAN_NOT_BORROWING);
+        }
     }
 
     @Override

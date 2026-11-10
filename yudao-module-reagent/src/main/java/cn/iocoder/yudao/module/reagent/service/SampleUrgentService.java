@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.reagent.service;
 
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
@@ -27,6 +29,8 @@ public class SampleUrgentService {
     private org.springframework.beans.factory.ObjectProvider<cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue> notificationQueues;
 
     @Transactional(rollbackFor=Exception.class)
+    @LogRecord(type = "试剂管理-加急入库", subType = "删除预约",
+            bizNo = "{{#id}}", success = "删除预约，处理记录编号 {{#urgentLogId}}")
     public void delete(Long id,Integer revision) {
         if(!permissions.hasAnyPermissions(userId(),"reagent:sample-urgent:update")) throw invalidParamException("需要修改预约权限");
         var row=lock(id,revision);
@@ -36,6 +40,7 @@ public class SampleUrgentService {
         entry.setOperatorId(userId()); entry.setOperatorName(userName());
         entry.setContent("删除预约，保留原始数据及处理记录，取消待发送通知"); logs.insert(entry);
         if(mapper.deleteById(id)!=1) throw invalidParamException("预约已变化，请刷新后重试");
+        LogRecordContext.putVariable("urgentLogId", entry.getId());
     }
 
     public PageResult<SampleUrgentDO> page(SampleUrgentPageReqVO req) { return mapper.page(req,userId()); }
@@ -49,6 +54,8 @@ public class SampleUrgentService {
         return logs.selectList(new LambdaQueryWrapperX<SampleUrgentLogDO>().eq(SampleUrgentLogDO::getUrgentId,id).orderByDesc(SampleUrgentLogDO::getId));
     }
     @Transactional(rollbackFor=Exception.class)
+    @LogRecord(type = "试剂管理-加急入库", subType = "保存需求",
+            bizNo = "{{#_ret}}", success = "{{#urgentAction}}，处理记录编号 {{#urgentLogId}}：{{#urgentSummary}}")
     public Long save(SampleUrgentSaveReqVO req) {
         SampleUrgentRules.validateSave(req);
         req.setProjectNo(req.getProjectNo().trim());
@@ -90,6 +97,8 @@ public class SampleUrgentService {
         return row.getId();
     }
     @Transactional(rollbackFor=Exception.class)
+    @LogRecord(type = "试剂管理-加急入库", subType = "处理需求",
+            bizNo = "{{#req.id}}", success = "{{#urgentAction}}，处理记录编号 {{#urgentLogId}}：{{#urgentSummary}}")
     public void action(SampleUrgentActionReqVO req) {
         var row=lock(req.getId(),req.getRevision());
         switch(req.getAction()) {
@@ -153,6 +162,10 @@ public class SampleUrgentService {
     private void log(Long id,String action,String content) {
         var log=new SampleUrgentLogDO(); log.setUrgentId(id); log.setAction(action); log.setContent(content);
         log.setOperatorId(userId()); log.setOperatorName(userName()); logs.insert(log);
+        LogRecordContext.putVariable("urgentAction", action);
+        LogRecordContext.putVariable("urgentSummary", content.length() <= 800
+                ? content : content.substring(0, 800) + "…（完整内容见处理记录）");
+        LogRecordContext.putVariable("urgentLogId", log.getId());
         events.publishEvent(new SampleUrgentNoticeEvent(
                 cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder.getTenantId(),
                 id,log.getId(),userId(),action,content));

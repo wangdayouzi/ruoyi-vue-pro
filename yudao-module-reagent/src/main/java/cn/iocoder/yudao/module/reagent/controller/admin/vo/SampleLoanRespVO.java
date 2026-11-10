@@ -23,4 +23,5 @@ public class SampleLoanRespVO {
     private Integer status;
     private LocalDateTime createTime;
     private LocalDateTime returnTime;
+    private String returner;
 }

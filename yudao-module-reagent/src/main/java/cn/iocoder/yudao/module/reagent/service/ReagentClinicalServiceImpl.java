@@ -1,5 +1,7 @@
 package cn.iocoder.yudao.module.reagent.service;
 
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentClinicalPageReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.ReagentClinicalUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentClinicalDO;
@@ -37,11 +39,14 @@ public class ReagentClinicalServiceImpl implements ReagentClinicalService {
     }
 
     @Override
+    @LogRecord(type = "试剂管理-临床方案", subType = "更新自动接收",
+            bizNo = "{{#reqVO.id}}", success = "自动接收：{{#previousAutoReceive}} → {{#reqVO.isAutoReceive}}")
     public void updateClinicalLocalField(ReagentClinicalUpdateReqVO reqVO) {
         ReagentClinicalDO clinical = reagentClinicalMapper.selectById(reqVO.getId());
         if (clinical == null) {
             throw exception(REAGENT_CLINICAL_NOT_EXISTS);
         }
+        LogRecordContext.putVariable("previousAutoReceive", clinical.getIsAutoReceive());
         ReagentClinicalDO updateObj = new ReagentClinicalDO();
         updateObj.setId(reqVO.getId());
         updateObj.setIsAutoReceive(reqVO.getIsAutoReceive());

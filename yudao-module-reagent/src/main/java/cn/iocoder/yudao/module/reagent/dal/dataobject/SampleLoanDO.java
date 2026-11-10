@@ -52,4 +52,6 @@ public class SampleLoanDO extends TenantBaseDO {
     private Integer status;
     /** 实际归还时间 */
     private LocalDateTime returnTime;
+    /** 实际归还操作人 */
+    private String returner;
 }
