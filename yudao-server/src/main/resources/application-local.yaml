@@ -352,3 +352,8 @@ dingtalk:
     client-secret: zYfVeGBQ4R-RPqSqq3oE6CA0J8p91_-OzOLOfaBPdUDUWVuI6eSd2MkJ4lNuzN5L
     redirect-uri: http://localhost:48080/admin-api/system/auth/dingtalk/callback
     frontend-url: http://localhost:48080
+pms:
+  knowledge:
+    search:
+      # 本地 Docker Compose 默认仅监听 127.0.0.1:19200。关键词搜索需要 OpenSearch。
+      url: ${PMS_KNOWLEDGE_SEARCH_URL:http://127.0.0.1:19200}

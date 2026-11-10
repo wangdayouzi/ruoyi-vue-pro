@@ -85,6 +85,11 @@ services:
       REDIS_HOST: ${REDIS_HOST:-yudao-test-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      YUDAO_OPENSEARCH_URL: https://opensearch:9200
+      YUDAO_OPENSEARCH_USERNAME: pms_search_test
+      YUDAO_OPENSEARCH_PASSWORD: ${YUDAO_OPENSEARCH_PASSWORD:?请在测试 .env 设置测试 OpenSearch 密码}
+      YUDAO_OPENSEARCH_CA_CERTIFICATE: /etc/yudao/opensearch-ca.pem
+      PMS_KNOWLEDGE_SEARCH_INDEX_PREFIX: pms-test-kb-v1
       # 测试登录回调独立；消息发送可单独开启，Stream 默认关闭
       DINGTALK_OAUTH2_REDIRECT_URI: ${DINGTALK_OAUTH2_REDIRECT_URI:-https://cms.accurantbio.com:8081/admin-api/system/auth/dingtalk/callback}
       DINGTALK_OAUTH2_FRONTEND_URL: ${DINGTALK_OAUTH2_FRONTEND_URL:-https://cms.accurantbio.com:8081}
@@ -97,11 +102,20 @@ services:
       FILE_STORAGE_PATH: ${FILE_STORAGE_PATH:-/data/yudao/uploadfile}
     volumes:
       - ./yudao-server/yudao-server.jar:/app.jar:ro
+      - type: bind
+        source: ${YUDAO_OPENSEARCH_CA_FILE:-/home/opensearch/certs/ca.pem}
+        target: /etc/yudao/opensearch-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
       - ./uploadfile:/data/yudao/uploadfile
       - ./logs/server:/root/logs
     command: java ${JAVA_OPTS} -jar /app.jar
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - search
     depends_on:
       redis:
         condition: service_healthy
@@ -120,3 +134,8 @@ services:
     depends_on:
       - server
       - onlyoffice
+
+networks:
+  search:
+    external: true
+    name: ${OPENSEARCH_NETWORK:-yudao-search}

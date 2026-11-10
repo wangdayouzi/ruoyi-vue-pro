@@ -71,6 +71,10 @@ services:
       YANGBEN_DB_USERNAME: ${YANGBEN_DB_USERNAME:-yangben_com}
       YANGBEN_DB_PASSWORD: ${YANGBEN_DB_PASSWORD:-Dt6cz5r2FtaMFSMN}
       REDIS_HOST: ${REDIS_HOST:-yudao-redis}
+      YUDAO_OPENSEARCH_URL: ${YUDAO_OPENSEARCH_URL-https://opensearch:9200}
+      YUDAO_OPENSEARCH_USERNAME: ${YUDAO_OPENSEARCH_USERNAME:-pms_search}
+      YUDAO_OPENSEARCH_PASSWORD: ${YUDAO_OPENSEARCH_PASSWORD:-}
+      YUDAO_OPENSEARCH_CA_CERTIFICATE: /etc/yudao/opensearch-ca.pem
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       ONLYOFFICE_DOC_URL: ${ONLYOFFICE_DOC_URL:-http://yudao-onlyoffice}
@@ -79,11 +83,20 @@ services:
       FILE_STORAGE_PATH: ${FILE_STORAGE_PATH:-/data/yudao/uploadfile}
     volumes:
       - ./yudao-server/yudao-server.jar:/app.jar:ro
+      - type: bind
+        source: ${YUDAO_OPENSEARCH_CA_FILE:-/home/opensearch/certs/ca.pem}
+        target: /etc/yudao/opensearch-ca.pem
+        read_only: true
+        bind:
+          create_host_path: false
       - ./uploadfile:/data/yudao/uploadfile
       - ./logs/server:/root/logs
     command: java ${JAVA_OPTS} -jar /app.jar
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - search
     depends_on:
       redis:
         condition: service_healthy
@@ -102,6 +115,11 @@ services:
       - /home/ssl/cms:/etc/nginx/ssl:ro
     depends_on:
       - server
+
+networks:
+  search:
+    name: ${OPENSEARCH_NETWORK:-yudao-search}
+    external: true
 
 
 

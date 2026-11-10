@@ -1,0 +1,29 @@
+name: yudao-opensearch-local
+
+services:
+  opensearch:
+    image: yudao-opensearch:3.9.0-icu
+    build: .
+    # 只在手动执行 compose up 时启动，Docker 重启后保持停止。
+    restart: "no"
+    environment:
+      discovery.type: single-node
+      OPENSEARCH_JAVA_OPTS: "-Xms2g -Xmx2g"
+      # 本机开发实例。仅发布到回环地址，服务器使用另一份配置。
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+    mem_limit: 5g
+    cpus: 4
+    ports:
+      - "127.0.0.1:19200:9200"
+    volumes:
+      - search-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9200/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  search-data:

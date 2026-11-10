@@ -69,6 +69,8 @@ grep -E '^(DB_NAME|SLAVE_DB_NAME|STG_PM_DB_NAME|REDIS_HOST|REDIS_PORT)=' .env
 
 ## 4. 启动（务必在测试目录内执行）
 
+更新到使用 OpenSearch 的后端前，先完成下方的 [OpenSearch 部署说明的测试接入步骤](../../deploy/opensearch/README.md#先接入测试环境)，准备测试网络、CA 和数据库增量。
+
 ```bash
 cd /home/yudao-test
 docker compose --env-file .env up -d

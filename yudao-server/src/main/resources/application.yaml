@@ -278,6 +278,10 @@ yudao:
 --- #################### 芋道相关配置 ####################
 
 yudao:
+  opensearch:
+    url: ${pms.knowledge.search.url:}
+    username: ${pms.knowledge.search.username:}
+    password: ${pms.knowledge.search.password:}
   info:
     version: 1.0.0
     base-package: cn.iocoder.yudao

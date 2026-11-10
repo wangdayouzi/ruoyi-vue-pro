@@ -78,6 +78,8 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
     @Resource
     private PmsKnowledgeDocumentVersionMapper documentVersionMapper;
     @MockitoBean
+    private PmsKnowledgeSearchIndex searchIndex;
+    @MockitoBean
     private cn.iocoder.yudao.module.infra.api.file.FileApi fileApi;
     @MockitoBean
     private cn.iocoder.yudao.module.infra.api.number.NumberRuleApi numberRuleApi;
@@ -466,18 +468,15 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
     }
 
     @Test
-    public void testGetDocumentSearchPage_mysqlAndAccessScope() {
+    public void testGetDocumentSearchPage_usesIndexWithAccessScope() {
         // mock 数据
         Long userId = randomLongId();
         Long libraryId = randomLongId();
         Long otherLibraryId = randomLongId();
         Long readablePermissionId = randomLongId();
-        documentMapper.insert(randomSearchDocumentDO(libraryId, readablePermissionId, "产品说明", "普通正文", 1));
-        documentMapper.insert(randomSearchDocumentDO(libraryId, readablePermissionId,
-                "普通标题", "包含产品设计方案", 1));
-        documentMapper.insert(randomSearchDocumentDO(libraryId, randomLongId(), "产品私密文档", "不可见", 1));
-        documentMapper.insert(randomSearchDocumentDO(otherLibraryId, readablePermissionId,
-                "产品已删除文档", "回收站", -1));
+        PmsKnowledgeDocumentDO titleMatch = randomSearchDocumentDO(libraryId, readablePermissionId, "产品说明", "普通正文", 1);
+        PmsKnowledgeDocumentDO bodyMatch = randomSearchDocumentDO(libraryId, readablePermissionId,
+                "普通标题", "包含产品设计方案", 1);
         when(memberService.getReadableLibraryIdList(userId)).thenReturn(Arrays.asList(libraryId, otherLibraryId));
         when(contentPermissionService.getReadableContentPermissionIdSet(Arrays.asList(libraryId, otherLibraryId), userId))
                 .thenReturn(Collections.singleton(readablePermissionId));
@@ -485,13 +484,40 @@ public class PmsKnowledgeDocumentServiceImplTest extends BaseDbUnitTest {
         PmsKnowledgeDocumentSearchPageReqVO pageReqVO = new PmsKnowledgeDocumentSearchPageReqVO()
                 .setKeyword("产品");
         pageReqVO.setPageNo(1).setPageSize(10);
+        when(searchIndex.search(pageReqVO, Arrays.asList(libraryId, otherLibraryId),
+                Collections.singleton(readablePermissionId)))
+                .thenReturn(new PageResult<>(Arrays.asList(titleMatch, bodyMatch), 2L));
 
         // 调用
         PageResult<PmsKnowledgeDocumentDO> pageResult = documentService.getDocumentSearchPage(pageReqVO, userId);
 
         // 断言
         assertEquals(2, pageResult.getTotal());
-        assertEquals("产品", pageReqVO.getKeyword());
+        verify(searchIndex).search(pageReqVO, Arrays.asList(libraryId, otherLibraryId),
+                Collections.singleton(readablePermissionId));
+    }
+
+    @Test
+    public void testGetDocumentSearchPage_fallsBackToTitleAndContentWithinAccessScope() {
+        Long userId = randomLongId();
+        Long libraryId = randomLongId();
+        Long permissionId = randomLongId();
+        when(memberService.getReadableLibraryIdList(userId)).thenReturn(Collections.singletonList(libraryId));
+        when(contentPermissionService.getReadableContentPermissionIdSet(Collections.singletonList(libraryId), userId))
+                .thenReturn(Collections.singleton(permissionId));
+        documentMapper.insert(randomSearchDocumentDO(libraryId, permissionId, "产品说明", "普通正文", 1));
+        documentMapper.insert(randomSearchDocumentDO(libraryId, permissionId, "普通标题", "<p>产品正文</p>", 1));
+        documentMapper.insert(randomSearchDocumentDO(libraryId, randomLongId(), "普通标题", "产品私密正文", 1));
+        documentMapper.insert(randomSearchDocumentDO(randomLongId(), permissionId, "产品其他库", "普通正文", 1));
+        documentMapper.insert(randomSearchDocumentDO(libraryId, permissionId, "普通标题", "无关内容", 1));
+        var request = new PmsKnowledgeDocumentSearchPageReqVO().setKeyword("产品");
+        request.setPageNo(1).setPageSize(10);
+
+        assertEquals(2L, documentService.getDocumentSearchPage(request, userId).getTotal());
+
+        when(searchIndex.search(request, Collections.singletonList(libraryId), Collections.singleton(permissionId)))
+                .thenReturn(PageResult.empty());
+        assertEquals(0L, documentService.getDocumentSearchPage(request, userId).getTotal());
     }
 
     @Test

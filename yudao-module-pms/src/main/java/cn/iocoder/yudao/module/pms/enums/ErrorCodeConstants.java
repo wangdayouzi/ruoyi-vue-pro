@@ -92,6 +92,8 @@ public interface ErrorCodeConstants {
     ErrorCode KNOWLEDGE_GROUP_DEFAULT_CANNOT_MODIFY = new ErrorCode(1_053_130_022, "默认知识库分组不允许修改");
     ErrorCode KNOWLEDGE_GROUP_DEFAULT_CANNOT_DELETE = new ErrorCode(1_053_130_023, "默认知识库分组不允许删除");
     ErrorCode KNOWLEDGE_GROUP_SORT_DUPLICATE = new ErrorCode(1_053_130_024, "知识库分组排序列表存在重复分组");
+    ErrorCode KNOWLEDGE_DOCUMENT_SEARCH_UNAVAILABLE = new ErrorCode(1_053_130_025, "知识库搜索暂不可用，请稍后重试");
+    ErrorCode KNOWLEDGE_DOCUMENT_SEARCH_TOO_MANY_MATCHES = new ErrorCode(1_053_130_026, "匹配文档过多，请缩小知识库范围或使用更具体的关键词");
     ErrorCode KNOWLEDGE_DOCUMENT_LABEL_NOT_EXISTS = new ErrorCode(1_053_130_030, "知识库文档标签不存在");
     ErrorCode KNOWLEDGE_RECYCLE_RECORD_NOT_EXISTS = new ErrorCode(1_053_130_040, "知识库回收站记录不存在");
     ErrorCode KNOWLEDGE_RECYCLE_TYPE_INVALID = new ErrorCode(1_053_130_041, "知识库回收站对象类型无效");

@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document;
 
 import cn.iocoder.yudao.framework.common.pojo.PageParam;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
@@ -18,6 +19,7 @@ import static cn.iocoder.yudao.framework.common.util.date.DateUtils.FORMAT_YEAR_
 public class PmsKnowledgeDocumentSearchPageReqVO extends PageParam {
 
     @Schema(description = "搜索关键字", example = "产品方案")
+    @Size(max = 512, message = "搜索关键字不能超过 512 个字符")
     private String keyword;
 
     @Schema(description = "文档编号关键字")

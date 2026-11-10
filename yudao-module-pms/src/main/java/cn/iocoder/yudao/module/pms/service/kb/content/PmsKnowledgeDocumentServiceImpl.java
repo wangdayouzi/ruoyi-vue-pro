@@ -75,6 +75,8 @@ public class PmsKnowledgeDocumentServiceImpl implements PmsKnowledgeDocumentServ
     @Resource
     private PmsKnowledgeDocumentMapper documentMapper;
     @Resource
+    private PmsKnowledgeSearchIndex searchIndex;
+    @Resource
     private PmsKnowledgeDocumentDraftMapper draftMapper;
     @Resource
     private FileApi fileApi;
@@ -549,7 +551,13 @@ public class PmsKnowledgeDocumentServiceImpl implements PmsKnowledgeDocumentServ
             return PageResult.empty();
         }
 
-        // 草稿不进入公共搜索；PostgreSQL 通过 search_text 的 pg_trgm GIN 索引加速。
+        if (pageReqVO.getKeyword() != null && !pageReqVO.getKeyword().isBlank()) {
+            PageResult<PmsKnowledgeDocumentDO> indexedPage = searchIndex.search(
+                    pageReqVO, readableLibraryIds, readablePermissionIds);
+            if (indexedPage != null) {
+                return indexedPage;
+            }
+        }
         return documentMapper.selectPage(pageReqVO, readableLibraryIds, readablePermissionIds,
                 Collections.singleton(PmsKnowledgeDocumentStatusEnum.NORMAL.getStatus()));
     }

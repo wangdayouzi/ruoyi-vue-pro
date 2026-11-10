@@ -26,6 +26,27 @@ import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.
 @Mapper
 public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocumentDO> {
 
+    default List<PmsKnowledgeDocumentDO> selectSearchDocuments(Long tenantId, Collection<Long> ids, Integer status) {
+        return selectList(new LambdaQueryWrapperX<PmsKnowledgeDocumentDO>()
+                .select(PmsKnowledgeDocumentDO::getId, PmsKnowledgeDocumentDO::getSearchText,
+                        PmsKnowledgeDocumentDO::getLibraryId, PmsKnowledgeDocumentDO::getPermissionId)
+                .in(PmsKnowledgeDocumentDO::getId, ids)
+                .apply(tenantId != null, "tenant_id = {0}", tenantId)
+                .eq(PmsKnowledgeDocumentDO::getStatus, status)
+                .isNotNull(PmsKnowledgeDocumentDO::getSearchText));
+    }
+
+    default List<PmsKnowledgeDocumentDO> selectSearchBatch(Long tenantId, long afterId, Integer status) {
+        return selectList(new LambdaQueryWrapperX<PmsKnowledgeDocumentDO>()
+                .select(PmsKnowledgeDocumentDO::getId, PmsKnowledgeDocumentDO::getSearchText,
+                        PmsKnowledgeDocumentDO::getLibraryId, PmsKnowledgeDocumentDO::getPermissionId)
+                .gt(PmsKnowledgeDocumentDO::getId, afterId)
+                .apply(tenantId != null, "tenant_id = {0}", tenantId)
+                .eq(PmsKnowledgeDocumentDO::getStatus, status)
+                .isNotNull(PmsKnowledgeDocumentDO::getSearchText)
+                .orderByAsc(PmsKnowledgeDocumentDO::getId).last("LIMIT 100"));
+    }
+
     @org.apache.ibatis.annotations.Select("SELECT id FROM pms_knowledge_document WHERE id = #{id} AND deleted = 0 FOR UPDATE")
     Long lockDocument(Long id);
 
@@ -134,7 +155,20 @@ public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocu
                                                           Collection<Long> readableLibraryIds,
                                                           Collection<Long> readablePermissionIds,
                                                           Collection<Integer> statuses) {
-        return selectPage(pageReqVO, new LambdaQueryWrapperX<PmsKnowledgeDocumentDO>()
+        return selectPage(pageReqVO, readableLibraryIds, readablePermissionIds, statuses, null);
+    }
+
+    default PageResult<PmsKnowledgeDocumentDO> selectPage(PmsKnowledgeDocumentSearchPageReqVO pageReqVO,
+                                                          Collection<Long> readableLibraryIds,
+                                                          Collection<Long> readablePermissionIds,
+                                                          Collection<Integer> statuses,
+                                                          Collection<Long> candidateIds) {
+        LambdaQueryWrapperX<PmsKnowledgeDocumentDO> query = new LambdaQueryWrapperX<>();
+        query.in(candidateIds != null, PmsKnowledgeDocumentDO::getId, candidateIds);
+        query.and(candidateIds == null && StrUtil.isNotBlank(pageReqVO.getKeyword()),
+                wrapper -> wrapper.like(PmsKnowledgeDocumentDO::getTitle, pageReqVO.getKeyword())
+                        .or().like(PmsKnowledgeDocumentDO::getContent, pageReqVO.getKeyword()));
+        return selectPage(pageReqVO, query
                 .in(PmsKnowledgeDocumentDO::getLibraryId, readableLibraryIds)
                 .in(PmsKnowledgeDocumentDO::getPermissionId, readablePermissionIds)
                 .in(PmsKnowledgeDocumentDO::getStatus, statuses)
@@ -155,8 +189,6 @@ public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocu
                                 + "AND av.tenant_id = pms_knowledge_document.tenant_id "
                                 + "AND av.value_text LIKE CONCAT('%', {0}, '%'))",
                         pageReqVO.getAttributeKeyword() == null ? "" : pageReqVO.getAttributeKeyword().trim())
-                .like(StrUtil.isNotBlank(pageReqVO.getKeyword()),
-                        PmsKnowledgeDocumentDO::getSearchText, pageReqVO.getKeyword())
                 .orderByDesc(PmsKnowledgeDocumentDO::getUpdateTime)
                 .orderByDesc(PmsKnowledgeDocumentDO::getId));
     }

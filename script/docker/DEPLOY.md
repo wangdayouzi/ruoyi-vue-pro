@@ -202,6 +202,10 @@ cd /home/yudao
 docker compose --env-file .env up -d
 ```
 
+PMS 知识库关键词搜索使用单独部署在 `/home/opensearch` 的 OpenSearch。先填写 OpenSearch 的 `server.env` 并启动，由 OpenSearch Compose 创建专用网络和 CA，并自动初始化服务账号。再执行数据库增量、填写 Yudao 的连接配置并更新后端。后端用专用账号通过 `https://opensearch:9200` 连接。[OpenSearch 生产部署说明](../../deploy/opensearch/README.md#共享-opensearch-部署)
+
+需要查看索引时，按 OpenSearch 部署说明启动同一份 Compose 中的 Dashboards，通过 SSH 转发访问管理面板。[面板启动步骤](../../deploy/opensearch/README.md#启动并打开管理面板)
+
 ---
 
 ## 六、服务访问
