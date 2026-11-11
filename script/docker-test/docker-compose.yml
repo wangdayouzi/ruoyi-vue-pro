@@ -86,7 +86,7 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       YUDAO_OPENSEARCH_URL: https://opensearch:9200
-      YUDAO_OPENSEARCH_USERNAME: pms_search_test
+      YUDAO_OPENSEARCH_USERNAME: pms_search
       YUDAO_OPENSEARCH_PASSWORD: ${YUDAO_OPENSEARCH_PASSWORD:?请在测试 .env 设置测试 OpenSearch 密码}
       YUDAO_OPENSEARCH_CA_CERTIFICATE: /etc/yudao/opensearch-ca.pem
       PMS_KNOWLEDGE_SEARCH_INDEX_PREFIX: pms-test-kb-v1

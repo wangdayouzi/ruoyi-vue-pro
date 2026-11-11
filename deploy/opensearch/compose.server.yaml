@@ -18,7 +18,32 @@ services:
       - "${OPENSEARCH_BOOTSTRAP_DIR:-/home/opensearch/security-bootstrap}:/private"
       - public_ca:/public-ca
 
-  bootstrap:
+  certificate-renewer:
+    image: alpine/openssl:3.5.4
+    user: "0:0"
+    restart: unless-stopped
+    network_mode: none
+    depends_on:
+      certificates:
+        condition: service_completed_successfully
+    environment:
+      OPENSEARCH_PRIVATE_IP: ${OPENSEARCH_PRIVATE_IP:-}
+    entrypoint: ["/bin/sh", "/certificates.sh", "watch"]
+    configs:
+      - source: certificates_script
+        target: /certificates.sh
+    volumes:
+      - "${OPENSEARCH_CERT_DIR:-/home/opensearch/certs}:/certs"
+      - "${OPENSEARCH_BOOTSTRAP_DIR:-/home/opensearch/security-bootstrap}:/private"
+    healthcheck:
+      # 续签失败、检查任务停止或 CA 临近到期时标为 unhealthy。
+      test: ["CMD", "sh", "/certificates.sh", "health"]
+      interval: 1m
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+
+  opensearch:
     image: yudao-opensearch:3.9.0-icu
     pull_policy: never
     build:
@@ -27,28 +52,19 @@ services:
       dockerfile_inline: |
         FROM opensearchproject/opensearch:3.9.0
         RUN /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu
-    user: "0:0"
-    restart: "no"
-    network_mode: none
-    environment:
-      OPENSEARCH_PMS_PASSWORD: ${OPENSEARCH_PMS_PASSWORD:?Set the pms_search password}
-      OPENSEARCH_PMS_TEST_PASSWORD: ${OPENSEARCH_PMS_TEST_PASSWORD:-}
-      OPENSEARCH_DASHBOARDS_PASSWORD: ${OPENSEARCH_DASHBOARDS_PASSWORD:?Set the kibanaserver password}
-      OPENSEARCH_PANEL_PASSWORD: ${OPENSEARCH_PANEL_PASSWORD:?Set the pms_dashboard password}
-    entrypoint: ["/bin/bash", "/bootstrap.sh"]
-    configs:
-      - source: bootstrap_script
-        target: /bootstrap.sh
-    volumes:
-      - security_config:/security-config
-
-  opensearch:
-    image: yudao-opensearch:3.9.0-icu
-    pull_policy: never
+    entrypoint:
+      - /bin/bash
+      - -ec
+      - |
+        if ! test -s config/opensearch-security/internal_users.yml; then
+          echo "Missing security configuration. Run the bootstrap service manually first." >&2
+          exit 1
+        fi
+        exec ./opensearch-docker-entrypoint.sh "$$@"
+      - --
+    command: ["opensearch"]
     depends_on:
       certificates:
-        condition: service_completed_successfully
-      bootstrap:
         condition: service_completed_successfully
     # 服务器或 Docker 重启后恢复主服务，手动停止后保持停止。
     restart: unless-stopped
@@ -71,7 +87,12 @@ services:
         source: ${OPENSEARCH_CERT_DIR:-/home/opensearch/certs}
         target: /usr/share/opensearch/config/certs
         read_only: true
-      - security_config:/usr/share/opensearch/config/opensearch-security:ro
+      - type: volume
+        source: security_config
+        target: /usr/share/opensearch/config/opensearch-security
+        read_only: true
+        volume:
+          nocopy: true
     configs:
       - source: opensearch_config
         target: /usr/share/opensearch/config/opensearch.yml
@@ -96,7 +117,7 @@ services:
       opensearch:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${OPENSEARCH_DASHBOARDS_PORT:-5601}:5601"
+      - "${OPENSEARCH_DASHBOARDS_BIND_IP:-127.0.0.1}:${OPENSEARCH_DASHBOARDS_PORT:-5601}:5601"
     volumes:
       - public_ca:/usr/share/opensearch-dashboards/config/search-certs:ro
     configs:
@@ -105,6 +126,41 @@ services:
     networks:
       - search
       - dashboards_ui
+
+  bootstrap:
+    image: yudao-opensearch:3.9.0-icu
+    pull_policy: never
+    profiles: ["bootstrap"]
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    environment:
+      OPENSEARCH_PMS_PASSWORD: ${OPENSEARCH_PMS_PASSWORD:?Set the pms_search password}
+      OPENSEARCH_DASHBOARDS_PASSWORD: ${OPENSEARCH_DASHBOARDS_PASSWORD:?Set the kibanaserver password}
+    entrypoint: ["/bin/bash", "/bootstrap.sh"]
+    configs:
+      - source: bootstrap_script
+        target: /bootstrap.sh
+    volumes:
+      - security_config:/security-config
+
+  admin-account:
+    image: yudao-opensearch:3.9.0-icu
+    pull_policy: never
+    profiles: ["admin-account"]
+    user: "0:0"
+    environment:
+      OPENSEARCH_ADMIN_PASSWORD: ${OPENSEARCH_ADMIN_PASSWORD:-}
+    entrypoint: ["/bin/bash", "/admin-account.sh"]
+    configs:
+      - source: admin_account_script
+        target: /admin-account.sh
+    volumes:
+      - "${OPENSEARCH_CERT_DIR:-/home/opensearch/certs}/ca.pem:/ca.pem:ro"
+      - "${OPENSEARCH_BOOTSTRAP_DIR:-/home/opensearch/security-bootstrap}/admin.pem:/admin.pem:ro"
+      - "${OPENSEARCH_BOOTSTRAP_DIR:-/home/opensearch/security-bootstrap}/admin-key.pem:/admin-key.pem:ro"
+    networks:
+      - search
 
 networks:
   search:
@@ -118,130 +174,14 @@ volumes:
   public_ca:
 
 configs:
-  certificates_script:
-    content: |
-      set -eu
-      umask 077
-      chmod 0700 /private
-      chown 1000:1000 /data
-      chmod 0750 /data
-      if [ ! -s /certs/ca.pem ]; then
-        openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out /private/ca-key.pem 2>/dev/null
-        openssl req -new -x509 -sha256 -days 3650 -key /private/ca-key.pem \
-          -subj '/CN=OpenSearch Internal CA' -addext 'basicConstraints=critical,CA:TRUE' \
-          -addext 'keyUsage=critical,keyCertSign,cRLSign' -out /certs/ca.pem.tmp
-        chmod 0644 /certs/ca.pem.tmp
-        mv /certs/ca.pem.tmp /certs/ca.pem
-      fi
-      sign_certificate() {
-        local name=$$1 subject=$$2 extensions=$$3 directory=$$4
-        openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$$directory/$$name-key.pem.tmp" 2>/dev/null
-        openssl req -new -key "$$directory/$$name-key.pem.tmp" -subj "$$subject" -out "/private/$$name.csr"
-        printf '%s\n' "$$extensions" > "/private/$$name.ext"
-        openssl x509 -req -sha256 -days 825 -in "/private/$$name.csr" \
-          -CA /certs/ca.pem -CAkey /private/ca-key.pem -CAserial /private/ca.srl -CAcreateserial \
-          -extfile "/private/$$name.ext" -out "$$directory/$$name.pem.tmp"
-        mv "$$directory/$$name-key.pem.tmp" "$$directory/$$name-key.pem"
-        mv "$$directory/$$name.pem.tmp" "$$directory/$$name.pem"
-      }
-      if [ ! -s /certs/node.pem ] || [ ! -s /certs/node-key.pem ]; then
-        san=DNS:opensearch
-        if [ -n "$$OPENSEARCH_PRIVATE_IP" ]; then
-          san="$$san,IP:$$OPENSEARCH_PRIVATE_IP"
-        fi
-        sign_certificate node /CN=opensearch \
-          "$$(printf '%s\n' "subjectAltName=$$san" 'extendedKeyUsage=serverAuth,clientAuth')" /certs
-      fi
-      if [ -n "$$OPENSEARCH_PRIVATE_IP" ]; then
-        openssl verify -CAfile /certs/ca.pem -verify_ip "$$OPENSEARCH_PRIVATE_IP" /certs/node.pem
-      fi
-      if [ ! -s /private/admin.pem ] || [ ! -s /private/admin-key.pem ]; then
-        sign_certificate admin /CN=opensearch-security-admin 'extendedKeyUsage=clientAuth' /private
-      fi
-      chmod 0755 /certs
-      chmod 0644 /certs/node.pem /certs/ca.pem
-      chown 1000:1000 /certs/node-key.pem
-      chmod 0600 /certs/node-key.pem
-      install -m 0644 /certs/ca.pem /public-ca/ca.pem
-
   bootstrap_script:
-    content: |
-      set -euo pipefail
-      umask 077
-      export LC_ALL=C
-      password_names=(OPENSEARCH_PMS_PASSWORD OPENSEARCH_DASHBOARDS_PASSWORD OPENSEARCH_PANEL_PASSWORD)
-      if [[ -n "$$OPENSEARCH_PMS_TEST_PASSWORD" ]]; then
-        password_names+=(OPENSEARCH_PMS_TEST_PASSWORD)
-      fi
-      for name in "$${password_names[@]}"; do
-        if [[ ! $${!name} =~ ^[[:graph:]]{24,72}$$ ]]; then
-          echo "$$name must contain 24 to 72 printable ASCII characters without spaces" >&2
-          exit 1
-        fi
-      done
-      # 节点只在安全索引不存在时读取这些文件。已有账号及权限由安全索引保留。
-      cp config/opensearch-security/{action_groups,allowlist,audit,config,nodes_dn,tenants}.yml /security-config/
-      hash_password() {
-        bash plugins/opensearch-security/tools/hash.sh -p "$$1"
-      }
-      pms_hash=$$(hash_password "$$OPENSEARCH_PMS_PASSWORD")
-      dashboards_hash=$$(hash_password "$$OPENSEARCH_DASHBOARDS_PASSWORD")
-      panel_hash=$$(hash_password "$$OPENSEARCH_PANEL_PASSWORD")
-      cat > /security-config/internal_users.yml <<EOF
-      _meta:
-        type: internalusers
-        config_version: 2
-      pms_search:
-        hash: "$$pms_hash"
-      kibanaserver:
-        hash: "$$dashboards_hash"
-      pms_dashboard:
-        hash: "$$panel_hash"
-      EOF
-      if [[ -n "$$OPENSEARCH_PMS_TEST_PASSWORD" ]]; then
-        pms_test_hash=$$(hash_password "$$OPENSEARCH_PMS_TEST_PASSWORD")
-        cat >> /security-config/internal_users.yml <<EOF
-      pms_search_test:
-        hash: "$$pms_test_hash"
-      EOF
-      fi
-      cat > /security-config/roles.yml <<'EOF'
-      _meta:
-        type: roles
-        config_version: 2
-      pms_kb_index:
-        cluster_permissions: [cluster_composite_ops]
-        index_permissions:
-          - index_patterns: ['pms-kb-v1-*']
-            allowed_actions: [indices_all]
-      pms_kb_read:
-        index_permissions:
-          - index_patterns: ['pms-kb-v1-*']
-            allowed_actions: [read, indices_monitor, 'indices:admin/get']
-      pms_kb_test_index:
-        cluster_permissions: [cluster_composite_ops]
-        index_permissions:
-          - index_patterns: ['pms-test-kb-v1-*']
-            allowed_actions: [indices_all]
-      EOF
-      cat > /security-config/roles_mapping.yml <<'EOF'
-      _meta:
-        type: rolesmapping
-        config_version: 2
-      pms_kb_index:
-        users: [pms_search]
-      pms_kb_test_index:
-        users: [pms_search_test]
-      kibana_server:
-        users: [kibanaserver]
-      kibana_user:
-        users: [pms_dashboard]
-      pms_kb_read:
-        users: [pms_dashboard]
-      EOF
-      chgrp -R 1000 /security-config
-      chmod 0750 /security-config
-      chmod 0640 /security-config/*.yml
+    file: ./scripts/bootstrap.sh
+
+  admin_account_script:
+    file: ./scripts/admin-account.sh
+
+  certificates_script:
+    file: ./scripts/certificates.sh
 
   opensearch_config:
     content: |
@@ -250,6 +190,8 @@ configs:
       network.host: 0.0.0.0
       discovery.type: single-node
       plugins.security.allow_default_init_securityindex: true
+      # 续签复用原私钥并原子替换 PEM，节点会自动读取更新后的证书。
+      plugins.security.ssl.certificates_hot_reload.enabled: true
       plugins.security.ssl.transport.pemcert_filepath: certs/node.pem
       plugins.security.ssl.transport.pemkey_filepath: certs/node-key.pem
       plugins.security.ssl.transport.pemtrustedcas_filepath: certs/ca.pem
@@ -262,6 +204,7 @@ configs:
         - 'CN=opensearch'
       plugins.security.authcz.admin_dn:
         - 'CN=opensearch-security-admin'
+      plugins.security.restapi.roles_enabled: ["all_access"]
   dashboards_config:
     content: |
       server.host: "0.0.0.0"

@@ -1,6 +1,6 @@
 # 测试库部署执行清单（同一台服务器，与生产完全隔离）
 
-首次部署时，从本目录的 `.env.example` 复制一份 `.env`，填入对应环境的密码和密钥。已有部署继续使用服务器上的 `.env`。
+部署时使用服务器上的 `/home/yudao-test/.env`。首次部署时，在服务器创建该文件并填写测试环境的连接配置、密码和密钥。
 
 > 目的：在同服务器 `/home/yudao-test/` 搭一套 yudao 测试环境。
 > 前提（用户已确认）：钉钉登录使用测试回调，消息发送按 `.env` 开关配置、Stream 默认关闭、不跑老ERP同步；数据库已手动建好 `yudao_test` 并迁移完成；密码沿用生产。
@@ -47,7 +47,6 @@ mkdir -p /home/yudao-test/{redis/data,uploadfile,logs/server,yudao-server,yudao-
 | 本地路径 | 服务器路径 |
 |---|---|
 | `ruoyi-vue-pro/script/docker-test/docker-compose.yml` | `/home/yudao-test/docker-compose.yml` |
-| `ruoyi-vue-pro/script/docker-test/.env.example` | `/home/yudao-test/.env` |
 | `ruoyi-vue-pro/script/docker-test/yudao-ui-admin/nginx.conf` | `/home/yudao-test/yudao-ui-admin/nginx.conf` |
 | `yudao-server/target/yudao-server.jar` | `/home/yudao-test/yudao-server/yudao-server.jar` |
 | `yudao-ui-admin-vue3-xn/dist/*` | `/home/yudao-test/yudao-ui-admin/dist/` |

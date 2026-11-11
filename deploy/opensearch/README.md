@@ -20,7 +20,7 @@ Windows 本地运行 Java 17 时，如果日志出现 `Unable to establish loopb
 
 ## 共享 OpenSearch 部署
 
-OpenSearch 独立放在 `/home/opensearch`。服务器使用 Docker Compose 2.23.1 或以上。首次启动自动创建专用网络、生成证书、配置服务账号和面板账号，并在空数据目录初始化权限。同一服务器上的测试和正式芋道共用这个实例，各用自己的账号和索引。默认不发布搜索端口。
+OpenSearch 独立放在 `/home/opensearch`。服务器使用 Docker Compose 2.23.1 或以上。首次部署手动准备账号配置，启动时自动创建专用网络、生成证书并启动续签服务。同一服务器上的测试和正式芋道共用这个实例，共用后端服务账号，各用独立索引。默认不发布搜索端口。
 
 ### 1. 上传文件并填写密码
 
@@ -34,19 +34,20 @@ cd /home/opensearch
 | 仓库内文件 | 上传到服务器 |
 | --- | --- |
 | `deploy/opensearch/compose.server.yaml` | `/home/opensearch/compose.server.yaml` |
+| `deploy/opensearch/scripts/` | `/home/opensearch/scripts/` |
 | `deploy/opensearch/server.env`（本地配置文件） | `/home/opensearch/server.env` |
 | `sql/postgresql/增量/2026-11-10-pms-kb-search-sync.sql` | `/home/opensearch/sql/2026-11-10-pms-kb-search-sync.sql` |
 | `sql/postgresql/增量/2026-11-10-pms-kb-drop-legacy-trgm-index.sql` | `/home/opensearch/sql/2026-11-10-pms-kb-drop-legacy-trgm-index.sql` |
 
 Yudao 后端 JAR 按现有发布流程打包。OpenSearch 构建使用空的 `build-context` 目录，避免把密码和数据发送给构建器。
 
-打开 `/home/opensearch/server.env`。如果是从 Git 重新检出，按下面的内容创建该文件，`server.env` 由 Git 忽略，避免提交生产密码。执行三次 `openssl rand -hex 32`，分别填写正式 PMS 和两个面板账号的密码。如果要先接测试，再单独生成并填写 `OPENSEARCH_PMS_TEST_PASSWORD`。配置文件保存后执行 `chmod 600 server.env`。如需调整资源，默认堆内存为 2 GiB、容器内存上限 5 GiB、CPU 上限 4 核。
+打开 `/home/opensearch/server.env`。如果是从 Git 重新检出，按下面的内容创建该文件，`server.env` 由 Git 忽略，避免提交生产密码。填写共享 PMS 服务账号、面板连接账号及面板管理员的密码。配置文件保存后执行 `chmod 600 server.env`。如需调整资源，默认堆内存为 2 GiB、容器内存上限 5 GiB、CPU 上限 4 核。
 
 ```dotenv
 OPENSEARCH_PMS_PASSWORD=替换为正式PMS服务账号密码
-OPENSEARCH_PMS_TEST_PASSWORD=替换为测试PMS服务账号密码
 OPENSEARCH_DASHBOARDS_PASSWORD=替换为面板连接OpenSearch的密码
-OPENSEARCH_PANEL_PASSWORD=替换为浏览器登录面板的密码
+# 按需填写，面板管理账号密码使用 8 至 72 个无空格的可打印 ASCII 字符。
+OPENSEARCH_ADMIN_PASSWORD=
 OPENSEARCH_DATA_DIR=/home/opensearch/data
 
 # 按需调整
@@ -65,19 +66,28 @@ printf '%s\n' 'vm.max_map_count=262144' | sudo tee /etc/sysctl.d/99-opensearch.c
 sudo sysctl -p /etc/sysctl.d/99-opensearch.conf
 ```
 
+首次部署或使用空数据目录恢复时，先构建带 ICU 插件的镜像，再准备账号和角色：
+
 ```sh
 cd /home/opensearch
-docker compose --env-file server.env -f compose.server.yaml up -d --build --wait --wait-timeout 300
+docker compose --env-file server.env -f compose.server.yaml build opensearch
+docker compose --env-file server.env -f compose.server.yaml run --rm --no-deps bootstrap
 ```
 
-首次启动会拉取基础镜像并构建 ICU 中文分词镜像。`certificates` 和 `bootstrap` 显示 `Exited (0)` 表示初始化容器已完成，`opensearch` 应显示 `healthy`。用以下命令查看状态或排查启动问题。
+已有数据目录的实例可以直接执行下面的启动命令：
+
+```sh
+docker compose --env-file server.env -f compose.server.yaml up -d --wait --wait-timeout 300
+```
+
+`certificates` 显示 `Exited (0)` 表示证书检查已完成，`opensearch` 应显示 `healthy`。用以下命令查看状态或排查启动问题。
 
 ```sh
 docker compose --env-file server.env -f compose.server.yaml ps -a
-docker compose --env-file server.env -f compose.server.yaml logs --tail=100 certificates bootstrap opensearch
+docker compose --env-file server.env -f compose.server.yaml logs --tail=100 certificates certificate-renewer opensearch
 ```
 
-公开 CA 在 `/home/opensearch/certs/ca.pem`，签发和管理私钥保存在仅 root 可读的 `/home/opensearch/security-bootstrap`。迁移时备份数据、证书、私钥和 `server.env`。已有数据目录中的账号权限会保留，修改 `server.env` 不会重置已有账号密码。需要轮换时，应先更新 OpenSearch 中的账号，再同步相关服务的环境变量。服务器上的 OpenSearch 主服务采用 `unless-stopped`，Docker 或服务器重启后自动恢复。手动停止后需要重新启动。证书初始化、账号初始化和 Dashboards 按需运行。已有实例上传新版 Compose 后，可用 `docker update --restart unless-stopped yudao-opensearch-server-opensearch-1` 给当前容器应用该策略，无需当场重建。若改过 Compose 项目名，使用实际容器名。
+公开 CA 在 `/home/opensearch/certs/ca.pem`，签发和管理私钥保存在仅 root 可读的 `/home/opensearch/security-bootstrap`。迁移时备份数据、证书、私钥和 `server.env`。已有数据目录中的账号权限会保留，修改 `server.env` 不会重置已有账号密码。需要轮换时，应先更新 OpenSearch 中的账号，再同步相关服务的环境变量。服务器上的 OpenSearch 主服务采用 `unless-stopped`，Docker 或服务器重启后自动恢复。手动停止后需要重新启动。证书续签服务随 Docker 恢复，初始化服务只在部署时执行，Dashboards 按需启动。已有实例上传新版 Compose 后，可用 `docker update --restart unless-stopped yudao-opensearch-server-opensearch-1` 给当前容器应用该策略，无需当场重建。若改过 Compose 项目名，使用实际容器名。
 
 默认共享网络名为 `yudao-search`，由 OpenSearch Compose 管理。如果旧部署已由 Yudao Compose 创建了同名网络，在 OpenSearch 的 `server.env` 和每个接入环境的 `.env` 中同时设置 `OPENSEARCH_NETWORK=yudao-search-internal`，使用新的专用网络。
 
@@ -87,18 +97,24 @@ docker compose --env-file server.env -f compose.server.yaml logs --tail=100 cert
 
 | 环境 | 芋道目录 | PostgreSQL | OpenSearch 账号 | 索引范围 |
 | --- | --- | --- | --- | --- |
-| 测试 | `/home/yudao-test` | `yudao_test` | `pms_search_test` | `pms-test-kb-v1-*` |
+| 测试 | `/home/yudao-test` | `yudao_test` | `pms_search` | `pms-test-kb-v1-*` |
 | 正式 | `/home/yudao` | 正式 `DB_NAME` | `pms_search` | `pms-kb-v1-*` |
 
 如果共享 OpenSearch 已经启动，直接从第 2 步继续。以下操作先只更新测试环境。
 
 ### 1. 启动共享 OpenSearch
 
-按上面的共享部署步骤启动一次。在首次启动前设置 `OPENSEARCH_PMS_TEST_PASSWORD`。如果安全索引已经初始化，修改 `server.env` 不会补建账号。先备份现有 Security 配置，用 [Security 初始化工具](https://docs.opensearch.org/latest/security/configuration/security-admin/) 将 Compose 中的 `pms_search_test` 用户、`pms_kb_test_index` 角色及其映射合并到现有配置，保留其他用户和角色。
+按上面的共享部署步骤启动一次。已有实例应用新版 Compose 后，先在 `/home/opensearch` 执行下面的命令，把共享账号关联的角色扩展到两个索引前缀，再更新测试后端配置。两套后端的 `YUDAO_OPENSEARCH_PASSWORD` 都使用现有 `pms_search` 的实际密码。
+
+```sh
+docker compose --env-file server.env -f compose.server.yaml run --rm --no-deps admin-account shared-pms-role
+```
+
+两套搜索和面板管理员登录验证通过后，可在 Dashboards 的 Security → Internal users 删除旧的 `pms_search_test` 和 `pms_dashboard`。已有 Security 配置保存在集群中，更新 Compose 不会自动删除这两个旧账号。
 
 ### 2. 手动上传测试部署文件
 
-用你平时的文件传输工具，从本机后端仓库把下列文件拖到服务器。测试 `.env` 已填好测试 OpenSearch 密码。覆盖前先备份服务器原有的 `.env`。
+用你平时的文件传输工具，从本机后端仓库把下列文件拖到服务器。测试 `.env` 已填好共享 OpenSearch 密码。覆盖前先备份服务器原有的 `.env`。
 
 | 从本机拖这个文件 | 服务器上的目标文件 |
 | --- | --- |
@@ -190,13 +206,21 @@ cd /home/opensearch
 docker compose --env-file server.env -f compose.server.yaml up -d dashboards
 ```
 
-如希望首次启动时一起开启面板，在第 2 步的 `up` 前加 `--profile dashboards`。面板绑定服务器的 `127.0.0.1:5601`。从自己的电脑建立 SSH 转发。
+如希望首次启动时一起开启面板，在第 2 步的 `up` 前加 `--profile dashboards`。面板默认绑定服务器的 `127.0.0.1:5601`。需要内网直连时，在服务器 `server.env` 设置 `OPENSEARCH_DASHBOARDS_BIND_IP=192.168.11.158`，重建面板后访问 `http://192.168.11.158:5601/`。使用默认绑定时，从自己的电脑建立 SSH 转发。
 
 ```sh
 ssh -N -L 127.0.0.1:15601:127.0.0.1:5601 部署账号@服务器IP
 ```
 
-保持 SSH 会话打开，在浏览器访问 `http://127.0.0.1:15601`，账号为 `pms_dashboard`，密码是 `OPENSEARCH_PANEL_PASSWORD`。该账号可读取 PMS 索引。若更改服务器面板端口，同步调整 SSH 命令最后的端口。
+保持 SSH 会话打开，在浏览器访问 `http://127.0.0.1:15601`。面板统一使用 `opensearch_admin` 登录。若更改服务器面板端口，同步调整 SSH 命令最后的端口。
+
+将新版 `compose.server.yaml` 和 `scripts/` 上传到 `/home/opensearch`，在 `server.env` 填写单独生成的 `OPENSEARCH_ADMIN_PASSWORD`，按下方升级步骤应用 Compose。然后在该目录执行：
+
+```sh
+docker compose --env-file server.env -f compose.server.yaml run --rm --no-deps admin-account
+```
+
+这个命令通过管理证书创建或更新 `opensearch_admin`。再次执行会把此账号密码设为 `server.env` 中的值。Linux `root` 用于管理服务器，`opensearch_admin` 用于管理 OpenSearch，`kibanaserver` 供 Dashboards 服务连接集群。管理证书仍用于必须使用证书的操作。
 
 ## 按需改为内网 IP 访问
 
@@ -221,30 +245,52 @@ networks:
 
 ## 证书续期与故障恢复
 
-### 检查和续签证书
+### 自动续签节点和管理证书
 
-节点和管理证书签发时有效期为 825 天，CA 有效期为 3650 天。在 `/home/opensearch` 检查剩余有效期。以下命令在节点证书剩余不足 30 天时返回非零状态，可用于运维巡检。
+`certificate-renewer` 在启动时检查一次，以后每天检查。节点或管理证书剩余不足 30 天时，它用现有 CA 和原私钥续签，验证新证书后原子替换 PEM 文件。OpenSearch 开启证书热加载，通常在几秒内加载新的节点证书。芋道和面板继续信任同一个公开 CA。正常续签无需修改账号或重启后端。
 
-```sh
-docker compose --env-file server.env -f compose.server.yaml run --rm --entrypoint openssl certificates x509 -in /certs/node.pem -noout -enddate -checkend 2592000
-```
+CA 初次签发有效期为 3650 天，节点和管理证书最长 825 天。续签后的有效期会限制在 CA 到期之前。CA 本身的更换需要同步客户端信任文件，自动续签服务在 CA 剩余不足 180 天时记录警告并标记为 `unhealthy`。OpenSearch 主服务仍可运行，需在这个窗口内安排 CA 轮换。
 
-续签安排在维护窗口。先备份 `certs` 和 `security-bootstrap`，再停止 OpenSearch 与面板。把 `certs/node.pem`、`certs/node-key.pem`、`security-bootstrap/admin.pem` 和 `security-bootstrap/admin-key.pem` 移出原目录，保留 `certs/ca.pem` 和 `security-bootstrap/ca-key.pem`。如果改过目录，以 `server.env` 中的路径为准。然后执行：
+已有服务器升级时，先备份 `certs`、`security-bootstrap` 和 `server.env`，再将新版 `compose.server.yaml` 和 `scripts/` 拖到 `/home/opensearch`，保持相对路径。已有 `server.env` 沿用。首次应用热加载配置需要重建一次 OpenSearch 容器，安排在维护窗口执行。
 
 ```sh
-docker compose --env-file server.env -f compose.server.yaml run --rm certificates
-docker compose --env-file server.env -f compose.server.yaml up -d --wait --wait-timeout 300 opensearch
+cd /home/opensearch
+docker compose --env-file server.env -f compose.server.yaml config --quiet
+docker compose --env-file server.env -f compose.server.yaml up -d --wait --wait-timeout 300
 ```
 
-确认 `opensearch` 为 `healthy`，再验收测试和正式搜索，并按需恢复面板。沿用同一个 CA 时，芋道的信任文件可以沿用。续签失败时，把备份里的节点和管理证书及其对应私钥一起恢复，再启动 OpenSearch。CA 临近到期时单独安排更换，需同步更新两套芋道和 Dashboards 的信任文件。
+确认 `opensearch` 和 `certificate-renewer` 显示 `healthy`，再从测试及正式知识库各搜索一次。首次初始化服务显示 `Exited (0)` 属于正常状态。续签服务的文件检查和日志可以这样查看：
+
+```sh
+docker compose --env-file server.env -f compose.server.yaml exec certificate-renewer sh /certificates.sh health
+docker compose --env-file server.env -f compose.server.yaml logs --tail=100 certificate-renewer
+```
+
+签发失败会保留已发布的证书，续签容器的健康状态会报错，每五分钟重试。修复签发私钥、目录权限或 CA 后，重启 `certificate-renewer` 可以立即重试。CA 私钥和已有 CA 证书应成对恢复。健康状态需要接入现有的容器监控才能主动通知维护人，当前 Compose 不向钉钉、邮件等渠道发通知。
 
 ### 备份和恢复
 
 - 优先备份测试和正式 PostgreSQL，PMS 索引可以从数据库重建。
 - 将 `compose.server.yaml`、`server.env`、`certs` 和 `security-bootstrap` 一起备份到受限位置。密钥与环境文件包含敏感配置。
 - 需要保留索引时，可以使用 OpenSearch 快照。安全配置应另用 Security 管理工具导出。也可以在停机窗口备份完整的数据目录，其中的安全索引保留通过 API 补建的账号和角色。
-- 故障恢复时，先恢复证书、配置和数据目录，再启动 OpenSearch 并验证测试与正式账号。若使用空数据目录，按 `server.env` 重新初始化账号，PMS 后台检测到搜索别名缺失后，从各自 PostgreSQL 重建索引。额外通过 API 创建的账号和角色需从安全配置备份恢复。
+- 故障恢复时，先恢复证书、配置和数据目录，再启动 OpenSearch 并验证测试与正式账号。若使用空数据目录，先按第 2 步运行 `bootstrap`，再启动 OpenSearch 初始化账号，PMS 后台检测到搜索别名缺失后，从各自 PostgreSQL 重建索引。额外通过 API 创建的账号和角色需从安全配置备份恢复。
 - 将恢复演练安排在隔离实例上，使用独立网络和数据目录。验收项包括证书校验、测试和正式账号权限、中文关键词搜索和首次索引重建。
+
+## 作为长期共用服务使用
+
+当前部署提供单节点 OpenSearch、ICU 分词插件、TLS、PMS 共享服务账号和面板管理员。继续接入其他业务时，需要按业务创建账号、角色、索引及映射。
+
+| 使用场景 | 需要配置的内容 |
+| --- | --- |
+| 新服务或 MCP 接入 | 加入同机 `yudao-search` 网络，挂载公开 `ca.pem`，用独立账号，只授权对应索引前缀。 |
+| 在 Dashboards 里管理索引、分析器和其他 API | 按面板章节创建 `opensearch_admin`。仅需操作试验索引时，可另建账号并按试验范围授权。 |
+| 新建其他业务的中文搜索索引 | 显式配置 `text` 字段使用 `icu_analyzer`。安装插件后，新建字段仍要选择分析器。编号或精确过滤字段使用 `keyword`。 |
+| 单机上的试验索引 | 对自己的业务前缀设置 1 个主分片、0 个副本，避免单节点副本无法分配。用精确的索引模板匹配范围，系统索引继续采用原有设置。 |
+| 验证向量、混合检索、聚合、高亮或排序 | 按使用场景设计字段映射和查询。PMS 当前实现文本子串及 ICU 多词匹配，最终结果按 PostgreSQL 中的业务规则排序，候选上限为 2000。 |
+| 让 MCP 按 PMS 用户权限搜索 | 调用芋道知识库搜索 API。直接连接 OpenSearch 时，访问范围由 OpenSearch 服务账号权限决定。 |
+| 保存试验成果或其他业务原始数据 | 配置快照仓库和定期快照。PMS 索引有 PostgreSQL 来源可重建，其他业务数据应另有恢复来源。 |
+
+已有数据目录中的账号和权限以 OpenSearch 安全索引为准。修改 `server.env` 或重跑初始化容器只会改变初始化输入，现有账号需通过 Security API 或管理工具更新。特别是上线新服务时，应先创建角色和账号，再配置该服务。
 
 ## 搜索行为
 
