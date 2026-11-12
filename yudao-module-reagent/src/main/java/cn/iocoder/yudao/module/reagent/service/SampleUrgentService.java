@@ -1,20 +1,30 @@
 package cn.iocoder.yudao.module.reagent.service;
 
-import com.mzt.logapi.context.LogRecordContext;
-import com.mzt.logapi.starter.annotation.LogRecord;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
+import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.*;
 import cn.iocoder.yudao.module.reagent.dal.mysql.*;
+import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue;
 import cn.iocoder.yudao.module.system.api.permission.PermissionApi;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import jakarta.annotation.Resource;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 import java.util.*;
+
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
 
 @Service
@@ -24,9 +34,9 @@ public class SampleUrgentService {
     @Resource private AdminUserApi users;
     @Resource private PermissionApi permissions;
     @Resource private SampleUrgentPeopleService people;
-    @Resource private org.springframework.context.ApplicationEventPublisher events;
-    @org.springframework.beans.factory.annotation.Autowired
-    private org.springframework.beans.factory.ObjectProvider<cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue> notificationQueues;
+    @Resource private ApplicationEventPublisher events;
+    @Autowired
+    private ObjectProvider<DingTalkNotificationQueue> notificationQueues;
 
     @Transactional(rollbackFor=Exception.class)
     @LogRecord(type = "试剂管理-加急入库", subType = "删除预约",
@@ -79,21 +89,22 @@ public class SampleUrgentService {
         var updated=BeanUtils.toBean(req,SampleUrgentDO.class);
         updated.setNoticeNames(people.noticeNames(req.getNoticeUserIds(),req.getNoticeDeptIds()));
         // 显式赋值避免可选日期清空时被 MyBatis 的 NOT_NULL 更新策略忽略。
-        mapper.update(null,new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<SampleUrgentDO>()
+        mapper.update(null, new LambdaUpdateWrapper<SampleUrgentDO>()
                 .eq(SampleUrgentDO::getId,row.getId())
                 .set(SampleUrgentDO::getProjectNo,updated.getProjectNo()).set(SampleUrgentDO::getNewProject,updated.getNewProject())
                 .set(SampleUrgentDO::getClinicalId,updated.getClinicalId())
                 .set(SampleUrgentDO::getBasNos,updated.getBasNos()).set(SampleUrgentDO::getSampleScope,updated.getSampleScope())
                 .set(SampleUrgentDO::getDeadline,updated.getDeadline()).set(SampleUrgentDO::getExpectedArrival,updated.getExpectedArrival())
                 .set(SampleUrgentDO::getPlannedTestTime,updated.getPlannedTestTime()).set(SampleUrgentDO::getContacts,updated.getContacts())
-                .set(SampleUrgentDO::getAppointmentUserIds,cn.iocoder.yudao.framework.common.util.json.JsonUtils.toJsonString(updated.getAppointmentUserIds()))
-                .set(SampleUrgentDO::getNoticeUserIds,cn.iocoder.yudao.framework.common.util.json.JsonUtils.toJsonString(updated.getNoticeUserIds()))
-                .set(SampleUrgentDO::getNoticeDeptIds,cn.iocoder.yudao.framework.common.util.json.JsonUtils.toJsonString(updated.getNoticeDeptIds()))
+                .set(SampleUrgentDO::getAppointmentUserIds, JsonUtils.toJsonString(updated.getAppointmentUserIds()))
+                .set(SampleUrgentDO::getNoticeUserIds, JsonUtils.toJsonString(updated.getNoticeUserIds()))
+                .set(SampleUrgentDO::getNoticeDeptIds, JsonUtils.toJsonString(updated.getNoticeDeptIds()))
                 .set(SampleUrgentDO::getNoticeNames,updated.getNoticeNames())
                 .set(SampleUrgentDO::getReason,updated.getReason()).set(SampleUrgentDO::getLogisticsNo,updated.getLogisticsNo())
                 .set(SampleUrgentDO::getRemark,updated.getRemark()).set(SampleUrgentDO::getRevision,row.getRevision()+1)
-                .set(SampleUrgentDO::getUpdateTime,java.time.LocalDateTime.now()).set(SampleUrgentDO::getUpdater,userId().toString()));
-        log(row.getId(),"修改需求",req.getChangeReason()+"\n修改前：\n"+describe(before)+"\n修改后：\n"+describe(req));
+                .set(SampleUrgentDO::getUpdateTime, LocalDateTime.now()).set(SampleUrgentDO::getUpdater,userId().toString()));
+        log(row.getId(),"修改需求",req.getChangeReason()+"\n修改前：\n"+describe(before)+"\n修改后：\n"+describe(req),
+                !Objects.equals(row.getDeadline(), updated.getDeadline()));
         return row.getId();
     }
     @Transactional(rollbackFor=Exception.class)
@@ -122,17 +133,16 @@ public class SampleUrgentService {
                 log(row.getId(),"接手处理","已接手此需求");
             }
             case "PROGRESS" -> {
-                handlePermission();
                 if (row.getStatus() == 4) throw invalidParamException("已取消的需求不能更新进度");
-                if(row.getHandlerId()!=null && !Objects.equals(row.getHandlerId(),userId())) throw invalidParamException("请由当前处理人更新进度");
                 SampleUrgentRules.validateProgress(req,row);
                 row.setHandlerId(userId()); row.setHandlerName(userName());
+                boolean newlyCompleted = row.getStatus() != 3 && req.getStatus() == 3;
                 row.setStatus(req.getStatus()); row.setExceptionType(req.getExceptionType());
                 row.setExceptionNote("NONE".equals(req.getExceptionType())?"":req.getExceptionNote());
                 row.setCompletedScope(Objects.toString(req.getCompletedScope(),""));
                 row.setRemainingScope(Objects.toString(req.getRemainingScope(),""));
                 row.setCompletedTime(req.getStatus() == 3 ? req.getCompletedTime() : null);
-                log(row.getId(),"更新进度",List.of("待处理","处理中","部分入库","已完成","已取消").get(row.getStatus())
+                log(row.getId(), newlyCompleted ? "完成" : "更新进度", List.of("待处理","处理中","部分入库","已完成","已取消").get(row.getStatus())
                         +"\n已完成范围："+row.getCompletedScope()+"\n剩余范围："+row.getRemainingScope()
                         +"\n异常："+row.getExceptionType()+" "+Objects.toString(row.getExceptionNote(),"")
                         +"\n实际入库时间："+Objects.toString(row.getCompletedTime(),"未完成")
@@ -160,6 +170,9 @@ public class SampleUrgentService {
     private Long userId() { return Objects.requireNonNull(SecurityFrameworkUtils.getLoginUserId()); }
     private String userName() { return users.getUser(userId()).getNickname(); }
     private void log(Long id,String action,String content) {
+        log(id, action, content, false);
+    }
+    private void log(Long id,String action,String content, boolean deadlineChanged) {
         var log=new SampleUrgentLogDO(); log.setUrgentId(id); log.setAction(action); log.setContent(content);
         log.setOperatorId(userId()); log.setOperatorName(userName()); logs.insert(log);
         LogRecordContext.putVariable("urgentAction", action);
@@ -167,8 +180,8 @@ public class SampleUrgentService {
                 ? content : content.substring(0, 800) + "…（完整内容见处理记录）");
         LogRecordContext.putVariable("urgentLogId", log.getId());
         events.publishEvent(new SampleUrgentNoticeEvent(
-                cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder.getTenantId(),
-                id,log.getId(),userId(),action,content));
+                TenantContextHolder.getTenantId(),
+                id,log.getId(),userId(),action,content,deadlineChanged));
     }
     private String describe(SampleUrgentSaveReqVO r) {
         return "临床方案编号："+r.getProjectNo()

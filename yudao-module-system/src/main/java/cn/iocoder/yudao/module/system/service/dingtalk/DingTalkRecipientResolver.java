@@ -29,8 +29,12 @@ public class DingTalkRecipientResolver {
             if(dept==null || !Integer.valueOf(0).equals(dept.getStatus())) throw invalidParamException("接收部门 {} 不存在或已停用",id);
         }
     }
+    public List<Long> resolveAccounts(DingTalkMessageTemplateDO template) {
+        return recipients.resolve(template.getDefaultUserIds(), template.getDefaultDeptIds(),
+                Boolean.TRUE.equals(template.getIncludeChildDepts()));
+    }
     public List<Long> resolve(DingTalkMessageTemplateDO template) {
-        var ids=recipients.resolve(template.getDefaultUserIds(),template.getDefaultDeptIds(),Boolean.TRUE.equals(template.getIncludeChildDepts()));
+        var ids = resolveAccounts(template);
         if(ids.isEmpty()) return List.of();
         Map<Long,AdminUserDO> candidates=new LinkedHashMap<>();
         users.selectByIds(ids).forEach(u->candidates.put(u.getId(),u));

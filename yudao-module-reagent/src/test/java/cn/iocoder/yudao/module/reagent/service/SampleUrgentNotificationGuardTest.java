@@ -22,19 +22,19 @@ class SampleUrgentNotificationGuardTest {
     }
     @AfterEach void clear() { TenantContextHolder.clear(); }
     @Test void onlyCurrentUnfinishedUnexpiredDemandIsApplicable() {
-        assertTrue(guard.applicable("sample-urgent:8","3"));
-        assertFalse(guard.applicable("sample-urgent:8","2"));
-        assertFalse(guard.applicable("sample-urgent:9","3"));
-        assertFalse(guard.applicable("other:8","3"));
-        row.setStatus(3); assertFalse(guard.applicable("sample-urgent:8","3"));
-        row.setStatus(4); assertFalse(guard.applicable("sample-urgent:8","3"));
+        assertTrue(guard.applicable("sample-urgent:8",row.getDeadline()));
+        assertFalse(guard.applicable("sample-urgent:8",row.getDeadline().minusMinutes(1)));
+        assertFalse(guard.applicable("sample-urgent:9",row.getDeadline()));
+        assertFalse(guard.applicable("other:8",row.getDeadline()));
+        row.setStatus(3); assertFalse(guard.applicable("sample-urgent:8",row.getDeadline()));
+        row.setStatus(4); assertFalse(guard.applicable("sample-urgent:8",row.getDeadline()));
         row.setStatus(0); row.setDeadline(LocalDateTime.now().minusMinutes(1));
-        assertFalse(guard.applicable("sample-urgent:8","3"));
+        assertFalse(guard.applicable("sample-urgent:8",row.getDeadline()));
     }
     @Test void masterSwitchPreventsSending() {
         when(config.getConfigValueByKey(anyString())).thenReturn("false");
-        assertFalse(guard.applicable("sample-urgent:8","3"));
+        assertFalse(guard.applicable("sample-urgent:8",row.getDeadline()));
         when(config.getConfigValueByKey(anyString())).thenReturn(null);
-        assertTrue(guard.applicable("sample-urgent:8","3"));
+        assertTrue(guard.applicable("sample-urgent:8",row.getDeadline()));
     }
 }

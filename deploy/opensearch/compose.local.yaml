@@ -3,7 +3,11 @@ name: yudao-opensearch-local
 services:
   opensearch:
     image: yudao-opensearch:3.9.0-icu
-    build: .
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM opensearchproject/opensearch:3.9.0
+        RUN /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu
     # 只在手动执行 compose up 时启动，Docker 重启后保持停止。
     restart: "no"
     environment:

@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.system.service.dingtalk;
 
+import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
 import cn.iocoder.yudao.module.system.api.dingtalk.*;
 import cn.iocoder.yudao.module.system.api.dingtalk.dto.*;
 import org.junit.jupiter.api.*;
@@ -43,7 +44,7 @@ class DingTalkNotificationQueueTest {
     private DingTalkNotificationManageService management() { return new DingTalkNotificationManageService(jdbc,List.of()); }
     private long id() { return jdbc.queryForObject("SELECT max(id) FROM system_dingtalk_notification_queue",Long.class); }
     @Test void failedMessageResendUsesNewRequestAndKeepsOriginal() {
-        service.enqueue(request(),LocalDateTime.now(),null,null,null);
+        service.enqueue(request(),LocalDateTime.now(),null,null);
         long original=id(); jdbc.update("UPDATE system_dingtalk_notification_queue SET status=4");
         management().resend(original,42L,"已修复接收人配置",false);
         var retry=management().get(id());
@@ -53,7 +54,7 @@ class DingTalkNotificationQueueTest {
         service.dispatch(); assertEquals(2,management().get(retry.id()).status()); verify(sender,times(1)).send(any());
     }
     @Test void unknownResendRequiresConfirmationAndHasThreeAttemptLimit() {
-        service.enqueue(request(),LocalDateTime.now(),null,null,null);
+        service.enqueue(request(),LocalDateTime.now(),null,null);
         jdbc.update("UPDATE system_dingtalk_notification_queue SET status=3");
         long original=id();
         assertThrows(RuntimeException.class,()->management().resend(original,42L,"尚未确认",false));
@@ -65,7 +66,7 @@ class DingTalkNotificationQueueTest {
         assertThrows(RuntimeException.class,()->management().resend(id(),42L,"超出次数",true));
     }
     @Test void managementCannotReadCancelOrRetryOtherTenants() {
-        service.enqueue(request(),LocalDateTime.now().plusHours(1),null,null,null);
+        service.enqueue(request(),LocalDateTime.now().plusHours(1),null,null);
         long original=id();
         cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder.setTenantId(2L);
         assertThrows(RuntimeException.class,()->management().get(original));
@@ -76,7 +77,7 @@ class DingTalkNotificationQueueTest {
         assertEquals(0,status());
     }
     @Test void cancellationAndResendCheckStateAndExpiry() {
-        service.enqueue(request(),LocalDateTime.now().minusMinutes(2),LocalDateTime.now().minusMinutes(1),null,null);
+        service.enqueue(request(),LocalDateTime.now().minusMinutes(2),LocalDateTime.now().minusMinutes(1),null);
         long original=id();
         management().cancel(original,42L,"不再需要"); assertEquals(5,status());
         assertThrows(RuntimeException.class,()->management().cancel(original,42L,"重复取消"));
@@ -86,13 +87,13 @@ class DingTalkNotificationQueueTest {
     }
     @Test void resendRechecksBusinessGuard() {
         var guard=mock(DingTalkNotificationGuard.class); when(guard.businessType()).thenReturn("test");
-        service.enqueue(request(),LocalDateTime.now(),null,"test","1");
+        service.enqueue(request(),LocalDateTime.now(),null,"test");
         jdbc.update("UPDATE system_dingtalk_notification_queue SET status=4");
         var manager=new DingTalkNotificationManageService(jdbc,List.of(guard));
         assertThrows(RuntimeException.class,()->manager.resend(id(),42L,"业务已结束",true));
     }
     @Test void concurrentResendsCreateOnlyOneNewNotice() throws Exception {
-        service.enqueue(request(),LocalDateTime.now(),null,null,null);
+        service.enqueue(request(),LocalDateTime.now(),null,null);
         jdbc.update("UPDATE system_dingtalk_notification_queue SET status=4");
         long original=id();
         var start=new java.util.concurrent.CountDownLatch(1);
@@ -112,15 +113,15 @@ class DingTalkNotificationQueueTest {
         } finally { pool.shutdownNow(); }
     }
     @Test void persistsDeduplicatesAndDoesNotSendAcceptedMessageAgain() {
-        var req=request(); service.enqueue(req,LocalDateTime.now().minusMinutes(1),null,null,null);
-        service.enqueue(req,LocalDateTime.now().minusMinutes(1),null,null,null);
+        var req=request(); service.enqueue(req,LocalDateTime.now().minusMinutes(1),null,null);
+        service.enqueue(req,LocalDateTime.now().minusMinutes(1),null,null);
         assertEquals(1,jdbc.queryForObject("SELECT count(*) FROM system_dingtalk_notification_queue",Integer.class));
         service.dispatch(); service.dispatch(); assertEquals(2,status()); verify(sender,times(1)).send(any());
         req.setParams(Map.of("name","different"));
-        assertThrows(IllegalArgumentException.class,()->service.enqueue(req,LocalDateTime.now(),null,null,null));
+        assertThrows(IllegalArgumentException.class,()->service.enqueue(req,LocalDateTime.now(),null,null));
     }
     @Test void futureAndExpiredMessagesAreNotSent() {
-        service.enqueue(request(),LocalDateTime.now().plusHours(1),null,null,null);
+        service.enqueue(request(),LocalDateTime.now().plusHours(1),null,null);
         service.dispatch(); assertEquals(0,status()); verifyNoInteractions(sender);
         jdbc.update("UPDATE system_dingtalk_notification_queue SET send_after=now()-interval '2 hours',expires_at=now()-interval '1 hour'");
         service.dispatch(); assertEquals(6,status()); verifyNoInteractions(sender);
@@ -128,38 +129,38 @@ class DingTalkNotificationQueueTest {
     @Test void businessGuardCancelsObsoleteMessages() {
         var guard=mock(DingTalkNotificationGuard.class); when(guard.businessType()).thenReturn("test");
         service=new DingTalkNotificationQueueService(jdbc,sender,List.of(guard),new DataSourceTransactionManager(dataSource));
-        service.enqueue(request(),LocalDateTime.now().minusMinutes(1),null,"test","old");
+        service.enqueue(request(),LocalDateTime.now().minusMinutes(1),null,"test");
         service.dispatch(); assertEquals(5,status()); verifyNoInteractions(sender);
     }
     @Test void unknownResultAndStaleProcessingAreNotAutomaticallyRetried() {
         doReturn(List.of(new DingTalkMessageSendResultDTO(1L,10L,3,"unknown"))).when(sender).send(any());
-        service.enqueue(request(),LocalDateTime.now().minusMinutes(1),null,null,null);
+        service.enqueue(request(),LocalDateTime.now().minusMinutes(1),null,null);
         service.dispatch(); service.dispatch(); assertEquals(3,status()); verify(sender,times(1)).send(any());
         jdbc.update("UPDATE system_dingtalk_notification_queue SET status=1,update_time=now()-interval '11 minutes'");
         service.dispatch(); assertEquals(3,status()); verify(sender,times(1)).send(any());
     }
     @Test void cancellationIsScopedToTenantAndBusiness() {
-        service.enqueue(request(),LocalDateTime.now().plusHours(1),null,null,null);
+        service.enqueue(request(),LocalDateTime.now().plusHours(1),null,null);
         assertEquals(0,service.cancel("other")); assertEquals(1,service.cancel("test:1")); assertEquals(5,status());
     }
     @Test void replacingDeadlinePlanPreservesImmediateMessagesAndTracksEachRecipient() {
         var immediate=request();
-        service.enqueue(immediate,LocalDateTime.now().plusHours(1),null,null,null);
+        service.enqueue(immediate,LocalDateTime.now().plusHours(1),null,null);
         var due=request(); due.setRequestId("future-deadline"); due.setUserIds(List.of(10L,11L));
-        service.enqueue(due,LocalDateTime.now().plusHours(1),null,"deadline","4");
-        assertTrue(service.exists("test:1","deadline","4"));
-        assertFalse(service.exists("test:1","deadline","3"));
+        service.enqueue(due,LocalDateTime.now().plusHours(1),null,"deadline");
+        assertTrue(service.exists("test:1","deadline",null));
+        assertFalse(service.exists("test:1","deadline",LocalDateTime.now()));
         jdbc.update("UPDATE system_dingtalk_notification_queue SET status=2 WHERE guard_type='deadline' AND user_id=10");
         assertEquals(1,service.cancelPending("test:1","deadline"));
         assertEquals(0,jdbc.queryForObject("SELECT status FROM system_dingtalk_notification_queue WHERE request_id='queue-test-1'",Integer.class));
         cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder.setTenantId(2L);
-        assertFalse(service.exists("test:1","deadline","4"));
+        assertFalse(service.exists("test:1","deadline",null));
         assertEquals(0,service.cancelPending("test:1","deadline"));
     }
     @Test void queueInsertionRollsBackWithBusinessTransaction() {
         var tx=new org.springframework.transaction.support.TransactionTemplate(new DataSourceTransactionManager(dataSource));
         tx.executeWithoutResult(status -> {
-            service.enqueue(request(),LocalDateTime.now(),null,null,null);
+            service.enqueue(request(),LocalDateTime.now(),null,null);
             status.setRollbackOnly();
         });
         assertEquals(0,jdbc.queryForObject("SELECT count(*) FROM system_dingtalk_notification_queue",Integer.class));
@@ -183,7 +184,7 @@ class DingTalkNotificationQueueTest {
         assertEquals(24,jdbc.queryForObject("SELECT count(*) FROM system_dingtalk_notification_queue",Integer.class));
         var records=jdbc.queryForList("SELECT user_id,payload FROM system_dingtalk_notification_queue");
         for(var record:records) {
-            var req=cn.iocoder.yudao.framework.common.util.json.JsonUtils.parseObject((String)record.get("payload"),DingTalkMessageSendReqDTO.class);
+            var req = JsonUtils.parseObject((String) record.get("payload"), DingTalkMessageSendReqDTO.class);
             assertEquals(List.of((Long)record.get("user_id")),req.getUserIds());
             assertFalse(((String)record.get("payload")).contains("deptIds"));
         }

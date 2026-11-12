@@ -33,26 +33,42 @@ public class DingTalkNotificationQueueService implements DingTalkNotificationQue
         Objects.requireNonNull(plan.getSendAfter(),"发送时间不能为空");
         if(plan.getExpiresAt()!=null && !plan.getExpiresAt().isAfter(plan.getSendAfter())) throw new IllegalArgumentException("失效时间必须晚于发送时间");
         var excluded=new HashSet<>(plan.getExcludedUserIds());
-        for(Long id:recipients.resolve(plan.getUserIds(),plan.getDeptIds(),plan.isIncludeChildDepts())) {
-            if(excluded.contains(id) || !eligible.test(id)) continue;
-            var req=new DingTalkMessageSendReqDTO(); req.setRequestId(plan.getRequestId()); req.setTemplateCode(plan.getTemplateCode());
-            req.setBusinessId(plan.getBusinessId()); req.setParams(plan.getParams()); req.setUserIds(List.of(id));
-            // 与旧的明确人员入队复用同一持久化逻辑；不把部门或业务回调放入发送任务。
-            enqueue(req,plan.getSendAfter(),plan.getExpiresAt(),plan.getGuardType(),plan.getBusinessVersion());
+        var resolved = recipients.resolve(plan.getUserIds(), plan.getDeptIds(), plan.isIncludeChildDepts());
+        var targets = resolved.stream().filter(eligible).filter(id -> !excluded.contains(id)).toList();
+        var req = new DingTalkMessageSendReqDTO();
+        req.setRequestId(plan.getRequestId());
+        req.setTemplateCode(plan.getTemplateCode());
+        req.setBusinessId(plan.getBusinessId());
+        req.setParams(plan.getParams());
+        req.setUserIds(targets);
+        if (targets.isEmpty()) {
+            String reason = !resolved.isEmpty() && excluded.containsAll(resolved)
+                    ? "接收人均为本次操作人" : "没有有效接收人，请检查通知配置";
+            // 0 表示没有收件人，只保留生成结果，不进入发送任务。
+            jdbc.update("""
+                    INSERT INTO system_dingtalk_notification_queue
+                        (tenant_id, request_id, user_id, business_id, guard_type, payload,
+                         send_after, expires_at, status, error_message)
+                    VALUES (?, ?, 0, ?, ?, ?, ?, ?, 4, ?)
+                    ON CONFLICT (tenant_id, request_id, user_id) DO NOTHING
+                    """, tenant(), plan.getRequestId(), plan.getBusinessId(), plan.getGuardType(),
+                    JsonUtils.toJsonString(req), plan.getSendAfter(), plan.getExpiresAt(), reason);
+            return;
         }
+        enqueue(req, plan.getSendAfter(), plan.getExpiresAt(), plan.getGuardType());
     }
     @Override
     @org.springframework.transaction.annotation.Transactional(rollbackFor=Exception.class)
     public void enqueue(DingTalkMessageSendReqDTO request, LocalDateTime after, LocalDateTime expires,
-                        String guardType,String version) {
+                        String guardType) {
         Objects.requireNonNull(after,"发送时间不能为空");
         if(expires!=null && !expires.isAfter(after)) throw new IllegalArgumentException("失效时间必须晚于发送时间");
         for(Long userId:new LinkedHashSet<>(request.getUserIds())) {
             var single=JsonUtils.parseObject(JsonUtils.toJsonString(request),DingTalkMessageSendReqDTO.class);
             single.setUserIds(List.of(userId));
             String payload=JsonUtils.toJsonString(single);
-            int inserted=jdbc.update("INSERT INTO system_dingtalk_notification_queue(tenant_id,request_id,user_id,business_id,guard_type,business_version,payload,send_after,expires_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,request_id,user_id) DO NOTHING",
-                    tenant(),request.getRequestId(),userId,request.getBusinessId(),guardType,version,payload,after,expires);
+            int inserted=jdbc.update("INSERT INTO system_dingtalk_notification_queue(tenant_id,request_id,user_id,business_id,guard_type,payload,send_after,expires_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(tenant_id,request_id,user_id) DO NOTHING",
+                    tenant(),request.getRequestId(),userId,request.getBusinessId(),guardType,payload,after,expires);
             if(inserted==0) {
                 String previous=jdbc.queryForObject("SELECT payload FROM system_dingtalk_notification_queue WHERE tenant_id=? AND request_id=? AND user_id=?",String.class,tenant(),request.getRequestId(),userId);
                 if(!JsonUtils.parseObject(previous,DingTalkMessageSendReqDTO.class).equals(single)) throw new IllegalArgumentException("同一通知请求编号不能用于不同消息");
@@ -63,18 +79,18 @@ public class DingTalkNotificationQueueService implements DingTalkNotificationQue
         if(businessId==null || businessId.isBlank()) throw new IllegalArgumentException("业务编号不能为空");
         return jdbc.update("UPDATE system_dingtalk_notification_queue SET status=5,update_time=now() WHERE tenant_id=? AND business_id=? AND status=0",tenant(),businessId);
     }
-    record Task(long id,long tenant,String payload,String guard,String business,String version) {}
+    record Task(long id,long tenant,String payload,String guard,String business,LocalDateTime expiresAt) {}
     @Override public int cancelPending(String businessId,String guardType) {
         return jdbc.update("UPDATE system_dingtalk_notification_queue SET status=5,error_message='业务已调整',update_time=now() WHERE tenant_id=? AND business_id=? AND guard_type=? AND status=0",tenant(),businessId,guardType);
     }
-    @Override public boolean exists(String businessId,String guardType,String version) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM system_dingtalk_notification_queue WHERE tenant_id=? AND business_id=? AND guard_type IS NOT DISTINCT FROM ? AND business_version=?)",Boolean.class,tenant(),businessId,guardType,version));
+    @Override public boolean exists(String businessId,String guardType,LocalDateTime expiresAt) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM system_dingtalk_notification_queue WHERE tenant_id=? AND business_id=? AND guard_type IS NOT DISTINCT FROM ? AND expires_at IS NOT DISTINCT FROM ?)",Boolean.class,tenant(),businessId,guardType,expiresAt));
     }
     private Task claim() {
         var tx=new TransactionTemplate(transactionManager);
         return tx.execute(status -> {
-            var rows=jdbc.query("SELECT id,tenant_id,payload,guard_type,business_id,business_version FROM system_dingtalk_notification_queue WHERE status=0 AND send_after<=now() ORDER BY send_after,id LIMIT 1 FOR UPDATE SKIP LOCKED",
-                    (rs,n)->new Task(rs.getLong(1),rs.getLong(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6)));
+            var rows=jdbc.query("SELECT id,tenant_id,payload,guard_type,business_id,expires_at FROM system_dingtalk_notification_queue WHERE status=0 AND send_after<=now() ORDER BY send_after,id LIMIT 1 FOR UPDATE SKIP LOCKED",
+                    (rs,n)->new Task(rs.getLong(1),rs.getLong(2),rs.getString(3),rs.getString(4),rs.getString(5),rs.getObject(6, LocalDateTime.class)));
             if(rows.isEmpty()) return null;
             Task task=rows.get(0);
             jdbc.update("UPDATE system_dingtalk_notification_queue SET status=1,update_time=now() WHERE id=?",task.id());
@@ -100,7 +116,7 @@ public class DingTalkNotificationQueueService implements DingTalkNotificationQue
             if(Boolean.TRUE.equals(expired)) { finish(task,6,"通知已过有效期"); return; }
             if(task.guard()!=null && !task.guard().isBlank()) {
                 var guard=guards.stream().filter(g->g.businessType().equals(task.guard())).findFirst().orElseThrow(()->new IllegalStateException("未注册业务有效性检查器"));
-                if(!guard.applicable(task.business(),task.version())) { finish(task,5,"业务状态已变化，不再提醒"); return; }
+                if(!guard.applicable(task.business(),task.expiresAt())) { finish(task,5,"业务状态已变化，不再提醒"); return; }
             }
             var result=sender.send(JsonUtils.parseObject(task.payload(),DingTalkMessageSendReqDTO.class));
             if(result==null || result.size()!=1) { finish(task,3,"发送结果不完整，请核实收件情况"); return; }

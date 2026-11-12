@@ -20,7 +20,4 @@ public class DingTalkNotificationPlanReqDTO {
     @NotNull private LocalDateTime sendAfter;
     private LocalDateTime expiresAt;
     @Size(max=100) private String guardType;
-    @Size(max=100) private String businessVersion;
-    @AssertTrue(message="请选择通知部门或人员")
-    public boolean isTargetPresent() { return userIds!=null && !userIds.isEmpty() || deptIds!=null && !deptIds.isEmpty(); }
 }

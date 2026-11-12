@@ -31,17 +31,17 @@ class DingTalkNotificationValidationTest {
     }
     @AfterEach void close() { factory.close(); }
     @Test void startupExistsQueryDoesNotFailOnOtherMethodConstraintMetadata() {
-        assertDoesNotThrow(()->assertFalse(proxy.exists("sample-urgent:8","sample-urgent-deadline","0")));
+        assertDoesNotThrow(()->assertFalse(proxy.exists("sample-urgent:8","sample-urgent-deadline",null)));
     }
     @Test void validRequestPassesProxyValidationAndReachesDatabase() {
         when(jdbc.update(anyString(),any(Object[].class))).thenReturn(1);
-        assertDoesNotThrow(()->proxy.enqueue(request(),LocalDateTime.now(),null,null,null));
+        assertDoesNotThrow(()->proxy.enqueue(request(),LocalDateTime.now(),null,null));
         verify(jdbc).update(anyString(),any(Object[].class));
     }
     @Test void invalidAndNullRequestsAreRejectedBeforeAnyDatabaseWrite() {
         var request=request(); request.setUserIds(List.of());
-        assertThrows(ConstraintViolationException.class,()->proxy.enqueue(request,LocalDateTime.now(),null,null,null));
-        assertThrows(ConstraintViolationException.class,()->proxy.enqueue(null,LocalDateTime.now(),null,null,null));
+        assertThrows(ConstraintViolationException.class,()->proxy.enqueue(request,LocalDateTime.now(),null,null));
+        assertThrows(ConstraintViolationException.class,()->proxy.enqueue(null,LocalDateTime.now(),null,null));
         verifyNoInteractions(jdbc);
     }
     private DingTalkMessageSendReqDTO request() {
@@ -56,8 +56,8 @@ class DingTalkNotificationValidationTest {
         assertDoesNotThrow(()->proxy.enqueuePlan(plan));
         verify(jdbc).update(anyString(),any(Object[].class));
     }
-    @Test void emptyOrInvalidAudienceIsRejectedBeforeResolutionAndPersistence() {
-        var plan=plan(); assertThrows(ConstraintViolationException.class,()->proxy.enqueuePlan(plan,id->true));
+    @Test void invalidAudienceIsRejectedBeforeResolutionAndPersistence() {
+        var plan=plan();
         plan.setDeptIds(List.of(-1L)); assertThrows(ConstraintViolationException.class,()->proxy.enqueuePlan(plan,id->true));
         verifyNoInteractions(jdbc,recipients);
     }

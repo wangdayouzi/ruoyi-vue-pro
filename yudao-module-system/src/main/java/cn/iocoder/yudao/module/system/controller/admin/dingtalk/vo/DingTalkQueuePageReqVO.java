@@ -9,5 +9,5 @@ import lombok.*;
 public class DingTalkQueuePageReqVO extends PageParam {
     @Size(max=128) private String businessId;
     @Size(max=100) private String templateCode;
-    @Min(0) @Max(6) private Integer status;
+    @Min(0) @Max(8) private Integer status;
 }

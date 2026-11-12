@@ -9,7 +9,6 @@ import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkMessageSendApi;
 import cn.iocoder.yudao.module.system.api.dingtalk.dto.*;
 import cn.iocoder.yudao.module.system.api.permission.PermissionApi;
 import jakarta.annotation.Resource;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
 import org.springframework.transaction.event.*;
@@ -17,14 +16,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
-@Slf4j
 public class SampleUrgentNotifier {
     @Resource private SampleUrgentMapper mapper;
     @Resource private SampleUrgentLogMapper logs;
     @Resource private DingTalkMessageSendApi sender;
     @Resource private ConfigApi config;
     @Resource private PermissionApi permissions;
-    @Resource private SampleUrgentPeopleService people;
     @Resource private cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue notificationQueue;
     private static final String DEADLINE_GUARD="sample-urgent-deadline";
 
@@ -32,9 +29,9 @@ public class SampleUrgentNotifier {
     @Transactional(rollbackFor=Exception.class)
     public void initializeDeadline(Long id) {
         var row=mapper.lock(id);
-        if(row==null || notificationQueue.exists("sample-urgent:"+id,DEADLINE_GUARD,String.valueOf(row.getRevision()))) return;
+        if(row==null || notificationQueue.exists("sample-urgent:"+id,DEADLINE_GUARD,row.getDeadline())) return;
         if(row.getCreateTime()!=null && !row.getCreateTime().isBefore(row.getDeadline().minusMinutes(120))
-                && notificationQueue.exists("sample-urgent:"+id,null,String.valueOf(row.getRevision()))) return;
+                && notificationQueue.exists("sample-urgent:"+id,null,null)) return;
         try { scheduleDeadline(row); }
         catch(IllegalStateException | cn.iocoder.yudao.framework.common.exception.ServiceException ex) {
             // 模板/接收人未配置只记录业务提醒异常，不能阻断整个应用启动；数据库异常仍正常抛出。
@@ -48,57 +45,60 @@ public class SampleUrgentNotifier {
                 || "false".equalsIgnoreCase(setting("enabled"))) return;
         var planned=row.getDeadline().minusMinutes(120);
         if(planned.isBefore(now)) planned=now;
-        var receivers=sampleTargets(row);
+        var receivers=templateTargets();
         deliver(row,receivers,"urgent-soon-"+row.getId()+"-"+row.getRevision(),
                 "即将逾期","",planned,null);
     }
 
-    @Resource private org.springframework.transaction.PlatformTransactionManager transactionManager;
-
     @TransactionalEventListener(phase=TransactionPhase.BEFORE_COMMIT)
     public void onEvent(SampleUrgentNoticeEvent event) {
         // 业务最终写入完成后、事务提交前登记通知，待发队列与业务原子提交；真实发送由统一任务执行。
-        try {
-            var tx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
-            tx.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRED);
-            // 单租户模式没有请求租户上下文，钉钉配置统一使用主租户 1；不改变业务请求上下文。
-            Long noticeTenantId = event.tenantId() == null ? 1L : event.tenantId();
-            TenantUtils.execute(noticeTenantId, () -> tx.executeWithoutResult(status -> notifyEvent(event)));
-        } catch(Exception ex) { log.error("[sample-urgent-notice] urgentId={}, logId={}",event.urgentId(),event.logId(),ex); }
+        // 加入原事务，数据库异常向调用方传播，避免业务保存成功但队列缺失。
+        Long noticeTenantId = event.tenantId() == null ? 1L : event.tenantId();
+        TenantUtils.execute(noticeTenantId, () -> notifyEvent(event));
     }
 
     void notifyEvent(SampleUrgentNoticeEvent event) {
         var row=mapper.selectById(event.urgentId());
         if(row==null) return;
-        boolean refreshDeadline=!"补充说明".equals(event.action());
-        if(refreshDeadline) notificationQueue.cancelPending("sample-urgent:"+row.getId(),DEADLINE_GUARD);
+        boolean registered = "登记需求".equals(event.action());
+        boolean deadlineChanged = event.deadlineChanged();
+        if (deadlineChanged || row.getStatus() >= 3) notificationQueue.cancelPending("sample-urgent:"+row.getId(),DEADLINE_GUARD);
         if("false".equalsIgnoreCase(setting("enabled"))) return;
-        try {
-            Targets receivers=switch(event.action()) {
-                case "登记需求", "修改需求", "取消需求" -> sampleTargets(row);
-                case "补充说明" -> SampleUrgentRules.isParty(row,event.actorId())?sampleTargets(row):appointmentTargets(row);
-                default -> appointmentTargets(row);
-            };
-            deliver(row,receivers,"urgent-event-"+event.logId(),event.action(),event.content(),java.time.LocalDateTime.now(),event.actorId());
-            if(refreshDeadline && !("登记需求".equals(event.action()) &&
-                    !row.getDeadline().minusMinutes(120).isAfter(java.time.LocalDateTime.now()))) scheduleDeadline(row);
-        } catch(Exception ex) { failure(row.getId(),"提醒未发出："+safeError(ex)); }
+        boolean partialInbound = "更新进度".equals(event.action()) && row.getStatus() == 2;
+        if ("更新进度".equals(event.action()) && !partialInbound) return;
+        Targets receivers=switch(event.action()) {
+            case "登记需求" -> templateTargets();
+            case "修改需求", "取消需求" -> sampleTargets(row);
+            case "补充说明" -> SampleUrgentRules.isParty(row,event.actorId())?sampleTargets(row):appointmentTargets(row);
+            case "更新进度", "完成" -> new Targets(
+                    Objects.requireNonNullElse(row.getAppointmentUserIds(), List.of()), List.of(), false);
+            default -> appointmentTargets(row);
+        };
+        boolean includeActor = registered || partialInbound || "完成".equals(event.action());
+        deliver(row, receivers, "urgent-event-" + event.logId(), partialInbound ? "部分入库" : event.action(), event.content(),
+                java.time.LocalDateTime.now(), includeActor ? null : event.actorId());
+        if (deadlineChanged || (registered &&
+                row.getDeadline().minusMinutes(120).isAfter(java.time.LocalDateTime.now()))) {
+            scheduleDeadline(row);
+        }
     }
 
-    private record Targets(List<Long> users,List<Long> departments,boolean administrators) {}
+    private record Targets(List<Long> users,List<Long> departments,boolean configuredAudience) {}
     private Targets appointmentTargets(SampleUrgentDO row) {
         if(row.getAppointmentUserIds()!=null && !row.getAppointmentUserIds().isEmpty()) return new Targets(row.getAppointmentUserIds(),List.of(),false);
         return new Targets(List.of(row.getRequesterId()),List.of(),false);
     }
     private Targets sampleTargets(SampleUrgentDO row) {
-        if(row.getHandlerId()!=null) return new Targets(List.of(row.getHandlerId()),List.of(),true);
+        if(row.getHandlerId()!=null) return new Targets(List.of(row.getHandlerId()),List.of(),false);
         var users=row.getNoticeUserIds()==null?List.<Long>of():row.getNoticeUserIds();
         var depts=row.getNoticeDeptIds()==null?List.<Long>of():row.getNoticeDeptIds();
         if(!users.isEmpty() || !depts.isEmpty()) return new Targets(users,depts,true);
+        return templateTargets();
+    }
+    private Targets templateTargets() {
         var defaults=sender.getDefaultUserIds("sample_urgent_notice");
-        var configured=defaults==null?List.<Long>of():defaults.stream().filter(people::administratorEligible).toList();
-        if(configured==null || configured.isEmpty()) throw new IllegalStateException("没有有效的样品管理员接收通知，请检查历史模板的默认人员/部门配置");
-        return new Targets(configured,List.of(),true);
+        return new Targets(Objects.requireNonNullElse(defaults, List.of()), List.of(), true);
     }
     void deliver(SampleUrgentDO row,Targets targets,String requestId,String action,String content,
                  java.time.LocalDateTime sendAfter,Long actorId) {
@@ -108,9 +108,8 @@ public class SampleUrgentNotifier {
         plan.setExcludedUserIds(actorId==null?List.of():List.of(actorId)); plan.setSendAfter(sendAfter);
         boolean deadlineNotice=requestId.startsWith("urgent-soon-");
         plan.setExpiresAt(deadlineNotice?row.getDeadline():null); plan.setGuardType(deadlineNotice?DEADLINE_GUARD:null);
-        plan.setBusinessVersion(String.valueOf(row.getRevision()));
-        notificationQueue.enqueuePlan(plan,targets.administrators()?people::administratorEligible:
-                id->permissions.hasAnyPermissions(id,"reagent:sample-urgent:query"));
+        notificationQueue.enqueuePlan(plan, id -> targets.configuredAudience()
+                || permissions.hasAnyPermissions(id, "reagent:sample-urgent:query"));
     }
 
     Map<String,String> params(SampleUrgentDO row,String action,String content) {

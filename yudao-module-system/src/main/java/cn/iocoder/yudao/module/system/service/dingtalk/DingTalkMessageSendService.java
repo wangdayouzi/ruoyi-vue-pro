@@ -38,8 +38,7 @@ public class DingTalkMessageSendService implements DingTalkMessageSendApi {
     @Override
     public List<Long> getDefaultUserIds(String templateCode) {
         var template = templates.selectByCode(templateCode);
-        if (template == null) throw invalidParamException("钉钉消息模板不存在");
-        return recipientResolver.resolve(template);
+        return template == null ? List.of() : recipientResolver.resolveAccounts(template);
     }
 
     /** 日志独立提交，不能因业务事务回滚而丢失已发送记录。调用方应在事务提交后调用。 */

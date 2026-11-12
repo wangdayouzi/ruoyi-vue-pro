@@ -2,7 +2,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS system_dingtalk_notification_queue (
  id bigserial PRIMARY KEY, tenant_id bigint NOT NULL,
  request_id varchar(64) NOT NULL,user_id bigint NOT NULL,business_id varchar(128),
- guard_type varchar(100),business_version varchar(100),payload text NOT NULL,
+ guard_type varchar(100),payload text NOT NULL,
  send_after timestamp NOT NULL,expires_at timestamp,
  status smallint NOT NULL DEFAULT 0 CHECK(status BETWEEN 0 AND 6),error_message varchar(1000),
  create_time timestamp NOT NULL DEFAULT now(),update_time timestamp NOT NULL DEFAULT now(),

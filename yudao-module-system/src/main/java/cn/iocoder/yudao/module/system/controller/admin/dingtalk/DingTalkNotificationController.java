@@ -25,6 +25,11 @@ public class DingTalkNotificationController {
     @GetMapping("/get")
     @PreAuthorize("@ss.hasPermission('system:dingtalk-notification:query')")
     public CommonResult<DingTalkNotificationManageService.Notice> get(@RequestParam long id) { return success(service.get(id)); }
+    @GetMapping("/detail")
+    @PreAuthorize("@ss.hasPermission('system:dingtalk-notification:query')")
+    public CommonResult<DingTalkNotificationManageService.NoticeDetail> detail(@RequestParam long id) {
+        return success(service.getDetail(id));
+    }
     public record Operation(@Positive long id,@NotBlank @Size(max=500) String reason,boolean confirmedNotReceived) {}
     @PostMapping("/cancel")
     @PreAuthorize("@ss.hasPermission('system:dingtalk-notification:manage')")

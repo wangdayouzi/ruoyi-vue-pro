@@ -114,7 +114,8 @@ public class FileServiceImpl implements FileService {
         if (ArrayUtil.isEmpty(content)) {
             throw exception(FILE_IS_EMPTY);
         }
-        type = FileTypeUtils.getMineType(content, name);
+        type = "exe".equalsIgnoreCase(FileUtil.extName(name))
+                ? FileTypeUtils.getMineType(content) : FileTypeUtils.getMineType(content, name);
         String nameType = StrUtil.isNotEmpty(FileUtil.extName(name)) ? validateFileType(name) : null;
         if (!isAllowedFileType(type, name)
                 // 图片、二进制文件（例如说 .bin 固件）：内容识别的类型，必须与后缀一致
@@ -240,6 +241,10 @@ public class FileServiceImpl implements FileService {
     }
 
     private static boolean isAllowedFileType(String type, String name) {
+        if ("exe".equalsIgnoreCase(FileUtil.extName(name))) {
+            return "application/x-dosexec".equals(type) || "application/x-msdownload".equals(type)
+                    || StrUtil.startWith(type, "application/x-msdownload;format=pe");
+        }
         return ALLOWED_FILE_TYPES.contains(type) || isAllowedBinaryFile(type, name);
     }
 

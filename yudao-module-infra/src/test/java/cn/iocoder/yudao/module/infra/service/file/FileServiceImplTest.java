@@ -410,7 +410,7 @@ public class FileServiceImplTest extends BaseDbUnitTest {
         for (String extension : new String[]{"jpg", "JPEG", "jfif", "png", "gif", "webp", "bmp", "ico", "tiff",
                 "avif", "heic", "heif", "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv", "md",
                 "zip", "rar", "mp3", "mp4", "svg", "html", "htm", "xml", "markdown", "eml", "msg", "epub",
-                "json", "opus", "ogg", "m4a", "webm", "amr", "wma", "wmv", "flv", "mkv", "bin", "BIN"}) {
+                "json", "opus", "ogg", "m4a", "webm", "amr", "wma", "wmv", "flv", "mkv", "bin", "BIN", "exe", "EXE"}) {
             // 准备参数
             String name = "测试文件." + extension;
             // mock 方法
@@ -433,8 +433,8 @@ public class FileServiceImplTest extends BaseDbUnitTest {
     @Test
     public void testPresignPutUrl_typeNotAllowed() {
         // 准备参数
-        for (String name : new String[]{"test.php", "test.jsp", "test.js", "test.exe", "test.unknown", "test",
-                "test.so", "test.dump", "test.sh", "test.bin.exe"}) {
+        for (String name : new String[]{"test.php", "test.jsp", "test.js", "test.dll", "test.unknown", "test",
+                "test.so", "test.dump", "test.sh", "test.exe.bin.dll"}) {
             // 调用，并断言异常
             assertServiceException(() -> fileService.presignPutUrl(name, null), FILE_TYPE_NOT_ALLOWED);
             // 校验调用

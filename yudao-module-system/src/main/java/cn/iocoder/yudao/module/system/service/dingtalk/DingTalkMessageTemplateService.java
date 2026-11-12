@@ -35,7 +35,6 @@ public class DingTalkMessageTemplateService {
         for (Long id : receivers) {
             var user = users.selectById(id);
             if (user == null || !Integer.valueOf(0).equals(user.getStatus())) throw invalidParamException("默认接收人 {} 不存在或已停用", id);
-            if (!identities.isBound(user)) throw invalidParamException("{} 未关联钉钉，请先绑定钉钉账号或同步通讯录", user.getNickname());
 
         }
         data.setDefaultUserIds(receivers);

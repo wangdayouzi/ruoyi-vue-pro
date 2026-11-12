@@ -126,7 +126,7 @@ public class SampleLoanServiceImpl implements SampleLoanService {
                 "location", sampleLoan.getLocation(),
                 "requester", sampleLoan.getRequester(),
                 "submitter", sampleLoan.getSubmitter()));
-        notificationQueue.enqueue(request, LocalDateTime.now(), null, null, null);
+        notificationQueue.enqueue(request, LocalDateTime.now(), null, null);
     }
 
     @Override

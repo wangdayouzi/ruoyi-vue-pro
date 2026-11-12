@@ -4,5 +4,5 @@ package cn.iocoder.yudao.module.system.api.dingtalk;
 public interface DingTalkNotificationGuard {
     String businessType();
     default String displayName() { return businessType(); }
-    boolean applicable(String businessId, String version);
+    boolean applicable(String businessId, java.time.LocalDateTime expiresAt);
 }

@@ -28,8 +28,6 @@ class SampleUrgentNotifierTest {
         ReflectionTestUtils.setField(notifier,"mapper",mapper); ReflectionTestUtils.setField(notifier,"logs",logs);
         ReflectionTestUtils.setField(notifier,"sender",sender); ReflectionTestUtils.setField(notifier,"config",config);
         ReflectionTestUtils.setField(notifier,"permissions",permissions);
-        var people=mock(SampleUrgentPeopleService.class); when(people.administratorEligible(anyLong())).thenReturn(true);
-        ReflectionTestUtils.setField(notifier,"people",people);
         var queue=mock(cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue.class);
         ReflectionTestUtils.setField(notifier,"notificationQueue",queue);
         doAnswer(i -> {
@@ -64,22 +62,23 @@ class SampleUrgentNotifierTest {
         var args=ArgumentCaptor.forClass(DingTalkMessageSendReqDTO.class); verify(sender).send(args.capture());
         assertEquals(List.of(22L),args.getValue().getUserIds()); verify(sender,never()).getDefaultUserIds(anyString());
     }
-    @Test void progressAndSampleSideRepliesNotifyRequesterRatherThanDefaultGroup() {
-        notifier.notifyEvent(event(20L,"更新进度"));
-        var args=ArgumentCaptor.forClass(DingTalkMessageSendReqDTO.class); verify(sender).send(args.capture());
-        assertEquals(List.of(10L),args.getValue().getUserIds());
+    @Test void processingDoesNotCreateANotification() {
+        row.setStatus(1);
+        notifier.notifyEvent(event(20L, "更新进度"));
+        verifyNoInteractions(queue());
     }
     @Test void actorIsNotNotifiedAgain() {
         row.setHandlerId(10L); notifier.notifyEvent(event(10L,"补充说明")); verify(sender,never()).send(any());
     }
-    @Test void missingDefaultsAndSendFailuresLeaveBusinessVisibleErrors() {
+    @Test void missingDefaultsStillProduceAPlanForNotificationManagement() {
         when(sender.getDefaultUserIds(anyString())).thenReturn(List.of()); notifier.notifyEvent(event(10L,"登记需求"));
-        verify(logs).insert(any(SampleUrgentLogDO.class)); verify(sender,never()).send(any());
+        verify(queue(), atLeastOnce()).enqueuePlan(argThat(plan -> plan.getUserIds().isEmpty()), any());
+        verify(sender, never()).send(any());
     }
-    @Test void queuePreparationFailureIsRecordedWithoutCallingSender() {
+    @Test void queuePreparationFailurePropagatesWithoutCallingSender() {
         doThrow(new IllegalStateException("队列配置异常")).when(queue()).enqueuePlan(any(),any());
-        assertDoesNotThrow(() -> notifier.notifyEvent(event(10L,"登记需求")));
-        verify(logs).insert(any(SampleUrgentLogDO.class)); verify(sender,never()).send(any());
+        assertThrows(IllegalStateException.class, () -> notifier.notifyEvent(event(10L,"登记需求")));
+        verify(sender,never()).send(any());
     }
     @Test void onlyDeclaredBusinessFieldsAreProvidedAndLongContentIsBounded() {
         var params=notifier.params(row,"补充说明","a".repeat(5000));
@@ -90,20 +89,8 @@ class SampleUrgentNotifierTest {
         when(config.getConfigValueByKey("reagent.sample-urgent.dingtalk.1.enabled")).thenReturn("false");
         notifier.notifyEvent(event(10L,"登记需求")); verify(sender,never()).send(any());
     }
-    @Test void notificationCommitFailureDoesNotEscapeIntoCommittedBusinessRequest() {
-        var manager=mock(org.springframework.transaction.PlatformTransactionManager.class);
-        when(manager.getTransaction(any())).thenReturn(new org.springframework.transaction.support.SimpleTransactionStatus());
-        doThrow(new IllegalStateException("模拟通知事务提交失败")).when(manager).commit(any());
-        ReflectionTestUtils.setField(notifier,"transactionManager",manager);
-        when(config.getConfigValueByKey("reagent.sample-urgent.dingtalk.1.enabled")).thenReturn("false");
-        assertDoesNotThrow(() -> notifier.onEvent(event(10L,"登记需求")));
-        assertEquals(1L,TenantContextHolder.getRequiredTenantId());
-    }
     @Test void singleTenantEventUsesPrimaryNoticeScopeAndRestoresMissingContext() {
         TenantContextHolder.clear();
-        var manager=mock(org.springframework.transaction.PlatformTransactionManager.class);
-        when(manager.getTransaction(any())).thenReturn(new org.springframework.transaction.support.SimpleTransactionStatus());
-        ReflectionTestUtils.setField(notifier,"transactionManager",manager);
         notifier.onEvent(new SampleUrgentNoticeEvent(null,1L,100L,10L,"登记需求","说明"));
         verify(sender,times(2)).send(any());
         verify(config,atLeastOnce()).getConfigValueByKey("reagent.sample-urgent.dingtalk.1.enabled");
@@ -118,7 +105,7 @@ class SampleUrgentNotifierTest {
         var req=ArgumentCaptor.forClass(DingTalkNotificationPlanReqDTO.class); verify(queue()).enqueuePlan(req.capture(),any());
         assertEquals(row.getDeadline().minusMinutes(120),req.getValue().getSendAfter());
         assertEquals(row.getDeadline(),req.getValue().getExpiresAt()); assertEquals("sample-urgent-deadline",req.getValue().getGuardType());
-        assertEquals("4",req.getValue().getBusinessVersion()); assertEquals(List.of(20L),req.getValue().getUserIds()); verify(sender,never()).send(any());
+        assertEquals(List.of(20L, 21L),req.getValue().getUserIds()); verify(sender,never()).send(any());
     }
     @Test void completedCancelledAndExpiredDoNotCreateFutureReminders() {
         row.setStatus(3); notifier.scheduleDeadline(row); row.setStatus(4); notifier.scheduleDeadline(row);
@@ -136,7 +123,7 @@ class SampleUrgentNotifierTest {
         notifier.scheduleDeadline(row); verifyNoInteractions(queue());
     }
     @Test void changingDemandCancelsOnlyOldDeadlineNoticeAndCreatesNewPlan() {
-        notifier.notifyEvent(event(10L,"修改需求"));
+        notifier.notifyEvent(new SampleUrgentNoticeEvent(1L, 1L, 100L, 10L, "修改需求", "改期", true));
         verify(queue()).cancelPending("sample-urgent:1","sample-urgent-deadline");
         verify(queue(),never()).cancel(anyString());
         var plan=ArgumentCaptor.forClass(DingTalkNotificationPlanReqDTO.class); verify(queue(),times(2)).enqueuePlan(plan.capture(),any());
@@ -148,7 +135,7 @@ class SampleUrgentNotifierTest {
         clearInvocations(queue());
         var mapper=(SampleUrgentMapper)ReflectionTestUtils.getField(notifier,"mapper");
         when(mapper.lock(1L)).thenReturn(row);
-        when(queue().exists("sample-urgent:1","sample-urgent-deadline","0")).thenReturn(true);
+        when(queue().exists("sample-urgent:1","sample-urgent-deadline",row.getDeadline())).thenReturn(true);
         notifier.initializeDeadline(1L);
         verify(queue(),never()).enqueuePlan(any(),any());
     }
@@ -176,33 +163,38 @@ class SampleUrgentNotifierTest {
         var content=notifier.params(row,"修改需求","截止时间调整\n修改前：\n项目：旧项目\n修改后：\n项目：新项目").get("changeReason");
         assertEquals("截止时间调整",content);
     }
-    @Test void selectedAdministratorsReceiveNewDemandAndAppointedPeopleReceiveProgress() {
-        row.setNoticeUserIds(List.of(40L)); row.setAppointmentUserIds(List.of(30L,31L));
-        var people=(SampleUrgentPeopleService)ReflectionTestUtils.getField(notifier,"people");
+    @Test void registrationAndDeadlineUseTemplateRecipientsEvenWithOldSelections() {
+        row.setNoticeDeptIds(List.of(100L));
+        row.setNoticeUserIds(List.of(40L));
+        row.setHandlerId(50L);
+        notifier.notifyEvent(event(20L, "登记需求"));
 
-        notifier.notifyEvent(event(10L,"登记需求"));
-        var req=ArgumentCaptor.forClass(DingTalkMessageSendReqDTO.class); verify(sender).send(req.capture());
-        assertEquals(List.of(40L),req.getValue().getUserIds()); verify(sender,never()).getDefaultUserIds(anyString());
-        clearInvocations(sender); notifier.notifyEvent(event(40L,"更新进度"));
-        verify(sender,times(2)).send(req.capture());
-        assertEquals(Set.of(30L,31L),req.getAllValues().subList(1,3).stream().map(r->r.getUserIds().get(0)).collect(java.util.stream.Collectors.toSet()));
+        var plans = ArgumentCaptor.forClass(DingTalkNotificationPlanReqDTO.class);
+        verify(queue(), times(2)).enqueuePlan(plans.capture(), any());
+        for (var plan : plans.getAllValues()) {
+            assertEquals(List.of(20L, 21L), plan.getUserIds());
+            assertTrue(plan.getDeptIds().isEmpty());
+            assertTrue(plan.getExcludedUserIds().isEmpty());
+        }
     }
-    @Test void selectedDepartmentsArePassedToCommonQueueWithoutBusinessExpansion() {
-        row.setNoticeDeptIds(List.of(100L)); row.setNoticeUserIds(List.of(40L));
-        notifier.notifyEvent(event(10L,"登记需求"));
-        var plan=ArgumentCaptor.forClass(DingTalkNotificationPlanReqDTO.class); verify(queue(),times(2)).enqueuePlan(plan.capture(),any());
-        assertEquals(List.of(100L),plan.getAllValues().get(0).getDeptIds());
-        assertEquals(List.of(40L),plan.getAllValues().get(0).getUserIds());
-        assertEquals(List.of(10L),plan.getAllValues().get(0).getExcludedUserIds());
-        var people=(SampleUrgentPeopleService)ReflectionTestUtils.getField(notifier,"people");
-        verify(people,never()).administrators(any(),any());
+    @Test void partialInboundNotifiesAppointmentUsersIncludingOperator() {
+        row.setStatus(2);
+        row.setAppointmentUserIds(List.of(30L, 31L));
+        notifier.notifyEvent(event(30L, "更新进度"));
+
+        var plan = ArgumentCaptor.forClass(DingTalkNotificationPlanReqDTO.class);
+        verify(queue()).enqueuePlan(plan.capture(), any());
+        assertEquals(List.of(30L, 31L), plan.getValue().getUserIds());
+        assertEquals("部分入库", plan.getValue().getParams().get("action"));
+        assertTrue(plan.getValue().getExcludedUserIds().isEmpty());
+        verify(queue(), never()).cancelPending(anyString(), anyString());
     }
     @Test void registrationInsideReminderWindowProducesOnlyImmediateNotificationEvenAfterRestart() {
         row.setHandlerId(20L); row.setDeadline(LocalDateTime.now().plusMinutes(60)); row.setCreateTime(LocalDateTime.now());
         notifier.notifyEvent(event(10L,"登记需求"));
         verify(queue(),times(1)).enqueuePlan(any(),any());
         var mapper=(SampleUrgentMapper)ReflectionTestUtils.getField(notifier,"mapper"); when(mapper.lock(1L)).thenReturn(row);
-        when(queue().exists("sample-urgent:1",null,"0")).thenReturn(true);
+        when(queue().exists("sample-urgent:1",null,null)).thenReturn(true);
         notifier.initializeDeadline(1L); verify(queue(),times(1)).enqueuePlan(any(),any());
     }
     private SampleUrgentNoticeEvent event(Long actor,String action) { return new SampleUrgentNoticeEvent(1L,1L,100L,actor,action,"本次变更"); }
