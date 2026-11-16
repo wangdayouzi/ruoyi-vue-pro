@@ -543,7 +543,8 @@ public class PmsKnowledgeDocumentServiceImpl implements PmsKnowledgeDocumentServ
         // 1. 查询当前用户可读的知识库和内容权限
         List<Long> readableLibraryIds = libraryMemberService.getReadableLibraryIdList(userId);
         if (CollUtil.isEmpty(readableLibraryIds)
-                || pageReqVO.getLibraryId() != null && !readableLibraryIds.contains(pageReqVO.getLibraryId())) {
+                || pageReqVO.getLibraryId() != null && !readableLibraryIds.contains(pageReqVO.getLibraryId())
+                || pageReqVO.getLibraryId() == null && CollUtil.isNotEmpty(pageReqVO.getAttributeFilters())) {
             return PageResult.empty();
         }
         Set<Long> readablePermissionIds = contentPermissionService.getReadableContentPermissionIdSet(readableLibraryIds, userId);

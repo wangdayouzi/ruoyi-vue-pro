@@ -2,6 +2,10 @@ package cn.iocoder.yudao.module.pms.controller.admin.kb.content.vo.document;
 
 import cn.iocoder.yudao.framework.common.pojo.PageParam;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -9,6 +13,7 @@ import lombok.ToString;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.util.date.DateUtils.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND;
 
@@ -28,6 +33,9 @@ public class PmsKnowledgeDocumentSearchPageReqVO extends PageParam {
     @Schema(description = "属性值关键字")
     private String attributeKeyword;
 
+    @Schema(description = "自定义属性筛选条件，多个条件同时满足")
+    private List<@NotNull @Valid AttributeFilter> attributeFilters;
+
     @Schema(description = "最新有效性审阅结论：valid、pending、replaced、abolished、unreviewed")
     private String reviewResult;
 
@@ -40,5 +48,16 @@ public class PmsKnowledgeDocumentSearchPageReqVO extends PageParam {
     @Schema(description = "更新时间范围")
     @DateTimeFormat(pattern = FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND)
     private LocalDateTime[] updateTime;
+
+    @Data
+    public static class AttributeFilter {
+        @NotBlank
+        @Pattern(regexp = "[a-z][a-z0-9_]{1,63}")
+        private String fieldCode;
+
+        @NotBlank
+        @Size(max = 2000)
+        private String keyword;
+    }
 
 }

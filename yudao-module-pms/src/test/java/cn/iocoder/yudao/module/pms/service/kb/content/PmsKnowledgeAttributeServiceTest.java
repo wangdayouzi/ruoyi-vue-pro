@@ -15,9 +15,12 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,5 +57,28 @@ class PmsKnowledgeAttributeServiceTest {
         assertEquals(1, service.values(9L, 20L).size());
         assertEquals("EXT-001", service.carriedValues(9L, 20L).get(0).get("value"));
         assertEquals("来源编号", service.carriedValues(9L, 20L).get(0).get("fieldName"));
+    }
+
+    @Test
+    void searchReturnsOnlyEnabledFieldsForRequestedDocuments() {
+        when(attributeMapper.listByLibrary(10L)).thenReturn(List.of(
+                new PmsKnowledgeAttributeDO().setId(1L).setFieldCode("issuer")
+                        .setEnabled(true),
+                new PmsKnowledgeAttributeDO().setId(3L).setFieldCode("old_issuer")
+                        .setEnabled(false)));
+        Set<Long> documentIds = Set.of(8L, 9L, 11L);
+        when(valueMapper.listByDocumentsAndAttributes(documentIds, Set.of(1L))).thenReturn(List.of(
+                new PmsKnowledgeAttributeValueDO().setDocumentId(8L).setAttributeId(1L).setValueText("发行单位甲"),
+                new PmsKnowledgeAttributeValueDO().setDocumentId(9L).setAttributeId(1L).setValueText("发行单位乙"),
+                new PmsKnowledgeAttributeValueDO().setDocumentId(11L).setAttributeId(1L).setValueText(" ")));
+
+        assertEquals(Map.of(8L, Map.of("issuer", "发行单位甲"), 9L, Map.of("issuer", "发行单位乙")),
+                service.searchValues(10L, documentIds));
+    }
+
+    @Test
+    void allLibrariesSearchDoesNotLoadAttributes() {
+        assertEquals(Map.of(), service.searchValues(null, Set.of(8L)));
+        verifyNoInteractions(attributeMapper, valueMapper);
     }
 }

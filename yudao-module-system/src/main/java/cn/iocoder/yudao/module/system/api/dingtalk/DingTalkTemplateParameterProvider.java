@@ -6,5 +6,9 @@ import java.util.List;
 public interface DingTalkTemplateParameterProvider {
     record Parameter(String key,String label,String example) {}
     String templateCode();
+
+    default boolean supports(String code) {
+        return templateCode().equals(code);
+    }
     List<Parameter> parameters();
 }

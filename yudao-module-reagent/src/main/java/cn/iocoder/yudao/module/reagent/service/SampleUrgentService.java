@@ -68,6 +68,10 @@ public class SampleUrgentService {
             bizNo = "{{#_ret}}", success = "{{#urgentAction}}，处理记录编号 {{#urgentLogId}}：{{#urgentSummary}}")
     public Long save(SampleUrgentSaveReqVO req) {
         SampleUrgentRules.validateSave(req);
+        if (req.getInboundSite() == null && req.getId() == null
+                || req.getInboundSite() != null && !Set.of("NINGBO", "SHANGHAI").contains(req.getInboundSite())) {
+            throw invalidParamException("请选择入库地点：上海或宁波");
+        }
         req.setProjectNo(req.getProjectNo().trim());
         people.prepare(req);
         req.setSampleScope(req.getSampleScope().trim());
@@ -86,6 +90,9 @@ public class SampleUrgentService {
         owner(row); active(row);
         if(SampleUrgentRules.blank(req.getChangeReason())) throw invalidParamException("请填写修改原因，便于样品组了解变更");
         var before=BeanUtils.toBean(row,SampleUrgentSaveReqVO.class);
+        String previousSite = Objects.requireNonNullElse(row.getInboundSite(), "NINGBO");
+        req.setInboundSite(Objects.requireNonNullElse(req.getInboundSite(), previousSite));
+        boolean siteChanged = !previousSite.equals(req.getInboundSite());
         var updated=BeanUtils.toBean(req,SampleUrgentDO.class);
         updated.setNoticeNames(people.noticeNames(req.getNoticeUserIds(),req.getNoticeDeptIds()));
         // 显式赋值避免可选日期清空时被 MyBatis 的 NOT_NULL 更新策略忽略。
@@ -93,8 +100,10 @@ public class SampleUrgentService {
                 .eq(SampleUrgentDO::getId,row.getId())
                 .set(SampleUrgentDO::getProjectNo,updated.getProjectNo()).set(SampleUrgentDO::getNewProject,updated.getNewProject())
                 .set(SampleUrgentDO::getClinicalId,updated.getClinicalId())
+                .set(SampleUrgentDO::getInboundSite,updated.getInboundSite())
                 .set(SampleUrgentDO::getBasNos,updated.getBasNos()).set(SampleUrgentDO::getSampleScope,updated.getSampleScope())
                 .set(SampleUrgentDO::getDeadline,updated.getDeadline()).set(SampleUrgentDO::getExpectedArrival,updated.getExpectedArrival())
+                .set(SampleUrgentDO::getSampleReceivedTime, updated.getSampleReceivedTime())
                 .set(SampleUrgentDO::getPlannedTestTime,updated.getPlannedTestTime()).set(SampleUrgentDO::getContacts,updated.getContacts())
                 .set(SampleUrgentDO::getAppointmentUserIds, JsonUtils.toJsonString(updated.getAppointmentUserIds()))
                 .set(SampleUrgentDO::getNoticeUserIds, JsonUtils.toJsonString(updated.getNoticeUserIds()))
@@ -104,7 +113,7 @@ public class SampleUrgentService {
                 .set(SampleUrgentDO::getRemark,updated.getRemark()).set(SampleUrgentDO::getRevision,row.getRevision()+1)
                 .set(SampleUrgentDO::getUpdateTime, LocalDateTime.now()).set(SampleUrgentDO::getUpdater,userId().toString()));
         log(row.getId(),"修改需求",req.getChangeReason()+"\n修改前：\n"+describe(before)+"\n修改后：\n"+describe(req),
-                !Objects.equals(row.getDeadline(), updated.getDeadline()));
+                siteChanged || !Objects.equals(row.getDeadline(), updated.getDeadline()));
         return row.getId();
     }
     @Transactional(rollbackFor=Exception.class)
@@ -145,7 +154,7 @@ public class SampleUrgentService {
                 log(row.getId(), newlyCompleted ? "完成" : "更新进度", List.of("待处理","处理中","部分入库","已完成","已取消").get(row.getStatus())
                         +"\n已完成范围："+row.getCompletedScope()+"\n剩余范围："+row.getRemainingScope()
                         +"\n异常："+row.getExceptionType()+" "+Objects.toString(row.getExceptionNote(),"")
-                        +"\n实际入库时间："+Objects.toString(row.getCompletedTime(),"未完成")
+                        +"\n实际入库时间："+Objects.toString(row.getCompletedTime(),"未填写")
                         +"\n说明："+Objects.toString(req.getContent(),""));
             }
             default -> throw invalidParamException("不支持的操作");
@@ -188,6 +197,6 @@ public class SampleUrgentService {
                 +"\n新临床方案编号："+r.getNewProject()+"\nBAS号："+Objects.toString(r.getBasNos(),"")
                 +"\n检测项："+r.getSampleScope()+"\n预约入库时间："+r.getDeadline()+"\n预计到样："+Objects.toString(r.getExpectedArrival(),"")
                 +"\n计划检测："+Objects.toString(r.getPlannedTestTime(),"")+"\n预约人："+r.getContacts()+"\n加急原因："+r.getReason()
-                +"\n通知样品管理员："+people.noticeNames(r.getNoticeUserIds(),r.getNoticeDeptIds())+"\n物流单号："+Objects.toString(r.getLogisticsNo(),"")+"\n备注："+Objects.toString(r.getRemark(),"");
+                +"\n样本接收时间："+Objects.toString(r.getSampleReceivedTime(),"")+"\n入库地点："+SampleUrgentTemplateParameters.siteName(r.getInboundSite())+"\n通知样品管理员："+people.noticeNames(r.getNoticeUserIds(),r.getNoticeDeptIds())+"\n物流单号："+Objects.toString(r.getLogisticsNo(),"")+"\n备注："+Objects.toString(r.getRemark(),"");
     }
 }

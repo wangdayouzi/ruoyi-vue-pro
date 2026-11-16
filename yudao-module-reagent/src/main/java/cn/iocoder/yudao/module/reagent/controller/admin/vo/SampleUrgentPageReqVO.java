@@ -11,5 +11,6 @@ public class SampleUrgentPageReqVO extends PageParam {
     @Size(max=200) private String contacts;
     @Min(0) @Max(4) private Integer status;
     @Pattern(regexp="ALL|MINE|SUBMITTED|HANDLING|TODAY|OVERDUE") private String view;
+    @Pattern(regexp = "ALL|NINGBO|SHANGHAI") private String inboundSite;
     private Boolean exceptionOnly;
 }

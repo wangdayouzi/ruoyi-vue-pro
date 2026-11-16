@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.ArrayList;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
+import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertMap;
 
 @Service
 public class PmsKnowledgeAttributeService {
@@ -72,6 +74,26 @@ public class PmsKnowledgeAttributeService {
             if (def != null && Boolean.TRUE.equals(def.getEnabled()) && def.getLibraryId().equals(libraryId)
                     && value.getValueText() != null && !value.getValueText().isBlank())
                 result.put(def.getFieldCode(), value.getValueText());
+        }
+        return result;
+    }
+
+    /** 批量读取当前知识库搜索结果中需要显示的属性。 */
+    public Map<Long, Map<String, String>> searchValues(Long libraryId, Collection<Long> documentIds) {
+        if (libraryId == null || documentIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, String> fieldCodes = convertMap(mapper.listByLibrary(libraryId).stream()
+                        .filter(field -> Boolean.TRUE.equals(field.getEnabled()))
+                        .toList(),
+                PmsKnowledgeAttributeDO::getId, PmsKnowledgeAttributeDO::getFieldCode);
+        Map<Long, Map<String, String>> result = new HashMap<>();
+        for (PmsKnowledgeAttributeValueDO value :
+                valueMapper.listByDocumentsAndAttributes(documentIds, fieldCodes.keySet())) {
+            if (value.getValueText() != null && !value.getValueText().isBlank()) {
+                result.computeIfAbsent(value.getDocumentId(), id -> new HashMap<>())
+                        .put(fieldCodes.get(value.getAttributeId()), value.getValueText());
+            }
         }
         return result;
     }

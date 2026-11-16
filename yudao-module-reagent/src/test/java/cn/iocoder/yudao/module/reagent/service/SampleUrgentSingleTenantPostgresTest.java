@@ -86,7 +86,7 @@ class SampleUrgentSingleTenantPostgresTest {
     @AfterEach void after() { TenantContextHolder.clear(); SecurityContextHolder.clearContext(); }
     @Test void registrationAndHandlingWorkWithoutTenantContextAndNoticeTemplateIsUnambiguous() {
         assertNull(TenantContextHolder.getTenantId());
-        var req=new SampleUrgentSaveReqVO(); req.setProjectNo("URGENT-SINGLE-TENANT-REGRESSION");
+        var req=new SampleUrgentSaveReqVO(); req.setInboundSite("NINGBO"); req.setProjectNo("URGENT-SINGLE-TENANT-REGRESSION");
         req.setNewProject(true); req.setBasNos("26BAS-TEST"); req.setContacts("项目人员");
         req.setSampleScope("全部PK管"); req.setReason("次日检测"); req.setDeadline(LocalDateTime.now().plusDays(1));
         Long id=service.save(req); assertEquals(0,service.get(id).getStatus());

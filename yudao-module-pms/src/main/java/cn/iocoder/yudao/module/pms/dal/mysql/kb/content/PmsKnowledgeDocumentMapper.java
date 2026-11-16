@@ -166,8 +166,21 @@ public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocu
         LambdaQueryWrapperX<PmsKnowledgeDocumentDO> query = new LambdaQueryWrapperX<>();
         query.in(candidateIds != null, PmsKnowledgeDocumentDO::getId, candidateIds);
         query.and(candidateIds == null && StrUtil.isNotBlank(pageReqVO.getKeyword()),
-                wrapper -> wrapper.like(PmsKnowledgeDocumentDO::getTitle, pageReqVO.getKeyword())
-                        .or().like(PmsKnowledgeDocumentDO::getContent, pageReqVO.getKeyword()));
+                wrapper -> wrapper.apply("LOWER(title) LIKE CONCAT('%', LOWER({0}), '%')", pageReqVO.getKeyword())
+                        .or().apply("LOWER(content) LIKE CONCAT('%', LOWER({0}), '%')", pageReqVO.getKeyword()));
+        if (CollUtil.isNotEmpty(pageReqVO.getAttributeFilters())) {
+            for (PmsKnowledgeDocumentSearchPageReqVO.AttributeFilter filter : pageReqVO.getAttributeFilters()) {
+                query.apply("""
+                        EXISTS (SELECT 1 FROM pms_knowledge_attribute_value av
+                            JOIN pms_knowledge_attribute a ON a.id = av.attribute_id AND a.tenant_id = av.tenant_id
+                            WHERE av.document_id = pms_knowledge_document.id AND av.deleted = 0
+                              AND av.tenant_id = pms_knowledge_document.tenant_id
+                              AND a.library_id = pms_knowledge_document.library_id AND a.deleted = 0
+                              AND a.enabled = true AND a.field_code = {0}
+                              AND LOWER(av.value_text) LIKE CONCAT('%', LOWER({1}), '%'))
+                        """, filter.getFieldCode(), filter.getKeyword().trim());
+            }
+        }
         return selectPage(pageReqVO, query
                 .in(PmsKnowledgeDocumentDO::getLibraryId, readableLibraryIds)
                 .in(PmsKnowledgeDocumentDO::getPermissionId, readablePermissionIds)
@@ -176,8 +189,9 @@ public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocu
                 .eqIfPresent(PmsKnowledgeDocumentDO::getCreator,
                         Convert.toStr(pageReqVO.getCreatorUserId()))
                 .betweenIfPresent(PmsKnowledgeDocumentDO::getUpdateTime, pageReqVO.getUpdateTime())
-                .like(StrUtil.isNotBlank(pageReqVO.getDocumentCode()),
-                        PmsKnowledgeDocumentDO::getDocumentCode, pageReqVO.getDocumentCode() == null ? "" : pageReqVO.getDocumentCode().trim())
+                .apply(StrUtil.isNotBlank(pageReqVO.getDocumentCode()),
+                        "LOWER(document_code) LIKE CONCAT('%', LOWER({0}), '%')",
+                        StrUtil.trim(pageReqVO.getDocumentCode()))
                 .apply("unreviewed".equals(pageReqVO.getReviewResult()),
                         "NOT EXISTS (SELECT 1 FROM pms_knowledge_review_record rr WHERE rr.document_id = pms_knowledge_document.id AND rr.deleted = 0 AND rr.tenant_id = pms_knowledge_document.tenant_id)")
                 .apply(pageReqVO.getReviewResult() != null && java.util.Set.of("valid", "pending", "replaced", "abolished").contains(pageReqVO.getReviewResult()),
@@ -187,8 +201,8 @@ public interface PmsKnowledgeDocumentMapper extends BaseMapperX<PmsKnowledgeDocu
                         "EXISTS (SELECT 1 FROM pms_knowledge_attribute_value av "
                                 + "WHERE av.document_id = pms_knowledge_document.id AND av.deleted = 0 "
                                 + "AND av.tenant_id = pms_knowledge_document.tenant_id "
-                                + "AND av.value_text LIKE CONCAT('%', {0}, '%'))",
-                        pageReqVO.getAttributeKeyword() == null ? "" : pageReqVO.getAttributeKeyword().trim())
+                                + "AND LOWER(av.value_text) LIKE CONCAT('%', LOWER({0}), '%'))",
+                        StrUtil.trim(pageReqVO.getAttributeKeyword()))
                 .orderByDesc(PmsKnowledgeDocumentDO::getUpdateTime)
                 .orderByDesc(PmsKnowledgeDocumentDO::getId));
     }

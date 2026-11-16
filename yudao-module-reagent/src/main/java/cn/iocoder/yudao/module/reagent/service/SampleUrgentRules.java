@@ -18,8 +18,8 @@ public final class SampleUrgentRules {
                 .map(String::trim).filter(s -> !s.isEmpty()).distinct().collect(Collectors.joining("、"));
     }
     public static void validateSave(SampleUrgentSaveReqVO req) {
-        if (Boolean.TRUE.equals(req.getNewProject()) && normalizeBas(req.getBasNos()).isBlank())
-            throw invalidParamException("新项目请填写 BAS 号");
+        if (normalizeBas(req.getBasNos()).isBlank())
+            throw invalidParamException("请填写 BAS 号");
         // 预计到样已退出新表单，仅保留历史值，不能用不可编辑的旧字段阻断预约改期。
     }
     public static void validateProgress(SampleUrgentActionReqVO req, SampleUrgentDO row) {
@@ -31,9 +31,7 @@ public final class SampleUrgentRules {
         if (req.getStatus()==3) {
             if (!"NONE".equals(req.getExceptionType())) throw invalidParamException("请先处理异常，再确认全部完成");
             if (!blank(req.getRemainingScope())) throw invalidParamException("仍有剩余范围，不能确认全部完成");
-            if (req.getCompletedTime()==null || req.getCompletedTime().isAfter(LocalDateTime.now()))
-                throw invalidParamException("请填写不晚于当前时间的实际入库时间");
-            if (row.getCreateTime()!=null && req.getCompletedTime().isBefore(row.getCreateTime()))
+            if (req.getCompletedTime()!=null && row.getCreateTime()!=null && req.getCompletedTime().isBefore(row.getCreateTime()))
                 throw invalidParamException("实际入库时间不能早于需求登记时间");
         }
     }

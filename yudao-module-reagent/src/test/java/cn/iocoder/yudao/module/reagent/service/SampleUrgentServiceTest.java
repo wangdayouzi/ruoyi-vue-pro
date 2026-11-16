@@ -76,7 +76,7 @@ class SampleUrgentServiceTest {
         verify(mapper,never()).updateById(any(SampleUrgentDO.class)); verify(logs).insert(any(SampleUrgentLogDO.class));
     }
     @Test void newDemandAlwaysStartsPendingAndGetsCurrentRequester() {
-        var req=new SampleUrgentSaveReqVO(); req.setProjectNo("  PROJECT-1 "); req.setContacts("项目联系人");
+        var req=new SampleUrgentSaveReqVO(); req.setInboundSite("NINGBO"); req.setProjectNo("  PROJECT-1 "); req.setContacts("项目联系人");
         req.setSampleScope("全部PK管"); req.setReason("次日上午检测"); req.setDeadline(LocalDateTime.now().plusDays(1));
         req.setNewProject(false); req.setBasNos("26BAS0001,26BAS0002-Blind;"); req.setRevision(99);
         doAnswer(inv -> { SampleUrgentDO inserted=inv.getArgument(0); inserted.setId(2L);
@@ -97,8 +97,8 @@ class SampleUrgentServiceTest {
         cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder.clear();
         var publisher=mock(org.springframework.context.ApplicationEventPublisher.class);
         ReflectionTestUtils.setField(service,"events",publisher);
-        var req=new SampleUrgentSaveReqVO(); req.setProjectNo("SINGLE-TENANT"); req.setContacts("项目人员");
-        req.setSampleScope("全部PK管"); req.setReason("次日检测"); req.setDeadline(LocalDateTime.now().plusDays(1)); req.setNewProject(false);
+        var req=new SampleUrgentSaveReqVO(); req.setInboundSite("NINGBO"); req.setProjectNo("SINGLE-TENANT"); req.setContacts("项目人员");
+        req.setSampleScope("全部PK管"); req.setReason("次日检测"); req.setDeadline(LocalDateTime.now().plusDays(1)); req.setNewProject(false); req.setBasNos("26BAS0001");
         doAnswer(i -> { ((SampleUrgentDO)i.getArgument(0)).setId(2L); return 1; }).when(mapper).insert(any(SampleUrgentDO.class));
         assertEquals(2L,service.save(req));
         var event=org.mockito.ArgumentCaptor.forClass(SampleUrgentNoticeEvent.class);

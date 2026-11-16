@@ -11,11 +11,13 @@ public class SampleUrgentSaveReqVO {
     @NotBlank @Size(max=200) private String projectNo;
     /** 临床方案ID（下拉选择，可为空以兼容历史数据） */
     private Long clinicalId;
+    private String inboundSite;
     @NotNull private Boolean newProject;
     @Size(max=2000) private String basNos;
     @NotBlank @Size(max=2000) private String sampleScope;
     @NotNull private LocalDateTime deadline;
     private LocalDateTime expectedArrival;
+    private LocalDateTime sampleReceivedTime;
     private LocalDateTime plannedTestTime;
     @Size(max=300) private String contacts;
     @Size(max=2000) private String reason;

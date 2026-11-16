@@ -18,11 +18,13 @@ public class SampleUrgentDO extends TenantBaseDO {
     private String projectNo;
     /** 临床方案ID（老样本系统 reagent_clinical.id） */
     private Long clinicalId;
+    private String inboundSite;
     private Boolean newProject;
     private String basNos;
     private String sampleScope;
     private LocalDateTime deadline;
     private LocalDateTime expectedArrival;
+    private LocalDateTime sampleReceivedTime;
     private LocalDateTime plannedTestTime;
     private String contacts;
     private String legacyContacts;

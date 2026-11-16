@@ -251,7 +251,8 @@ public class PmsKnowledgeDocumentController {
             @Valid PmsKnowledgeDocumentSearchPageReqVO pageReqVO) {
         PageResult<PmsKnowledgeDocumentDO> pageResult = documentService.getDocumentSearchPage(
                 pageReqVO, getLoginUserId());
-        return success(new PageResult<>(buildDocumentRespVOList(pageResult.getList(), pageReqVO.getKeyword()), pageResult.getTotal()));
+        return success(new PageResult<>(buildDocumentRespVOList(
+                pageResult.getList(), pageReqVO.getKeyword(), pageReqVO.getLibraryId()), pageResult.getTotal()));
     }
 
     // ==================== 拼接 VO ====================
@@ -297,7 +298,8 @@ public class PmsKnowledgeDocumentController {
         return documentVO;
     }
 
-    private List<PmsKnowledgeDocumentRespVO> buildDocumentRespVOList(List<PmsKnowledgeDocumentDO> documents, String keyword) {
+    private List<PmsKnowledgeDocumentRespVO> buildDocumentRespVOList(
+            List<PmsKnowledgeDocumentDO> documents, String keyword, Long libraryId) {
         if (CollUtil.isEmpty(documents)) {
             return Collections.emptyList();
         }
@@ -305,16 +307,19 @@ public class PmsKnowledgeDocumentController {
                 convertSet(documents, PmsKnowledgeDocumentDO::getLibraryId));
         Map<Long, AdminUserRespDTO> userMap = adminUserApi.getUserMap(convertSet(documents,
                 document -> NumberUtils.parseLong(document.getCreator())));
+        Set<Long> documentIds = convertSet(documents, PmsKnowledgeDocumentDO::getId);
+        Map<Long, Map<String, String>> searchAttributes = attributeService.searchValues(libraryId, documentIds);
         Map<Long, String> reviewResults = new java.util.HashMap<>();
         reviewRecordMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeReviewRecordDO>()
                 .in(cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeReviewRecordDO::getDocumentId,
-                        convertSet(documents, PmsKnowledgeDocumentDO::getId))
+                        documentIds)
                 .orderByDesc(cn.iocoder.yudao.module.pms.dal.dataobject.kb.content.PmsKnowledgeReviewRecordDO::getId))
                 .forEach(record -> reviewResults.putIfAbsent(record.getDocumentId(), record.getResult()));
         return convertList(documents, document -> {
             PmsKnowledgeDocumentRespVO documentVO = BeanUtils.toBean(document, PmsKnowledgeDocumentRespVO.class)
                     .setContent(null).setContentSummary(buildContentSummary(document.getSearchText(), keyword))
                     .setCreatorUserId(NumberUtils.parseLong(document.getCreator()))
+                    .setAttributes(searchAttributes.get(document.getId()))
                     .setReviewResult(reviewResults.getOrDefault(document.getId(), "unreviewed"));
             findAndThen(libraryMap, document.getLibraryId(),
                     library -> documentVO.setLibraryName(library.getName()));

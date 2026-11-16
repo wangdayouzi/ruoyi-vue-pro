@@ -45,7 +45,7 @@ public class SampleUrgentNotifier {
                 || "false".equalsIgnoreCase(setting("enabled"))) return;
         var planned=row.getDeadline().minusMinutes(120);
         if(planned.isBefore(now)) planned=now;
-        var receivers=templateTargets();
+        var receivers=templateTargets(row);
         deliver(row,receivers,"urgent-soon-"+row.getId()+"-"+row.getRevision(),
                 "即将逾期","",planned,null);
     }
@@ -68,7 +68,7 @@ public class SampleUrgentNotifier {
         boolean partialInbound = "更新进度".equals(event.action()) && row.getStatus() == 2;
         if ("更新进度".equals(event.action()) && !partialInbound) return;
         Targets receivers=switch(event.action()) {
-            case "登记需求" -> templateTargets();
+            case "登记需求" -> templateTargets(row);
             case "修改需求", "取消需求" -> sampleTargets(row);
             case "补充说明" -> SampleUrgentRules.isParty(row,event.actorId())?sampleTargets(row):appointmentTargets(row);
             case "更新进度", "完成" -> new Targets(
@@ -94,16 +94,16 @@ public class SampleUrgentNotifier {
         var users=row.getNoticeUserIds()==null?List.<Long>of():row.getNoticeUserIds();
         var depts=row.getNoticeDeptIds()==null?List.<Long>of():row.getNoticeDeptIds();
         if(!users.isEmpty() || !depts.isEmpty()) return new Targets(users,depts,true);
-        return templateTargets();
+        return templateTargets(row);
     }
-    private Targets templateTargets() {
-        var defaults=sender.getDefaultUserIds("sample_urgent_notice");
+    private Targets templateTargets(SampleUrgentDO row) {
+        var defaults=sender.getDefaultUserIds(SampleUrgentTemplateParameters.codeForSite(row.getInboundSite()));
         return new Targets(Objects.requireNonNullElse(defaults, List.of()), List.of(), true);
     }
     void deliver(SampleUrgentDO row,Targets targets,String requestId,String action,String content,
                  java.time.LocalDateTime sendAfter,Long actorId) {
         var plan=new DingTalkNotificationPlanReqDTO();
-        plan.setRequestId(requestId); plan.setTemplateCode("sample_urgent_notice"); plan.setBusinessId("sample-urgent:"+row.getId());
+        plan.setRequestId(requestId); plan.setTemplateCode(SampleUrgentTemplateParameters.codeForSite(row.getInboundSite())); plan.setBusinessId("sample-urgent:"+row.getId());
         plan.setParams(params(row,action,content)); plan.setUserIds(targets.users()); plan.setDeptIds(targets.departments());
         plan.setExcludedUserIds(actorId==null?List.of():List.of(actorId)); plan.setSendAfter(sendAfter);
         boolean deadlineNotice=requestId.startsWith("urgent-soon-");
@@ -114,6 +114,7 @@ public class SampleUrgentNotifier {
 
     Map<String,String> params(SampleUrgentDO row,String action,String content) {
         Map<String,String> p=new LinkedHashMap<>();
+        p.put("inboundSite", SampleUrgentTemplateParameters.siteName(row.getInboundSite()));
         p.put("action",value(action,50)); p.put("registrationNo",String.valueOf(row.getId()));
         p.put("clinicalProtocolNo",value(row.getProjectNo(),200)); p.put("testItems",value(row.getSampleScope(),400));
         p.put("basNos",value(row.getBasNos(),300)); p.put("reservationTime",time(row.getDeadline()));

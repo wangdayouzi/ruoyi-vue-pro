@@ -57,6 +57,22 @@ class SampleUrgentNotifierTest {
         assertEquals("urgent-event-100",args.getValue().getRequestId()); assertEquals("sample-urgent:1",args.getValue().getBusinessId());
         verifyNoInteractions(logs);
     }
+    @Test void shanghaiRegistrationAndReminderUseShanghaiTemplateRecipients() {
+        row.setInboundSite("SHANGHAI");
+        when(sender.getDefaultUserIds("sample_urgent_notice_shanghai")).thenReturn(List.of(30L));
+
+        notifier.notifyEvent(event(10L, "登记需求"));
+
+        var plans = ArgumentCaptor.forClass(DingTalkNotificationPlanReqDTO.class);
+        verify(queue(), times(2)).enqueuePlan(plans.capture(), any());
+        for (var plan : plans.getAllValues()) {
+            assertEquals("sample_urgent_notice_shanghai", plan.getTemplateCode());
+            assertEquals(List.of(30L), plan.getUserIds());
+            assertEquals("上海", plan.getParams().get("inboundSite"));
+        }
+        verify(sender, never()).getDefaultUserIds("sample_urgent_notice");
+    }
+
     @Test void afterClaimChangesOnlyNotifyCurrentHandler() {
         row.setHandlerId(22L); notifier.notifyEvent(event(10L,"修改需求"));
         var args=ArgumentCaptor.forClass(DingTalkMessageSendReqDTO.class); verify(sender).send(args.capture());

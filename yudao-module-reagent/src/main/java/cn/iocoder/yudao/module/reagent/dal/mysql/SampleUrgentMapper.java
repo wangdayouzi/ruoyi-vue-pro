@@ -25,6 +25,8 @@ public interface SampleUrgentMapper extends BaseMapperX<SampleUrgentDO> {
         }
         q.apply(StringUtils.hasText(req.getContacts()), "contacts ILIKE {0}", "%" + req.getContacts() + "%")
                 .eqIfPresent(SampleUrgentDO::getStatus,req.getStatus());
+        q.eq("NINGBO".equals(req.getInboundSite()) || "SHANGHAI".equals(req.getInboundSite()),
+                SampleUrgentDO::getInboundSite, req.getInboundSite());
         if (Boolean.TRUE.equals(req.getExceptionOnly())) q.ne(SampleUrgentDO::getExceptionType,"NONE");
         if ("MINE".equals(req.getView())) q.and(w->w.apply("appointment_user_ids::jsonb @> {0}::jsonb","["+userId+"]")
                 .or().nested(v->v.apply("appointment_user_ids::jsonb = '[]'::jsonb").eq(SampleUrgentDO::getRequesterId,userId)));

@@ -12,10 +12,10 @@ import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionU
 public class DingTalkTemplateParameterService {
     private final ObjectProvider<DingTalkTemplateParameterProvider> providers;
     public List<DingTalkTemplateParameterProvider.Parameter> parameters(String code) {
-        return providers.orderedStream().filter(p->p.templateCode().equals(code)).findFirst().map(p->p.parameters()).orElse(List.of());
+        return providers.orderedStream().filter(p->p.supports(code)).findFirst().map(p->p.parameters()).orElse(List.of());
     }
     public void validate(String code,Collection<String> used) {
-        var provider=providers.orderedStream().filter(p->p.templateCode().equals(code)).findFirst();
+        var provider=providers.orderedStream().filter(p->p.supports(code)).findFirst();
         if(provider.isEmpty()) return; // 未登记字段声明的手动模板，不冒充接口声明。
         var allowed=provider.get().parameters().stream().map(p->p.key()).collect(Collectors.toSet());
         var unknown=used.stream().filter(key->!allowed.contains(key)).toList();

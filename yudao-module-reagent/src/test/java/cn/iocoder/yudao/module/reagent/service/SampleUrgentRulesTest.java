@@ -13,14 +13,16 @@ class SampleUrgentRulesTest {
                 " 25BAS0076-Blind,25BAS0077-Blind，25BAS0078-Blind；\n25BAS0076-Blind、"));
         assertEquals("",SampleUrgentRules.normalizeBas(null));
     }
-    @Test void requiresBasForNewProjectsButAllowsExistingProjectWithoutBas() {
+    @Test void requiresBasForNewAndExistingProjects() {
         var req=new SampleUrgentSaveReqVO(); req.setNewProject(true); req.setBasNos("，； ");
         assertThrows(ServiceException.class,()->SampleUrgentRules.validateSave(req));
         req.setNewProject(false);
+        assertThrows(ServiceException.class, () -> SampleUrgentRules.validateSave(req));
+        req.setBasNos("26BAS0001");
         assertDoesNotThrow(()->SampleUrgentRules.validateSave(req));
     }
     @Test void historicalArrivalDoesNotBlockReschedulingThroughSimplifiedForm() {
-        var req=new SampleUrgentSaveReqVO(); req.setDeadline(LocalDateTime.now()); req.setExpectedArrival(req.getDeadline().plusHours(1));
+        var req=new SampleUrgentSaveReqVO(); req.setDeadline(LocalDateTime.now()); req.setExpectedArrival(req.getDeadline().plusHours(1)); req.setBasNos("26BAS0001");
         assertDoesNotThrow(()->SampleUrgentRules.validateSave(req));
     }
     @Test void partialInboundCanOmitBothScopes() {
@@ -39,7 +41,7 @@ class SampleUrgentRulesTest {
         req.setRemainingScope("一管待回复");
         assertThrows(ServiceException.class,()->SampleUrgentRules.validateProgress(req,row()));
         req.setRemainingScope(""); req.setCompletedTime(LocalDateTime.now().plusDays(1));
-        assertThrows(ServiceException.class,()->SampleUrgentRules.validateProgress(req,row()));
+        assertDoesNotThrow(()->SampleUrgentRules.validateProgress(req,row()));
         req.setCompletedTime(LocalDateTime.now().minusDays(2));
         assertThrows(ServiceException.class,()->SampleUrgentRules.validateProgress(req,row()));
         req.setCompletedTime(LocalDateTime.now().minusMinutes(5));

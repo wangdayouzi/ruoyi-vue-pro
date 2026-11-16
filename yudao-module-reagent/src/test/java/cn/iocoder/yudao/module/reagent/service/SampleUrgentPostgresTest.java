@@ -73,7 +73,7 @@ class SampleUrgentPostgresTest {
     }
     @AfterEach void after() { TenantContextHolder.clear(); SecurityContextHolder.clearContext(); }
     @Test void lifecyclePersistsLogsClearsOptionalDatesAndKeepsTenantIsolation() {
-        var req=new SampleUrgentSaveReqVO(); req.setProjectNo("URGENT-INTEGRATION-ONLY");
+        var req=new SampleUrgentSaveReqVO(); req.setInboundSite("NINGBO"); req.setProjectNo("URGENT-INTEGRATION-ONLY");
         req.setNewProject(true); req.setBasNos("26BAS0001,26BAS0002-Blind;"); req.setContacts("项目人员甲、乙");
         req.setAppointmentUserIds(java.util.List.of(987654322L));
         req.setNoticeUserIds(java.util.List.of(987654321L)); req.setNoticeDeptIds(java.util.List.of());

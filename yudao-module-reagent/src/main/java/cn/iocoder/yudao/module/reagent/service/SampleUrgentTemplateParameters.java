@@ -6,9 +6,25 @@ import java.util.List;
 
 @Component
 public class SampleUrgentTemplateParameters implements DingTalkTemplateParameterProvider {
-    public String templateCode() { return "sample_urgent_notice"; }
+    static final String NINGBO_TEMPLATE = "sample_urgent_notice";
+    static final String SHANGHAI_TEMPLATE = "sample_urgent_notice_shanghai";
+
+    public String templateCode() { return NINGBO_TEMPLATE; }
+    @Override
+    public boolean supports(String code) {
+        return NINGBO_TEMPLATE.equals(code) || SHANGHAI_TEMPLATE.equals(code);
+    }
+
+    static String codeForSite(String site) {
+        return "SHANGHAI".equals(site) ? SHANGHAI_TEMPLATE : NINGBO_TEMPLATE;
+    }
+
+    static String siteName(String site) {
+        return "SHANGHAI".equals(site) ? "上海" : "宁波";
+    }
     public List<Parameter> parameters() {
         return List.of(
+            new Parameter("inboundSite","入库地点","上海"),
             new Parameter("action","本次事项","登记需求"),
             new Parameter("registrationNo","登记编号","12"),
             new Parameter("clinicalProtocolNo","临床方案编号","ABC-101"),
