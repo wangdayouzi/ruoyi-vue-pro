@@ -58,3 +58,6 @@ application-my.yaml
 /script/docker/.env.local
 /script/docker-test/.env
 /script/docker-test/.env.local
+
+# Local scan reports and validation artifacts
+/output/
