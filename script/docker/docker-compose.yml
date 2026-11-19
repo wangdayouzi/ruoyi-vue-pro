@@ -103,7 +103,7 @@ services:
 
   admin:
     container_name: yudao-admin
-    image: nginx:1.27-alpine
+    image: nginx:1.30.7-alpine
     restart: unless-stopped
     ports:
       - "8080:80"

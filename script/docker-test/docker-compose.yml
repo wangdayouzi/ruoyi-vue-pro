@@ -122,7 +122,7 @@ services:
 
   admin:
     container_name: yudao-test-admin
-    image: nginx:1.27-alpine
+    image: nginx:1.30.7-alpine
     restart: unless-stopped
     ports:
       - "8081:443"            # 测试 HTTPS 入口，与正式端口隔离
