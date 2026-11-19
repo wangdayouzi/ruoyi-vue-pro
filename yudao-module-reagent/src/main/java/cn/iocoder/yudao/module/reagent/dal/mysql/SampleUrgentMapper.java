@@ -7,10 +7,15 @@ import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleUrgentPageReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.SampleUrgentDO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
 
 @Mapper
 public interface SampleUrgentMapper extends BaseMapperX<SampleUrgentDO> {
+    /** 自定义查询包含软删除记录，避免删除某天的单据后重新生成。 */
+    @Select("SELECT COUNT(*) FROM sample_urgent WHERE recurring_plan_id = #{planId} AND recurring_date = #{date}")
+    long countPlanDay(@Param("planId") Long planId, @Param("date") java.time.LocalDate date);
     default SampleUrgentDO lock(Long id) {
         return selectOne(new LambdaQueryWrapperX<SampleUrgentDO>().eq(SampleUrgentDO::getId,id).last("FOR UPDATE"));
     }
@@ -28,7 +33,8 @@ public interface SampleUrgentMapper extends BaseMapperX<SampleUrgentDO> {
         q.eq("NINGBO".equals(req.getInboundSite()) || "SHANGHAI".equals(req.getInboundSite()),
                 SampleUrgentDO::getInboundSite, req.getInboundSite());
         q.betweenIfPresent(SampleUrgentDO::getDeadline, req.getDeadline())
-                .betweenIfPresent(SampleUrgentDO::getCreateTime, req.getCreateTime());
+                .betweenIfPresent(SampleUrgentDO::getCreateTime, req.getCreateTime())
+                .eqIfPresent(SampleUrgentDO::getRecurringPlanId, req.getRecurringPlanId());
         if (Boolean.TRUE.equals(req.getExceptionOnly())) q.ne(SampleUrgentDO::getExceptionType,"NONE");
         if ("MINE".equals(req.getView())) q.and(w->w.apply("appointment_user_ids::jsonb @> {0}::jsonb","["+userId+"]")
                 .or().nested(v->v.apply("appointment_user_ids::jsonb = '[]'::jsonb").eq(SampleUrgentDO::getRequesterId,userId)));

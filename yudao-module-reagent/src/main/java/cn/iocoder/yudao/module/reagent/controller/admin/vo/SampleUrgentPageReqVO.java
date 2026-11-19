@@ -16,6 +16,7 @@ public class SampleUrgentPageReqVO extends PageParam {
     @Pattern(regexp="ALL|MINE|SUBMITTED|HANDLING|TODAY|OVERDUE") private String view;
     @Pattern(regexp = "ALL|NINGBO|SHANGHAI") private String inboundSite;
     private Boolean exceptionOnly;
+    @Positive private Long recurringPlanId;
     @DateTimeFormat(pattern = FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND)
     @Size(max = 2) private LocalDateTime[] deadline;
     @DateTimeFormat(pattern = FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND)

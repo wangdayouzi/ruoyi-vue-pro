@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.*;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
@@ -116,6 +117,31 @@ public class SampleUrgentService {
                 siteChanged || !Objects.equals(row.getDeadline(), updated.getDeadline()));
         return row.getId();
     }
+
+    /** 后台周期生成明确归属原提交人，不依赖调度线程的登录态。由计划事务统一提交。 */
+    public Long createFromPlan(SampleUrgentSaveReqVO req, Long planId, LocalDate date, Long requesterId) {
+        users.validateUser(requesterId);
+        if (!permissions.hasAnyPermissions(requesterId, "reagent:sample-urgent:create"))
+            throw invalidParamException("计划提交人已无登记权限，请重新建立计划");
+        SampleUrgentRules.validateSave(req);
+        people.prepare(req);
+        var row = BeanUtils.toBean(req, SampleUrgentDO.class);
+        row.setId(null);
+        row.setProjectNo(req.getProjectNo().trim());
+        row.setBasNos(SampleUrgentRules.normalizeBas(req.getBasNos()));
+        row.setSampleScope(req.getSampleScope().trim());
+        row.setReason(Objects.toString(req.getReason(), ""));
+        row.setRequesterId(requesterId);
+        row.setRequesterName(users.getUser(requesterId).getNickname());
+        row.setNoticeNames(people.noticeNames(req.getNoticeUserIds(), req.getNoticeDeptIds()));
+        row.setStatus(0); row.setExceptionType("NONE"); row.setRevision(0);
+        row.setRecurringPlanId(planId); row.setRecurringDate(date);
+        row.setCreator(requesterId.toString()); row.setUpdater(requesterId.toString());
+        mapper.insert(row);
+        logWithActor(row.getId(), "登记需求", "由周期计划 #" + planId + " 自动生成（" + date + "）\n" + describe(req),
+                false, requesterId, row.getRequesterName());
+        return row.getId();
+    }
     @Transactional(rollbackFor=Exception.class)
     @LogRecord(type = "试剂管理-加急入库", subType = "处理需求",
             bizNo = "{{#req.id}}", success = "{{#urgentAction}}，处理记录编号 {{#urgentLogId}}：{{#urgentSummary}}")
@@ -182,15 +208,18 @@ public class SampleUrgentService {
         log(id, action, content, false);
     }
     private void log(Long id,String action,String content, boolean deadlineChanged) {
+        logWithActor(id, action, content, deadlineChanged, userId(), userName());
+    }
+    private void logWithActor(Long id, String action, String content, boolean deadlineChanged, Long operatorId, String operatorName) {
         var log=new SampleUrgentLogDO(); log.setUrgentId(id); log.setAction(action); log.setContent(content);
-        log.setOperatorId(userId()); log.setOperatorName(userName()); logs.insert(log);
+        log.setOperatorId(operatorId); log.setOperatorName(operatorName); logs.insert(log);
         LogRecordContext.putVariable("urgentAction", action);
         LogRecordContext.putVariable("urgentSummary", content.length() <= 800
                 ? content : content.substring(0, 800) + "…（完整内容见处理记录）");
         LogRecordContext.putVariable("urgentLogId", log.getId());
         events.publishEvent(new SampleUrgentNoticeEvent(
                 TenantContextHolder.getTenantId(),
-                id,log.getId(),userId(),action,content,deadlineChanged));
+                id,log.getId(),operatorId,action,content,deadlineChanged));
     }
     private String describe(SampleUrgentSaveReqVO r) {
         return "临床方案编号："+r.getProjectNo()

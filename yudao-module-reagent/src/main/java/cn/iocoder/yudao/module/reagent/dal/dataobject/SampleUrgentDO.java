@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /** 一次样品加急需求，不直接改变 ERP 或样品库存。 */
 @TableName(value="sample_urgent",autoResultMap=true)
@@ -52,4 +53,8 @@ public class SampleUrgentDO extends TenantBaseDO {
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private LocalDateTime completedTime;
     private Integer revision;
+    @TableField(updateStrategy = FieldStrategy.NEVER)
+    private Long recurringPlanId;
+    @TableField(updateStrategy = FieldStrategy.NEVER)
+    private LocalDate recurringDate;
 }
