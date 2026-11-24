@@ -5,8 +5,6 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentShipmentDO;
-import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentShipmentItemDO;
-import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentShipmentItemMapper;
 import cn.iocoder.yudao.module.reagent.service.ReagentShipmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,9 +33,6 @@ public class ReagentShipmentController {
     @Resource
     private ReagentShipmentService reagentShipmentService;
 
-    @Resource
-    private ReagentShipmentItemMapper reagentShipmentItemMapper;
-
     @GetMapping("/page")
     @Operation(summary = "获得发货单分页")
     @PreAuthorize("@ss.hasPermission('reagent:shipment:query')")
@@ -51,11 +46,7 @@ public class ReagentShipmentController {
     @Parameter(name = "id", description = "编号", required = true)
     @PreAuthorize("@ss.hasPermission('reagent:shipment:query')")
     public CommonResult<ReagentShipmentRespVO> getShipment(@RequestParam("id") Long id) {
-        ReagentShipmentDO shipment = reagentShipmentService.getShipment(id);
-        ReagentShipmentRespVO respVO = BeanUtils.toBean(shipment, ReagentShipmentRespVO.class);
-        List<ReagentShipmentItemDO> items = reagentShipmentItemMapper.selectListByShipmentId(id);
-        respVO.setItems(BeanUtils.toBean(items, ReagentShipmentItemVO.class));
-        return success(respVO);
+        return success(reagentShipmentService.getShipmentDetail(id));
     }
 
     @GetMapping("/list-by-apply-id")

@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.reagent.enums.ErrorCodeConstants.*;
@@ -185,7 +186,7 @@ public class ReagentLabelPrintJobServiceImpl implements ReagentLabelPrintJobServ
         byte[] supplied = sha256(agentToken);
         boolean authorized = printers.stream()
                 .map(ReagentLabelPrinterDO::getAgentTokenHash)
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .map(hash -> hash.getBytes(StandardCharsets.UTF_8))
                 .anyMatch(expected -> MessageDigest.isEqual(expected, supplied));
         if (printers.isEmpty() || !authorized) {

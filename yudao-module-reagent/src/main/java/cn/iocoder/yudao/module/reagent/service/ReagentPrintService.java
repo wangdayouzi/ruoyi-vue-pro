@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.time.LocalDateTime;
+import java.util.function.Function;
 
 /**
  * 试剂打印 Service
@@ -173,7 +175,7 @@ public class ReagentPrintService {
     /**
      * 多字段值去重拼接
      */
-    private static <T> String joinField(List<T> list, java.util.function.Function<T, String> getter, String sep) {
+    private static <T> String joinField(List<T> list, Function<T, String> getter, String sep) {
         return list.stream()
                 .map(getter)
                 .filter(v -> v != null && !v.isBlank())
@@ -188,7 +190,7 @@ public class ReagentPrintService {
     }
 
     /** 过期日期：null / 1970 空值（历史脏数据把空日期存成了 1970-01-01） → 空串 */
-    private static String fmtExpireDate(java.time.LocalDateTime d) {
+    private static String fmtExpireDate(LocalDateTime d) {
         if (d == null) {
             return "";
         }

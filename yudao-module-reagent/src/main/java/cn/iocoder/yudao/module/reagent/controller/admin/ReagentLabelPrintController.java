@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.constraints.Min;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -45,7 +46,7 @@ public class ReagentLabelPrintController {
     @PreAuthorize("@ss.hasPermission('reagent:label-print:query')")
     public CommonResult<PageResult<ReagentLabelPrintRespVO>> getLabelPrint(
             @RequestParam("basId") @NotBlank(message = "BASID 不能为空") String basId,
-            @RequestParam(value = "pageNo", defaultValue = "1") @jakarta.validation.constraints.Min(value = 1, message = "页码最小值为 1") Integer pageNo) {
+            @RequestParam(value = "pageNo", defaultValue = "1") @Min(value = 1, message = "页码最小值为 1") Integer pageNo) {
         return success(reagentLabelPrintService.getPageByBasId(basId, pageNo));
     }
 

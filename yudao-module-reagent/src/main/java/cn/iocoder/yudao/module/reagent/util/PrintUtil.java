@@ -9,6 +9,10 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * JXLS 3.x Excel 打印工具类
@@ -67,13 +71,13 @@ public class PrintUtil {
     public static String fmtDate(Object dateObj) {
         if (dateObj == null) return "";
         try {
-            if (dateObj instanceof java.time.LocalDateTime ldt) return ldt.format(DATE_FMT);
-            if (dateObj instanceof java.time.LocalDate ld) return ld.format(DATE_FMT);
-            if (dateObj instanceof java.util.Date d)
-                return d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(DATE_FMT);
+            if (dateObj instanceof LocalDateTime ldt) return ldt.format(DATE_FMT);
+            if (dateObj instanceof LocalDate ld) return ld.format(DATE_FMT);
+            if (dateObj instanceof Date d)
+                return d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate().format(DATE_FMT);
             if (dateObj instanceof Number n)
-                return java.time.Instant.ofEpochMilli(n.longValue())
-                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(DATE_FMT);
+                return Instant.ofEpochMilli(n.longValue())
+                        .atZone(ZoneId.systemDefault()).toLocalDate().format(DATE_FMT);
             return dateObj.toString();
         } catch (Exception e) { return dateObj.toString(); }
     }
@@ -81,13 +85,13 @@ public class PrintUtil {
     public static String fmtDateTime(Object dateObj) {
         if (dateObj == null) return "";
         try {
-            if (dateObj instanceof java.time.LocalDateTime ldt) return ldt.format(DATETIME_FMT);
-            if (dateObj instanceof java.time.LocalDate ld) return ld.atStartOfDay().format(DATETIME_FMT);
-            if (dateObj instanceof java.util.Date d)
-                return d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime().format(DATETIME_FMT);
+            if (dateObj instanceof LocalDateTime ldt) return ldt.format(DATETIME_FMT);
+            if (dateObj instanceof LocalDate ld) return ld.atStartOfDay().format(DATETIME_FMT);
+            if (dateObj instanceof Date d)
+                return d.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime().format(DATETIME_FMT);
             if (dateObj instanceof Number n)
-                return java.time.Instant.ofEpochMilli(n.longValue())
-                        .atZone(java.time.ZoneId.systemDefault()).toLocalDateTime().format(DATETIME_FMT);
+                return Instant.ofEpochMilli(n.longValue())
+                        .atZone(ZoneId.systemDefault()).toLocalDateTime().format(DATETIME_FMT);
             return dateObj.toString();
         } catch (Exception e) { return dateObj.toString(); }
     }

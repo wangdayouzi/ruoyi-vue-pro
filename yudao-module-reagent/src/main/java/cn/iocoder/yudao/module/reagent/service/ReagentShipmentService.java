@@ -13,6 +13,8 @@ import java.util.List;
  */
 public interface ReagentShipmentService {
 
+    ReagentShipmentRespVO getShipmentDetail(Long id);
+
     /**
      * 确认发货（样品组操作）
      * 1. 校验物流必填项

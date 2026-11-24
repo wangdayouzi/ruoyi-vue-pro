@@ -1,16 +1,12 @@
 package cn.iocoder.yudao.module.reagent.controller.admin;
 
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.collection.MapUtils;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyDO;
-import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyItemDO;
-import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentApplyItemMapper;
-import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentBaseFlatMapper;
 import cn.iocoder.yudao.module.reagent.service.ReagentApplyService;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import cn.iocoder.yudao.module.system.api.user.dto.AdminUserRespDTO;
@@ -44,12 +40,6 @@ public class ReagentApplyController {
     private ReagentApplyService reagentApplyService;
 
     @Resource
-    private ReagentApplyItemMapper reagentApplyItemMapper;
-
-    @Resource
-    private ReagentBaseFlatMapper reagentBaseFlatMapper; // 老ERP扁平表（详情补温度/位置/规格）
-
-    @Resource
     private AdminUserApi adminUserApi;
 
     @GetMapping("/page")
@@ -73,30 +63,7 @@ public class ReagentApplyController {
     @Parameter(name = "id", description = "编号", required = true)
     @PreAuthorize("@ss.hasPermission('reagent:apply:query')")
     public CommonResult<ReagentApplyRespVO> getApply(@RequestParam("id") Long id) {
-        ReagentApplyDO apply = reagentApplyService.getApply(id);
-        ReagentApplyRespVO respVO = BeanUtils.toBean(apply, ReagentApplyRespVO.class);
-        // 填充明细 & 联查试剂基础数据补 storageTemp、storageLocation、content
-        List<ReagentApplyItemDO> items = reagentApplyItemMapper.selectListByApplyId(id);
-        List<ReagentApplyItemVO> itemVOs = BeanUtils.toBean(items, ReagentApplyItemVO.class);
-        for (ReagentApplyItemVO vo : itemVOs) {
-            if (vo.getBasId() != null) {
-                // 申请明细改为文本落库（可手改）；扁平表仅作空值回填，手动值优先
-                var flat = reagentBaseFlatMapper.selectByReagentCodeAndLotNo(vo.getBasId(), vo.getLotNo());
-                if (flat != null) {
-                    if (StrUtil.isBlank(vo.getStorageTemp())) {
-                        vo.setStorageTemp(flat.getStorageTemp());
-                    }
-                    if (StrUtil.isBlank(vo.getStorageLocation())) {
-                        vo.setStorageLocation(flat.getStorageLocation());
-                    }
-                    if (StrUtil.isBlank(vo.getContent())) {
-                        vo.setContent(flat.getSpec());
-                    }
-                }
-            }
-        }
-        respVO.setItems(itemVOs);
-        return success(respVO);
+        return success(reagentApplyService.getApplyDetail(id));
     }
 
     @PostMapping("/create")

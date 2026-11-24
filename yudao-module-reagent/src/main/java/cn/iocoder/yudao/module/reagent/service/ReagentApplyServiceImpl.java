@@ -29,6 +29,7 @@ import java.util.Map;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import cn.iocoder.yudao.module.reagent.dal.mysql.ReagentBaseFlatMapper;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.reagent.enums.ErrorCodeConstants.*;
@@ -49,6 +50,28 @@ public class ReagentApplyServiceImpl implements ReagentApplyService {
 
     @Resource
     private ReagentApplyItemMapper reagentApplyItemMapper;
+
+    @Resource
+    private ReagentBaseFlatMapper reagentBaseFlatMapper;
+
+    @Override
+    public ReagentApplyRespVO getApplyDetail(Long id) {
+        ReagentApplyDO apply = getApply(id);
+        if (apply == null) throw exception(REAGENT_APPLY_NOT_EXISTS);
+        ReagentApplyRespVO result = BeanUtils.toBean(apply, ReagentApplyRespVO.class);
+        List<ReagentApplyItemVO> items = BeanUtils.toBean(reagentApplyItemMapper.selectListByApplyId(id), ReagentApplyItemVO.class);
+        for (ReagentApplyItemVO item : items) {
+            if (item.getBasId() == null) continue;
+            var flat = reagentBaseFlatMapper.selectByReagentCodeAndLotNo(item.getBasId(), item.getLotNo());
+            if (flat == null) continue;
+            // 手工录入值优先，ERP 基础资料只补充缺失字段。
+            if (StrUtil.isBlank(item.getStorageTemp())) item.setStorageTemp(flat.getStorageTemp());
+            if (StrUtil.isBlank(item.getStorageLocation())) item.setStorageLocation(flat.getStorageLocation());
+            if (StrUtil.isBlank(item.getContent())) item.setContent(flat.getSpec());
+        }
+        result.setItems(items);
+        return result;
+    }
 
     @Resource
     private BpmProcessInstanceApi bpmProcessInstanceApi;

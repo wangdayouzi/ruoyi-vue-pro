@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 @Mapper
 public interface ReagentLabelPrintJobMapper extends BaseMapperX<ReagentLabelPrintJobDO> {
@@ -36,7 +37,7 @@ public interface ReagentLabelPrintJobMapper extends BaseMapperX<ReagentLabelPrin
                 .set(ReagentLabelPrintJobDO::getStatus, ReagentLabelPrintJobDO.STATUS_CLAIMED)
                 .set(ReagentLabelPrintJobDO::getAgentCode, agentCode)
                 .set(ReagentLabelPrintJobDO::getClaimToken, claimToken)
-                .set(ReagentLabelPrintJobDO::getClaimedTime, java.time.LocalDateTime.now())
+                .set(ReagentLabelPrintJobDO::getClaimedTime, LocalDateTime.now())
                 .eq(ReagentLabelPrintJobDO::getId, jobId)
                 .eq(ReagentLabelPrintJobDO::getStatus, ReagentLabelPrintJobDO.STATUS_PENDING)) > 0;
     }
@@ -47,7 +48,7 @@ public interface ReagentLabelPrintJobMapper extends BaseMapperX<ReagentLabelPrin
                 .set(ReagentLabelPrintJobDO::getStatus, ReagentLabelPrintJobDO.STATUS_FAILED)
                 .set(ReagentLabelPrintJobDO::getErrorCode, "AGENT_RESTARTED")
                 .set(ReagentLabelPrintJobDO::getErrorMessage, "打印代理重启，未确认是否已出纸；请人工确认后重新打印")
-                .set(ReagentLabelPrintJobDO::getCompletedTime, java.time.LocalDateTime.now())
+                .set(ReagentLabelPrintJobDO::getCompletedTime, LocalDateTime.now())
                 .eq(ReagentLabelPrintJobDO::getAgentCode, agentCode)
                 .in(ReagentLabelPrintJobDO::getStatus, ReagentLabelPrintJobDO.STATUS_CLAIMED,
                         ReagentLabelPrintJobDO.STATUS_PRINTING));

@@ -42,6 +42,15 @@ public class ReagentShipmentServiceImpl implements ReagentShipmentService {
     @Resource
     private ReagentShipmentItemMapper reagentShipmentItemMapper;
 
+    @Override
+    public ReagentShipmentRespVO getShipmentDetail(Long id) {
+        ReagentShipmentDO shipment = getShipment(id);
+        if (shipment == null) throw exception(REAGENT_SHIPMENT_NOT_EXISTS);
+        ReagentShipmentRespVO result = BeanUtils.toBean(shipment, ReagentShipmentRespVO.class);
+        result.setItems(BeanUtils.toBean(reagentShipmentItemMapper.selectListByShipmentId(id), ReagentShipmentItemVO.class));
+        return result;
+    }
+
     @Resource
     private ReagentApplyMapper reagentApplyMapper;
 

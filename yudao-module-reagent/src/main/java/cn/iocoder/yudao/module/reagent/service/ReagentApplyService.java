@@ -11,6 +11,8 @@ import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentApplyDO;
  */
 public interface ReagentApplyService {
 
+    ReagentApplyRespVO getApplyDetail(Long id);
+
     /**
      * 创建申请单（项目组提单）
      */
