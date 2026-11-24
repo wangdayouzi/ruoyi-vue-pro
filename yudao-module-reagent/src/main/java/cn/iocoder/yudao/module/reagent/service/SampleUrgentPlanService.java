@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
 
 @Service
@@ -93,7 +95,7 @@ public class SampleUrgentPlanService {
         if (plan.getStatus() == 2) throw invalidParamException("已结束的计划不能调整，请新建计划");
         var today = SampleUrgentPlanRules.today();
         if (req.getEndDate().isBefore(today) || req.getEndDate().isBefore(plan.getStartDate())
-                || java.time.temporal.ChronoUnit.DAYS.between(plan.getStartDate(), req.getEndDate()) >= 366)
+                || ChronoUnit.DAYS.between(plan.getStartDate(), req.getEndDate()) >= 366)
             throw invalidParamException("结束日期不能早于今天或开始日期，计划总跨度最长366天");
         var from = plan.getStartDate().isAfter(today) ? plan.getStartDate() : today;
         var next = SampleUrgentPlanRules.nextOccurrence(from, req.getEndDate(), req.getWeekdays());
@@ -106,7 +108,7 @@ public class SampleUrgentPlanService {
     }
 
     /** 失败后暂停，保留可读原因；不覆盖调度失败后已被用户更新的状态。 */
-    public void pauseOnFailure(Long id, int revision, java.time.LocalDate expectedNextDate, String message) {
+    public void pauseOnFailure(Long id, int revision, LocalDate expectedNextDate, String message) {
         String reason = Objects.toString(message, "生成失败，请联系管理员");
         plans.update(null, new LambdaUpdateWrapper<SampleUrgentPlanDO>()
                 .eq(SampleUrgentPlanDO::getId, id).eq(SampleUrgentPlanDO::getRevision, revision)

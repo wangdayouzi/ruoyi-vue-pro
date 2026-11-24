@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.reagent.dal.mysql.*;
 import org.junit.jupiter.api.*;
 import java.time.*;
 import java.util.List;
+import cn.iocoder.yudao.module.reagent.dal.dataobject.SampleUrgentDO;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -49,7 +50,7 @@ class SampleUrgentPlanGeneratorTest {
     @Test void finalDayEndsPlanWithoutChangingExistingDailyRecords() {
         plan.setEndDate(friday); generator.generate(1L, friday);
         assertEquals(2, plan.getStatus()); assertEquals(friday.plusDays(1), plan.getNextDate());
-        verify(records, never()).updateById(any(cn.iocoder.yudao.module.reagent.dal.dataobject.SampleUrgentDO.class));
+        verify(records, never()).updateById(any(SampleUrgentDO.class));
     }
     @Test void failureDoesNotAdvanceCursor() {
         when(service.createFromPlan(any(), anyLong(), any(), anyLong())).thenThrow(new IllegalStateException("生成失败"));

@@ -10,12 +10,13 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Mapper
 public interface SampleUrgentMapper extends BaseMapperX<SampleUrgentDO> {
     /** 自定义查询包含软删除记录，避免删除某天的单据后重新生成。 */
     @Select("SELECT COUNT(*) FROM sample_urgent WHERE recurring_plan_id = #{planId} AND recurring_date = #{date}")
-    long countPlanDay(@Param("planId") Long planId, @Param("date") java.time.LocalDate date);
+    long countPlanDay(@Param("planId") Long planId, @Param("date") LocalDate date);
     default SampleUrgentDO lock(Long id) {
         return selectOne(new LambdaQueryWrapperX<SampleUrgentDO>().eq(SampleUrgentDO::getId,id).last("FOR UPDATE"));
     }

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import java.util.Collection;
 import java.util.List;
+import cn.iocoder.yudao.module.system.controller.admin.dept.vo.dept.DeptListReqVO;
+import java.util.Comparator;
 
 /**
  * 部门 API 实现类
@@ -20,6 +22,16 @@ public class DeptApiImpl implements DeptApi {
 
     @Resource
     private DeptService deptService;
+
+    @Override
+    public List<DeptRespDTO> getEnabledDeptList() {
+        var request = new DeptListReqVO();
+        request.setStatus(0);
+        var departments = deptService.getDeptList(request).stream()
+                .sorted(Comparator.comparing(DeptDO::getSort, Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(DeptDO::getId)).toList();
+        return BeanUtils.toBean(departments, DeptRespDTO.class);
+    }
 
     @Override
     public DeptRespDTO getDept(Long id) {

@@ -7,6 +7,7 @@ import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Component
 @RequiredArgsConstructor
@@ -17,7 +18,8 @@ public class SampleUrgentNotificationGuard implements DingTalkNotificationGuard 
     public String displayName() { return "加急入库即将逾期提醒"; }
     public boolean applicable(String businessId,LocalDateTime expiresAt) {
         if(businessId==null || !businessId.startsWith("sample-urgent:")) return false;
-        if("false".equalsIgnoreCase(config.getConfigValueByKey("reagent.sample-urgent.dingtalk."+TenantContextHolder.getRequiredTenantId()+".enabled"))) return false;
+        long tenantId = Objects.requireNonNullElse(TenantContextHolder.getTenantId(), 1L);
+        if("false".equalsIgnoreCase(config.getConfigValueByKey("reagent.sample-urgent.dingtalk."+tenantId+".enabled"))) return false;
         var row=mapper.selectById(Long.valueOf(businessId.substring("sample-urgent:".length())));
         return row!=null && row.getStatus()<3 && row.getDeadline().equals(expiresAt)
                 && row.getDeadline().isAfter(LocalDateTime.now());

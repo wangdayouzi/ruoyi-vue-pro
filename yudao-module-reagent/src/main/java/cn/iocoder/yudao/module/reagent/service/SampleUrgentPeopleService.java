@@ -1,40 +1,33 @@
 package cn.iocoder.yudao.module.reagent.service;
 
-import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleUrgentSaveReqVO;
 import cn.iocoder.yudao.module.system.api.user.AdminUserApi;
 import cn.iocoder.yudao.module.system.api.permission.PermissionApi;
 import cn.iocoder.yudao.module.system.api.dept.DeptApi;
-import cn.iocoder.yudao.module.system.dal.mysql.dept.DeptMapper;
-import cn.iocoder.yudao.module.system.dal.dataobject.dept.DeptDO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
+import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationRecipientApi;
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
 
-/** 预约人和通知范围分别校验；通知对象不会因此获得样品处理权限。 */
+/** 校验预约人账号状态和通知对象权限。 */
 @Service @RequiredArgsConstructor
 public class SampleUrgentPeopleService {
     private final AdminUserApi users;
     private final DeptApi departments;
-    private final DeptMapper deptMapper;
     private final PermissionApi permissions;
-    private final cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationRecipientApi recipients;
+    private final DingTalkNotificationRecipientApi recipients;
     public record Person(Long id,String name) {}
     public record Department(Long id,Long parentId,String name) {}
     public record Options(List<Person> appointmentUsers,List<Person> administrators,List<Department> departments) {}
-    boolean appointmentEligible(Long id) {
-        return permissions.hasAnyPermissions(id,"reagent:sample-urgent:query") &&
-                permissions.hasAnyPermissions(id,"reagent:sample-urgent:create","reagent:sample-urgent:update");
-    }
     boolean administratorEligible(Long id) {
         return permissions.hasAnyPermissions(id,"reagent:sample-urgent:query") && permissions.hasAnyPermissions(id,"reagent:sample-urgent:handle");
     }
     public Options options() {
         var enabled=users.getUserListByStatus(0);
-        var depts=deptMapper.selectList(new LambdaQueryWrapperX<DeptDO>().eq(DeptDO::getStatus,0).orderByAsc(DeptDO::getSort,DeptDO::getId));
-        return new Options(enabled.stream().filter(u->appointmentEligible(u.getId())).map(u->new Person(u.getId(),u.getNickname())).toList(),
+        var depts=departments.getEnabledDeptList();
+        return new Options(enabled.stream().map(u->new Person(u.getId(),u.getNickname())).toList(),
                 enabled.stream().filter(u->administratorEligible(u.getId())).map(u->new Person(u.getId(),u.getNickname())).toList(),
                 depts.stream().map(d->new Department(d.getId(),d.getParentId(),d.getName())).toList());
     }
@@ -42,10 +35,7 @@ public class SampleUrgentPeopleService {
         req.setAppointmentUserIds(distinct(req.getAppointmentUserIds()));
         req.setNoticeUserIds(distinct(req.getNoticeUserIds())); req.setNoticeDeptIds(distinct(req.getNoticeDeptIds()));
         if(req.getAppointmentUserIds().isEmpty()) throw invalidParamException("请选择预约人");
-        for(Long id:req.getAppointmentUserIds()) {
-            users.validateUser(id);
-            if(!appointmentEligible(id)) throw invalidParamException("所选预约人不具有项目组权限，请重新选择");
-        }
+        req.getAppointmentUserIds().forEach(users::validateUser);
         for(Long id:req.getNoticeUserIds()) {
             users.validateUser(id);
             if(!administratorEligible(id)) throw invalidParamException("所选通知人员不具有样品组处理权限，请重新选择");

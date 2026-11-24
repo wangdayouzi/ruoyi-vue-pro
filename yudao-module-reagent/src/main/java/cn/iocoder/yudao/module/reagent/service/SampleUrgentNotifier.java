@@ -14,6 +14,9 @@ import org.springframework.transaction.annotation.*;
 import org.springframework.transaction.event.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
+import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue;
+import java.time.LocalDateTime;
 
 @Service
 public class SampleUrgentNotifier {
@@ -22,7 +25,7 @@ public class SampleUrgentNotifier {
     @Resource private DingTalkMessageSendApi sender;
     @Resource private ConfigApi config;
     @Resource private PermissionApi permissions;
-    @Resource private cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue notificationQueue;
+    @Resource private DingTalkNotificationQueue notificationQueue;
     private static final String DEADLINE_GUARD="sample-urgent-deadline";
 
     /** 升级时仅补齐未登记的当前版本，已发送/取消/失败的通知不会被启动过程重新生成。 */
@@ -33,14 +36,14 @@ public class SampleUrgentNotifier {
         if(row.getCreateTime()!=null && !row.getCreateTime().isBefore(row.getDeadline().minusMinutes(120))
                 && notificationQueue.exists("sample-urgent:"+id,null,null)) return;
         try { scheduleDeadline(row); }
-        catch(IllegalStateException | cn.iocoder.yudao.framework.common.exception.ServiceException ex) {
+        catch(IllegalStateException | ServiceException ex) {
             // 模板/接收人未配置只记录业务提醒异常，不能阻断整个应用启动；数据库异常仍正常抛出。
             failure(id,"临期提醒未登记："+safeError(ex));
         }
     }
 
     void scheduleDeadline(SampleUrgentDO row) {
-        var now=java.time.LocalDateTime.now();
+        var now=LocalDateTime.now();
         if(row.getStatus()>=3 || !row.getDeadline().isAfter(now)
                 || "false".equalsIgnoreCase(setting("enabled"))) return;
         var planned=row.getDeadline().minusMinutes(120);
@@ -77,9 +80,9 @@ public class SampleUrgentNotifier {
         };
         boolean includeActor = registered || partialInbound || "完成".equals(event.action());
         deliver(row, receivers, "urgent-event-" + event.logId(), partialInbound ? "部分入库" : event.action(), event.content(),
-                java.time.LocalDateTime.now(), includeActor ? null : event.actorId());
+                LocalDateTime.now(), includeActor ? null : event.actorId());
         if (deadlineChanged || (registered &&
-                row.getDeadline().minusMinutes(120).isAfter(java.time.LocalDateTime.now()))) {
+                row.getDeadline().minusMinutes(120).isAfter(LocalDateTime.now()))) {
             scheduleDeadline(row);
         }
     }
@@ -101,7 +104,7 @@ public class SampleUrgentNotifier {
         return new Targets(Objects.requireNonNullElse(defaults, List.of()), List.of(), true);
     }
     void deliver(SampleUrgentDO row,Targets targets,String requestId,String action,String content,
-                 java.time.LocalDateTime sendAfter,Long actorId) {
+                 LocalDateTime sendAfter,Long actorId) {
         var plan=new DingTalkNotificationPlanReqDTO();
         plan.setRequestId(requestId); plan.setTemplateCode(SampleUrgentTemplateParameters.codeForSite(row.getInboundSite())); plan.setBusinessId("sample-urgent:"+row.getId());
         plan.setParams(params(row,action,content)); plan.setUserIds(targets.users()); plan.setDeptIds(targets.departments());
@@ -138,10 +141,10 @@ public class SampleUrgentNotifier {
         if(text==null || text.isBlank()) return "—";
         text=text.trim(); return text.length()<=max?text:text.substring(0,max-1)+"…";
     }
-    private static String time(java.time.LocalDateTime date) {
+    private static String time(LocalDateTime date) {
         return date==null?"—":date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
     }
-    String key(String suffix) { return "reagent.sample-urgent.dingtalk."+TenantContextHolder.getRequiredTenantId()+"."+suffix; }
+    String key(String suffix) { return "reagent.sample-urgent.dingtalk."+Objects.requireNonNullElse(TenantContextHolder.getTenantId(),1L)+"."+suffix; }
     String setting(String suffix) { return config.getConfigValueByKey(key(suffix)); }
     static String clip(String value,int max) {
         if(value==null || value.isBlank()) return "未填写";

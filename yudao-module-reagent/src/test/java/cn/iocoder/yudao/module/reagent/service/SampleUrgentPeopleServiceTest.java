@@ -9,6 +9,7 @@ import cn.iocoder.yudao.module.system.api.permission.PermissionApi;
 import cn.iocoder.yudao.module.system.dal.mysql.dept.DeptMapper;
 import org.junit.jupiter.api.*;
 import java.util.*;
+import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationRecipientApi;
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -17,18 +18,16 @@ class SampleUrgentPeopleServiceTest {
     DeptApi depts;
     PermissionApi permissions;
     SampleUrgentPeopleService service;
-    cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationRecipientApi recipients;
+    DingTalkNotificationRecipientApi recipients;
     AdminUserRespDTO project,admin,other;
     @BeforeEach void setup() {
         users=mock(AdminUserApi.class); depts=mock(DeptApi.class); permissions=mock(PermissionApi.class);
-        recipients=mock(cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationRecipientApi.class);
+        recipients=mock(DingTalkNotificationRecipientApi.class);
         when(recipients.resolve(any(),any(),eq(true))).thenAnswer(i -> { var ids=new LinkedHashSet<Long>(); List<Long> direct=i.getArgument(0); List<Long> deptIds=i.getArgument(1); if(direct!=null) ids.addAll(direct); if(deptIds!=null && !deptIds.isEmpty()) ids.addAll(List.of(20L,21L)); return new ArrayList<>(ids); });
-        service=new SampleUrgentPeopleService(users,depts,mock(DeptMapper.class),permissions,recipients);
+        service=new SampleUrgentPeopleService(users,depts,permissions,recipients);
         project=user(10L,"预约人员"); admin=user(20L,"样品管理员"); other=user(21L,"普通人员");
         when(users.getUserList(anyCollection())).thenAnswer(i -> { Collection<Long> ids=i.getArgument(0); return List.of(project,admin,other).stream().filter(u->ids.contains(u.getId())).toList(); });
         when(users.getUserMap(anyCollection())).thenReturn(Map.of(10L,project,20L,admin,21L,other));
-        when(permissions.hasAnyPermissions(10L,"reagent:sample-urgent:query")).thenReturn(true);
-        when(permissions.hasAnyPermissions(10L,"reagent:sample-urgent:create","reagent:sample-urgent:update")).thenReturn(true);
         when(permissions.hasAnyPermissions(20L,"reagent:sample-urgent:query")).thenReturn(true);
         when(permissions.hasAnyPermissions(20L,"reagent:sample-urgent:handle")).thenReturn(true);
         when(depts.getChildDeptList(anyCollection())).thenReturn(List.of(dept(101L)));
@@ -46,12 +45,20 @@ class SampleUrgentPeopleServiceTest {
         service.prepare(req);
         assertEquals(List.of(10L),req.getAppointmentUserIds()); assertEquals("预约人员",req.getContacts());
     }
-    @Test void allowsEmptyNoticeTargetsAndRejectsUnauthorizedPeople() {
+    @Test void acceptsEnabledAppointmentUsersWithoutUrgentPermissions() {
+        when(users.getUserListByStatus(0)).thenReturn(List.of(project, admin, other));
+        assertEquals(List.of(10L, 20L, 21L),
+                service.options().appointmentUsers().stream().map(SampleUrgentPeopleService.Person::id).toList());
+        var req = request();
+        req.setAppointmentUserIds(List.of(21L));
+        service.prepare(req);
+        verify(users).validateUser(21L);
+        assertEquals("普通人员", req.getContacts());
+    }
+    @Test void allowsEmptyNoticeTargetsAndRejectsUnauthorizedAdministrators() {
         var req=request(); req.setNoticeUserIds(List.of());
         var missingTarget=req;
         assertDoesNotThrow(()->service.prepare(missingTarget));
-        req=request(); req.setAppointmentUserIds(List.of(21L)); var badAppointment=req;
-        assertThrows(RuntimeException.class,()->service.prepare(badAppointment));
         req=request(); req.setNoticeUserIds(List.of(21L)); var badAdministrator=req;
         assertThrows(RuntimeException.class,()->service.prepare(badAdministrator));
     }

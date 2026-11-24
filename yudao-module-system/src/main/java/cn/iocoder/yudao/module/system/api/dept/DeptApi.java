@@ -16,6 +16,9 @@ import java.util.Map;
  */
 public interface DeptApi {
 
+    /** 返回启用部门，按排序号和编号稳定排序，供业务模块选择通知范围。 */
+    List<DeptRespDTO> getEnabledDeptList();
+
     /**
      * 获得部门信息
      *

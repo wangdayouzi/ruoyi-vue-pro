@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import java.time.LocalDateTime;
 
 /** 升级补齐历史未结束需求，仅启动时执行，不参与定时调度或发送。 */
 @Component
@@ -24,7 +25,7 @@ public class SampleUrgentNotificationInitializer {
         while(true) {
             var rows=mapper.selectList(new LambdaQueryWrapperX<SampleUrgentDO>()
                     .gt(SampleUrgentDO::getId,cursor).in(SampleUrgentDO::getStatus,0,1,2)
-                    .gt(SampleUrgentDO::getDeadline,java.time.LocalDateTime.now())
+                    .gt(SampleUrgentDO::getDeadline,LocalDateTime.now())
                     .orderByAsc(SampleUrgentDO::getId).last("LIMIT 200"));
             if(rows.isEmpty()) return;
             for(var row:rows) {

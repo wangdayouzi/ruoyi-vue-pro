@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.*;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import java.util.List;
 
 /** 一次样品加急需求，不直接改变 ERP 或样品库存。 */
 @TableName(value="sample_urgent",autoResultMap=true)
@@ -29,12 +31,12 @@ public class SampleUrgentDO extends TenantBaseDO {
     private LocalDateTime plannedTestTime;
     private String contacts;
     private String legacyContacts;
-    @TableField(typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler.class)
-    private java.util.List<Long> appointmentUserIds;
-    @TableField(typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler.class)
-    private java.util.List<Long> noticeUserIds;
-    @TableField(typeHandler=com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler.class)
-    private java.util.List<Long> noticeDeptIds;
+    @TableField(typeHandler=JacksonTypeHandler.class)
+    private List<Long> appointmentUserIds;
+    @TableField(typeHandler=JacksonTypeHandler.class)
+    private List<Long> noticeUserIds;
+    @TableField(typeHandler=JacksonTypeHandler.class)
+    private List<Long> noticeDeptIds;
     private String noticeNames;
     private String reason;
     private String logisticsNo;

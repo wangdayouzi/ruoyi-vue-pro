@@ -23,6 +23,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.*;
 import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
+import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -47,7 +49,7 @@ class SampleUrgentPostgresTest {
     static class Config {
         @Bean SampleUrgentPeopleService people() {
             var p=mock(SampleUrgentPeopleService.class);
-            doAnswer(i -> { SampleUrgentSaveReqVO r=i.getArgument(0); if(r.getAppointmentUserIds()==null) r.setAppointmentUserIds(java.util.List.of(987654321L)); if(r.getNoticeUserIds()==null) r.setNoticeUserIds(java.util.List.of(987654321L)); if(r.getNoticeDeptIds()==null) r.setNoticeDeptIds(java.util.List.of()); return null; }).when(p).prepare(any());
+            doAnswer(i -> { SampleUrgentSaveReqVO r=i.getArgument(0); if(r.getAppointmentUserIds()==null) r.setAppointmentUserIds(List.of(987654321L)); if(r.getNoticeUserIds()==null) r.setNoticeUserIds(List.of(987654321L)); if(r.getNoticeDeptIds()==null) r.setNoticeDeptIds(List.of()); return null; }).when(p).prepare(any());
             when(p.noticeNames(any(),any())).thenReturn("样品管理员"); return p;
         }
         @Bean AdminUserApi users() {
@@ -75,12 +77,12 @@ class SampleUrgentPostgresTest {
     @Test void lifecyclePersistsLogsClearsOptionalDatesAndKeepsTenantIsolation() {
         var req=new SampleUrgentSaveReqVO(); req.setInboundSite("NINGBO"); req.setProjectNo("URGENT-INTEGRATION-ONLY");
         req.setNewProject(true); req.setBasNos("26BAS0001,26BAS0002-Blind;"); req.setContacts("项目人员甲、乙");
-        req.setAppointmentUserIds(java.util.List.of(987654322L));
-        req.setNoticeUserIds(java.util.List.of(987654321L)); req.setNoticeDeptIds(java.util.List.of());
+        req.setAppointmentUserIds(List.of(987654322L));
+        req.setNoticeUserIds(List.of(987654321L)); req.setNoticeDeptIds(List.of());
         req.setSampleScope("PK管与ADA管"); req.setReason("次日检测"); req.setDeadline(LocalDateTime.now().plusDays(1));
         req.setExpectedArrival(LocalDateTime.now().plusHours(1));
         Long id=service.save(req);
-        var row=service.get(id); assertEquals(java.util.List.of(987654322L),row.getAppointmentUserIds()); assertEquals(java.util.List.of(987654321L),row.getNoticeUserIds()); assertEquals(0,row.getStatus()); assertNotNull(row.getCreateTime());
+        var row=service.get(id); assertEquals(List.of(987654322L),row.getAppointmentUserIds()); assertEquals(List.of(987654321L),row.getNoticeUserIds()); assertEquals(0,row.getStatus()); assertNotNull(row.getCreateTime());
         var mine=new SampleUrgentPageReqVO(); mine.setKeyword("URGENT-INTEGRATION-ONLY"); mine.setView("MINE");
         assertEquals(0,service.page(mine).getTotal()); mine.setView("SUBMITTED"); assertEquals(1,service.page(mine).getTotal());
         var appointed=new LoginUser(); appointed.setId(987654322L);
@@ -90,9 +92,9 @@ class SampleUrgentPostgresTest {
         var submitter=new LoginUser(); submitter.setId(987654321L);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(submitter,null));
         req.setId(id); req.setRevision(0); req.setChangeReason("已到样，清空预计时间"); req.setExpectedArrival(null);
-        req.setNoticeUserIds(java.util.List.of()); req.setNoticeDeptIds(java.util.List.of(100L,101L));
-        service.save(req); assertNull(service.get(id).getExpectedArrival()); assertEquals(java.util.List.of(987654322L),service.get(id).getAppointmentUserIds());
-        assertEquals(java.util.List.of(),service.get(id).getNoticeUserIds()); assertEquals(java.util.List.of(100L,101L),service.get(id).getNoticeDeptIds());
+        req.setNoticeUserIds(List.of()); req.setNoticeDeptIds(List.of(100L,101L));
+        service.save(req); assertNull(service.get(id).getExpectedArrival()); assertEquals(List.of(987654322L),service.get(id).getAppointmentUserIds());
+        assertEquals(List.of(),service.get(id).getNoticeUserIds()); assertEquals(List.of(100L,101L),service.get(id).getNoticeDeptIds());
         var claim=new SampleUrgentActionReqVO(); claim.setId(id); claim.setRevision(1); claim.setAction("CLAIM");
         service.action(claim);
         var partial=new SampleUrgentActionReqVO(); partial.setId(id); partial.setRevision(2); partial.setAction("PROGRESS");
@@ -107,7 +109,7 @@ class SampleUrgentPostgresTest {
         assertEquals("",row.getRemainingScope()); assertNotNull(row.getCompletedTime()); assertEquals(5,service.logs(id).size());
         assertEquals(0,service.page(page).getTotal());
         TenantContextHolder.setTenantId(987654322L);
-        assertThrows(cn.iocoder.yudao.framework.common.exception.ServiceException.class,()->service.get(id));
+        assertThrows(ServiceException.class,()->service.get(id));
         assertEquals(0,service.page(page).getTotal());
     }
 }

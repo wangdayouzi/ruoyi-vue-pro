@@ -4,14 +4,16 @@ import cn.iocoder.yudao.module.reagent.controller.admin.vo.*;
 import org.junit.jupiter.api.Test;
 import java.time.*;
 import java.util.List;
+import cn.iocoder.yudao.framework.common.util.json.JsonUtils;
+import cn.iocoder.yudao.module.reagent.dal.dataobject.SampleUrgentPlanDO;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SampleUrgentPlanRulesTest {
     @Test void planDatesAndTimeSerializeAsStringsEvenWithTimestampSerializationEnabled() {
-        var row = new cn.iocoder.yudao.module.reagent.dal.dataobject.SampleUrgentPlanDO();
+        var row = new SampleUrgentPlanDO();
         row.setStartDate(LocalDate.of(2026, 11, 19)); row.setEndDate(LocalDate.of(2026, 11, 25));
         row.setNextDate(LocalDate.of(2026, 11, 20)); row.setDailyTime(LocalTime.of(17, 30));
-        var json = cn.iocoder.yudao.framework.common.util.json.JsonUtils.toJsonString(row);
+        var json = JsonUtils.toJsonString(row);
         assertTrue(json.contains("\"startDate\":\"2026-11-19\""), json);
         assertTrue(json.contains("\"endDate\":\"2026-11-25\""), json);
         assertTrue(json.contains("\"nextDate\":\"2026-11-20\""), json);

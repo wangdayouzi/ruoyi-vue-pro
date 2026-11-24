@@ -12,6 +12,9 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.util.*;
+import cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil;
+import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue;
+import java.util.function.Predicate;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -28,10 +31,10 @@ class SampleUrgentNotifierTest {
         ReflectionTestUtils.setField(notifier,"mapper",mapper); ReflectionTestUtils.setField(notifier,"logs",logs);
         ReflectionTestUtils.setField(notifier,"sender",sender); ReflectionTestUtils.setField(notifier,"config",config);
         ReflectionTestUtils.setField(notifier,"permissions",permissions);
-        var queue=mock(cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue.class);
+        var queue=mock(DingTalkNotificationQueue.class);
         ReflectionTestUtils.setField(notifier,"notificationQueue",queue);
         doAnswer(i -> {
-            DingTalkNotificationPlanReqDTO plan=i.getArgument(0); java.util.function.Predicate<Long> eligible=i.getArgument(1);
+            DingTalkNotificationPlanReqDTO plan=i.getArgument(0); Predicate<Long> eligible=i.getArgument(1);
             if(plan.getRequestId().startsWith("urgent-event-")) for(Long id:new LinkedHashSet<>(plan.getUserIds())) {
                 if(plan.getExcludedUserIds().contains(id) || !eligible.test(id)) continue;
                 var req=new DingTalkMessageSendReqDTO(); req.setRequestId(plan.getRequestId()); req.setTemplateCode(plan.getTemplateCode());
@@ -112,8 +115,8 @@ class SampleUrgentNotifierTest {
         verify(config,atLeastOnce()).getConfigValueByKey("reagent.sample-urgent.dingtalk.1.enabled");
         assertNull(TenantContextHolder.getTenantId());
     }
-    private cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue queue() {
-        return (cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue)ReflectionTestUtils.getField(notifier,"notificationQueue");
+    private DingTalkNotificationQueue queue() {
+        return (DingTalkNotificationQueue)ReflectionTestUtils.getField(notifier,"notificationQueue");
     }
     @Test void futureReminderIsStoredImmediatelyForDeadlineMinusLeadTime() {
         row.setHandlerId(20L); row.setDeadline(LocalDateTime.now().plusDays(1)); row.setRevision(4);
@@ -159,7 +162,7 @@ class SampleUrgentNotifierTest {
         var mapper=(SampleUrgentMapper)ReflectionTestUtils.getField(notifier,"mapper");
         when(mapper.lock(1L)).thenReturn(row);
         when(sender.getDefaultUserIds(anyString())).thenThrow(
-                cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException("钉钉消息模板不存在"));
+                ServiceExceptionUtil.invalidParamException("钉钉消息模板不存在"));
         assertDoesNotThrow(()->notifier.initializeDeadline(1L));
         var entry=ArgumentCaptor.forClass(SampleUrgentLogDO.class);
         verify(logs).insert(entry.capture());

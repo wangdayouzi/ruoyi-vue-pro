@@ -13,6 +13,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
+import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
+import java.util.List;
+import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -28,11 +32,11 @@ class SampleUrgentServiceTest {
         var users=mock(AdminUserApi.class);
         ReflectionTestUtils.setField(service,"mapper",mapper); ReflectionTestUtils.setField(service,"logs",logs);
         ReflectionTestUtils.setField(service,"users",users); ReflectionTestUtils.setField(service,"permissions",permissions);
-        ReflectionTestUtils.setField(service,"events",mock(org.springframework.context.ApplicationEventPublisher.class));
+        ReflectionTestUtils.setField(service,"events",mock(ApplicationEventPublisher.class));
         var people=mock(SampleUrgentPeopleService.class);
-        doAnswer(i -> { SampleUrgentSaveReqVO r=i.getArgument(0); if(r.getAppointmentUserIds()==null) r.setAppointmentUserIds(java.util.List.of(10L)); if(r.getNoticeUserIds()==null) r.setNoticeUserIds(java.util.List.of(20L)); if(r.getNoticeDeptIds()==null) r.setNoticeDeptIds(java.util.List.of()); return null; }).when(people).prepare(any());
+        doAnswer(i -> { SampleUrgentSaveReqVO r=i.getArgument(0); if(r.getAppointmentUserIds()==null) r.setAppointmentUserIds(List.of(10L)); if(r.getNoticeUserIds()==null) r.setNoticeUserIds(List.of(20L)); if(r.getNoticeDeptIds()==null) r.setNoticeDeptIds(List.of()); return null; }).when(people).prepare(any());
         ReflectionTestUtils.setField(service,"people",people);
-        cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder.setTenantId(1L);
+        TenantContextHolder.setTenantId(1L);
         var user=new AdminUserRespDTO(); user.setNickname("测试人员"); when(users.getUser(10L)).thenReturn(user);
         var login=new LoginUser(); login.setId(10L);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(login,null));
@@ -40,7 +44,7 @@ class SampleUrgentServiceTest {
         row.setCreateTime(LocalDateTime.now().minusDays(1));
         when(mapper.lock(1L)).thenReturn(row);
     }
-    @AfterEach void cleanup() { SecurityContextHolder.clearContext(); cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder.clear(); }
+    @AfterEach void cleanup() { SecurityContextHolder.clearContext(); TenantContextHolder.clear(); }
     @Test void staleVersionCannotOverwriteNewProgress() {
         var req=action("CLAIM"); req.setRevision(2);
         assertThrows(ServiceException.class,()->service.action(req));
@@ -86,7 +90,7 @@ class SampleUrgentServiceTest {
         assertEquals(2L,service.save(req));
     }
     @Test void appointedPersonCanCancelAndCommentWithoutBecomingSubmitter() {
-        row.setRequesterId(20L); row.setAppointmentUserIds(java.util.List.of(10L,30L));
+        row.setRequesterId(20L); row.setAppointmentUserIds(List.of(10L,30L));
         when(permissions.hasAnyPermissions(10L,"reagent:sample-urgent:update")).thenReturn(true);
         var comment=action("COMMENT"); comment.setContent("预约人补充"); service.action(comment);
         var cancel=action("CANCEL"); cancel.setContent("预约取消"); service.action(cancel);
@@ -94,14 +98,14 @@ class SampleUrgentServiceTest {
     }
     private void allowHandle() { when(permissions.hasAnyPermissions(10L,"reagent:sample-urgent:handle")).thenReturn(true); }
     @Test void registrationWithoutTenantContextDoesNotFailAtNoticePublication() {
-        cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder.clear();
-        var publisher=mock(org.springframework.context.ApplicationEventPublisher.class);
+        TenantContextHolder.clear();
+        var publisher=mock(ApplicationEventPublisher.class);
         ReflectionTestUtils.setField(service,"events",publisher);
         var req=new SampleUrgentSaveReqVO(); req.setInboundSite("NINGBO"); req.setProjectNo("SINGLE-TENANT"); req.setContacts("项目人员");
         req.setSampleScope("全部PK管"); req.setReason("次日检测"); req.setDeadline(LocalDateTime.now().plusDays(1)); req.setNewProject(false); req.setBasNos("26BAS0001");
         doAnswer(i -> { ((SampleUrgentDO)i.getArgument(0)).setId(2L); return 1; }).when(mapper).insert(any(SampleUrgentDO.class));
         assertEquals(2L,service.save(req));
-        var event=org.mockito.ArgumentCaptor.forClass(SampleUrgentNoticeEvent.class);
+        var event=ArgumentCaptor.forClass(SampleUrgentNoticeEvent.class);
         verify(publisher).publishEvent(event.capture()); assertNull(event.getValue().tenantId());
     }
     private SampleUrgentActionReqVO action(String action) {

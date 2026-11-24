@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.reagent.controller.admin.vo;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class SampleUrgentSaveReqVO {
@@ -21,9 +22,9 @@ public class SampleUrgentSaveReqVO {
     private LocalDateTime plannedTestTime;
     @Size(max=300) private String contacts;
     @Size(max=2000) private String reason;
-    @NotEmpty @Size(max=20) private java.util.List<@NotNull @Positive Long> appointmentUserIds;
-    @Size(max=100) private java.util.List<@NotNull @Positive Long> noticeUserIds;
-    @Size(max=100) private java.util.List<@NotNull @Positive Long> noticeDeptIds;
+    @NotEmpty @Size(max=20) private List<@NotNull @Positive Long> appointmentUserIds;
+    @Size(max=100) private List<@NotNull @Positive Long> noticeUserIds;
+    @Size(max=100) private List<@NotNull @Positive Long> noticeDeptIds;
     @Size(max=1000) private String logisticsNo;
     @Size(max=4000) private String remark;
     @Size(max=1000) private String changeReason;

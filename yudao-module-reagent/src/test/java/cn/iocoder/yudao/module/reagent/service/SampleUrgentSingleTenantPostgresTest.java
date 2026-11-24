@@ -21,6 +21,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.*;
 import java.time.LocalDateTime;
+import cn.iocoder.yudao.module.reagent.dal.dataobject.SampleUrgentDO;
+import cn.iocoder.yudao.module.reagent.dal.mysql.SampleUrgentMapper;
+import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -46,7 +49,7 @@ class SampleUrgentSingleTenantPostgresTest {
     static class Config {
         @Bean SampleUrgentPeopleService people() {
             var p=mock(SampleUrgentPeopleService.class);
-            doAnswer(i -> { SampleUrgentSaveReqVO r=i.getArgument(0); if(r.getAppointmentUserIds()==null) r.setAppointmentUserIds(java.util.List.of(987654321L)); if(r.getNoticeUserIds()==null) r.setNoticeUserIds(java.util.List.of(987654321L)); if(r.getNoticeDeptIds()==null) r.setNoticeDeptIds(java.util.List.of()); return null; }).when(p).prepare(any());
+            doAnswer(i -> { SampleUrgentSaveReqVO r=i.getArgument(0); if(r.getAppointmentUserIds()==null) r.setAppointmentUserIds(List.of(987654321L)); if(r.getNoticeUserIds()==null) r.setNoticeUserIds(List.of(987654321L)); if(r.getNoticeDeptIds()==null) r.setNoticeDeptIds(List.of()); return null; }).when(p).prepare(any());
             when(p.noticeNames(any(),any())).thenReturn("样品管理员"); return p;
         }
         @Bean AdminUserApi users() {
@@ -60,7 +63,7 @@ class SampleUrgentSingleTenantPostgresTest {
     }
     @Resource SampleUrgentService service;
     @Resource DingTalkMessageTemplateMapper templates;
-    @Resource cn.iocoder.yudao.module.reagent.dal.mysql.SampleUrgentMapper urgentMapper;
+    @Resource SampleUrgentMapper urgentMapper;
     @Test void overdueUnfinishedFirstThenNumericNumberDescendingAcrossPages() {
         Long normal=insertSortRow(0,false);
         Long overdue=insertSortRow(1,true);
@@ -68,12 +71,12 @@ class SampleUrgentSingleTenantPostgresTest {
         Long completed=insertSortRow(3,true);
         var query=new SampleUrgentPageReqVO(); query.setKeyword("SORT-REGRESSION-ONLY"); query.setPageSize(2);
         var first=service.page(query);
-        assertEquals(java.util.List.of(partial,overdue),first.getList().stream().map(r -> r.getId()).toList());
+        assertEquals(List.of(partial,overdue),first.getList().stream().map(r -> r.getId()).toList());
         query.setPageNo(2);
-        assertEquals(java.util.List.of(completed,normal),service.page(query).getList().stream().map(r -> r.getId()).toList());
+        assertEquals(List.of(completed,normal),service.page(query).getList().stream().map(r -> r.getId()).toList());
     }
     private Long insertSortRow(int status,boolean expired) {
-        var row=new cn.iocoder.yudao.module.reagent.dal.dataobject.SampleUrgentDO();
+        var row=new SampleUrgentDO();
         row.setProjectNo("SORT-REGRESSION-ONLY"); row.setNewProject(false); row.setBasNos("");
         row.setSampleScope("test"); row.setDeadline(LocalDateTime.now().plusDays(expired?-1:1));
         row.setContacts("test"); row.setReason("test"); row.setRequesterId(987654321L); row.setRequesterName("test");

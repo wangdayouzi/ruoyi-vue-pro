@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component("sampleUrgentPlanGenerateJob")
 @RequiredArgsConstructor
@@ -27,7 +28,7 @@ public class SampleUrgentPlanGenerateJob implements JobHandler {
         var today = SampleUrgentPlanRules.today();
         long cursor = 0;
         int processed = 0;
-        var failures = new java.util.concurrent.atomic.AtomicInteger();
+        var failures = new AtomicInteger();
         while (true) {
             var rows = plans.selectList(new LambdaQueryWrapperX<SampleUrgentPlanDO>()
                     .gt(SampleUrgentPlanDO::getId, cursor).eq(SampleUrgentPlanDO::getStatus, 0)
