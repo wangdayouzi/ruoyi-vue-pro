@@ -13,6 +13,30 @@ import java.util.List;
 @Mapper
 public interface AdminUserMapper extends BaseMapperX<AdminUserDO> {
 
+    default List<AdminUserDO> selectEnabledDingTalkUsers() {
+        return selectList(new LambdaQueryWrapperX<AdminUserDO>()
+                .eq(AdminUserDO::getStatus, 0).isNotNull(AdminUserDO::getDingTalkUserId));
+    }
+
+    default int disableDingTalkUser(Long userId, String dingTalkUserId) {
+        return update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<AdminUserDO>lambdaUpdate()
+                .eq(AdminUserDO::getId, userId).eq(AdminUserDO::getDingTalkUserId, dingTalkUserId)
+                .eq(AdminUserDO::getStatus, 0).set(AdminUserDO::getStatus, 1));
+    }
+
+    default List<AdminUserDO> selectEnabledUsersWithoutDingTalkId(Collection<Long> userIds) {
+        return selectList(new LambdaQueryWrapperX<AdminUserDO>().in(AdminUserDO::getId, userIds)
+                .eq(AdminUserDO::getStatus, 0)
+                .and(query -> query.isNull(AdminUserDO::getDingTalkUserId).or().eq(AdminUserDO::getDingTalkUserId, "")));
+    }
+
+    default int disableLegacyDingTalkUser(Long userId, String mobile) {
+        return update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<AdminUserDO>lambdaUpdate()
+                .eq(AdminUserDO::getId, userId).eq(AdminUserDO::getMobile, mobile)
+                .and(query -> query.isNull(AdminUserDO::getDingTalkUserId).or().eq(AdminUserDO::getDingTalkUserId, ""))
+                .eq(AdminUserDO::getStatus, 0).set(AdminUserDO::getStatus, 1));
+    }
+
     default AdminUserDO selectByUsername(String username) {
         return selectOne(AdminUserDO::getUsername, username);
     }
@@ -54,11 +78,6 @@ public interface AdminUserMapper extends BaseMapperX<AdminUserDO> {
 
     default List<AdminUserDO> selectListByDeptIds(Collection<Long> deptIds) {
         return selectList(AdminUserDO::getDeptId, deptIds);
-    }
-
-    default List<AdminUserDO> selectListWithDingTalkUserId() {
-        return selectList(new LambdaQueryWrapperX<AdminUserDO>()
-                .isNotNull(AdminUserDO::getDingTalkUserId));
     }
 
 }

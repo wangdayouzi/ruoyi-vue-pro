@@ -33,9 +33,6 @@ public class ThirdPartyUserDTO {
     /** 员工工号 */
     private String employeeNo;
 
-    /** 是否在职；第三方未返回该字段时为 null */
-    private Boolean active;
-
     /** 所属部门ID列表（第三方平台部门ID） */
     private List<String> deptIds;
 

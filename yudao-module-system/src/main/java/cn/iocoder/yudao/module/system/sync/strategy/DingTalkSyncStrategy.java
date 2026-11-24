@@ -60,6 +60,7 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
     // ---------- QPS 控制 ----------
     /** 用户详情接口调用间隔（毫秒），避免短时间大量请求触发限流 */
     private static final long USER_DETAIL_DELAY_MS = 200;
+    private static final long DEPT_LIST_DELAY_MS = 100;
     /** 被限流时的最大重试次数 */
     private static final int MAX_RETRIES = 3;
     /** 被限流后的初始等待时间（毫秒），指数退避 */
@@ -90,7 +91,7 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
         return fetchDepartmentsWithResult(client).departments();
     }
 
-    /** 拉取部门并返回完整性标记，供离职缺失账号判断使用。 */
+    /** 拉取部门并记录结果是否完整，便于排查通讯录同步异常。 */
     public DepartmentFetchResult fetchDepartmentsWithResult(SocialClientDO client) {
         String token = getAccessToken(client);
         List<ThirdPartyDeptDTO> result = new ArrayList<>();
@@ -114,7 +115,7 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
     }
 
     /**
-     * 拉取用户并返回完整性标记。仅完整拉取时，调用方才可依据“通讯录中不存在”停用账号。
+     * 拉取用户并记录结果是否完整，接口失败时保留已拉取的数据及异常日志。
      */
     public UserFetchResult fetchUsersWithResult(SocialClientDO client, List<ThirdPartyDeptDTO> depts) {
         if (CollUtil.isEmpty(depts)) {
@@ -207,15 +208,33 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
      */
     private DepartmentChildrenFetchResult fetchSubDepts(String token, Long deptId) {
         String url = DEPT_LISTSUB_URL + "?access_token=" + token;
-        HttpResponse resp = HttpRequest.post(url)
-                .body(JsonUtils.toJsonString(Map.of("dept_id", deptId)))
-                .execute();
-        JsonNode json = JsonUtils.parseObject(resp.body(), JsonNode.class);
-        if (json == null || json.get("errcode").asInt() != 0) {
-            log.warn("[DingTalk][fetchSubDepts] deptId={} 拉取失败: {}", deptId, resp.body());
-            return new DepartmentChildrenFetchResult(List.of(), false);
+        for (int retry = 0; retry <= MAX_RETRIES; retry++) {
+            safeSleep(DEPT_LIST_DELAY_MS);
+            if (Thread.currentThread().isInterrupted()) {
+                return new DepartmentChildrenFetchResult(List.of(), false);
+            }
+            try (HttpResponse response = HttpRequest.post(url)
+                    .body(JsonUtils.toJsonString(Map.of("dept_id", deptId))).execute()) {
+                int status = response.getStatus();
+                JsonNode json = status == 429 ? null : JsonUtils.parseObject(response.body(), JsonNode.class);
+                int code = json == null ? -1 : json.path("errcode").asInt(-1);
+                if (status == 200 && code == 0) {
+                    return parseSubDepts(json.get("result"));
+                }
+                if ((status != 429 && (code != 88 || !"90018".equals(json.path("sub_code").asText())))
+                        || retry == MAX_RETRIES) {
+                    log.warn("[DingTalk][fetchSubDepts] deptId={} 拉取失败: HTTP={}, errcode={}", deptId, status, code);
+                    return new DepartmentChildrenFetchResult(List.of(), false);
+                }
+                log.warn("[DingTalk][fetchSubDepts] deptId={} 触发限流，退避后重试 {}/{}",
+                        deptId, retry + 1, MAX_RETRIES);
+            }
+            sleepBeforeRetry(retry);
         }
-        JsonNode deptArray = json.get("result");
+        return new DepartmentChildrenFetchResult(List.of(), false);
+    }
+
+    private DepartmentChildrenFetchResult parseSubDepts(JsonNode deptArray) {
         if (deptArray == null || !deptArray.isArray()) {
             return new DepartmentChildrenFetchResult(List.of(), false);
         }
@@ -287,6 +306,32 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
         return true;
     }
 
+    public boolean isUserNotFound(SocialClientDO client, String userId) {
+        return isUserNotFound(client, USER_DETAIL_URL, Map.of("userid", userId));
+    }
+
+    public boolean isUserNotFoundByMobile(SocialClientDO client, String mobile) {
+        return isUserNotFound(client, "https://oapi.dingtalk.com/topapi/v2/user/getbymobile", Map.of("mobile", mobile));
+    }
+
+    private boolean isUserNotFound(SocialClientDO client, String url, Map<String, String> params) {
+        try (HttpResponse response = HttpRequest.post(url + "?access_token=" + getAccessToken(client))
+                .contentType("application/json").timeout(10000)
+                .body(JsonUtils.toJsonString(params)).execute()) {
+            JsonNode result = JsonUtils.parseObject(response.body(), JsonNode.class);
+            int code = result == null ? -1 : result.path("errcode").asInt(-1);
+            if (response.getStatus() == 200 && code == 60121) {
+                return true;
+            }
+            if (response.getStatus() != 200 || code != 0) {
+                log.warn("[DingTalk] 缺失成员复查失败，保留账号状态: HTTP={}, errcode={}", response.getStatus(), code);
+            }
+        } catch (Exception ex) {
+            log.warn("[DingTalk] 缺失成员复查异常，保留账号状态: {}", ex.getClass().getSimpleName());
+        }
+        return false;
+    }
+
     private ThirdPartyUserDTO fetchUserDetail(String token, String userId) {
         for (int retry = 0; retry < MAX_RETRIES; retry++) {
             String url = USER_DETAIL_URL + "?access_token=" + token;
@@ -312,7 +357,6 @@ public class DingTalkSyncStrategy implements ThirdPartySyncStrategy {
                 dto.setMobile(result.has("mobile") ? result.get("mobile").asText() : null);
                 dto.setEmail(result.has("email") ? result.get("email").asText() : null);
                 dto.setEmployeeNo(result.hasNonNull("job_number") ? result.get("job_number").asText() : null);
-                dto.setActive(result.hasNonNull("active") ? result.get("active").asBoolean() : null);
                 // TODO 诊断用日志：确认钉钉接口是否返回了邮箱（排查同步邮箱不生效）
                 log.info("[DingTalk][fetchUserDetail] userId={}, 钉钉返回 email={}, mobile={}",
                         userId, dto.getEmail(), dto.getMobile());
