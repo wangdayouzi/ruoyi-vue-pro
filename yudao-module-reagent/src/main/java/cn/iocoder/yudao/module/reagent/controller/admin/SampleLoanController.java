@@ -10,6 +10,9 @@ import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanRespVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanSelfUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.controller.admin.vo.SampleLoanUpdateReqVO;
 import cn.iocoder.yudao.module.reagent.dal.dataobject.SampleLoanDO;
+import cn.iocoder.yudao.module.reagent.dal.dataobject.ReagentItemDO;
+import cn.iocoder.yudao.module.reagent.service.MatrixInboundService;
+import cn.iocoder.yudao.module.reagent.service.ReagentItemService;
 import cn.iocoder.yudao.module.reagent.service.SampleLoanService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,6 +26,9 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -34,6 +40,31 @@ public class SampleLoanController {
 
     @Resource
     private SampleLoanService sampleLoanService;
+
+    @Resource
+    private ReagentItemService reagentItemService;
+    @Resource
+    private MatrixInboundService matrixInboundService;
+
+    public record BasOption(String basNo, boolean project, boolean matrix) {}
+
+    @GetMapping("/bas-options")
+    @Operation(summary = "搜索领用 BAS 号（项目号及基质入库登记）")
+    @PreAuthorize("@ss.hasAnyPermissions('reagent:sample-loan:create', 'reagent:sample-loan:update')")
+    public CommonResult<List<BasOption>> getBasOptions(@RequestParam(required = false) String keyword) {
+        Map<String, BasOption> options = new LinkedHashMap<>();
+        for (ReagentItemDO item : reagentItemService.listOptions(null, keyword == null ? null : keyword.trim())) {
+            String basNo = item.getBaseId();
+            if (basNo != null && !basNo.isBlank()) {
+                options.putIfAbsent(basNo.toUpperCase(Locale.ROOT), new BasOption(basNo, true, false));
+            }
+        }
+        for (String basNo : matrixInboundService.listBasOptions(keyword)) {
+            options.merge(basNo.toUpperCase(Locale.ROOT), new BasOption(basNo, false, true),
+                    (existing, matrix) -> new BasOption(existing.basNo(), existing.project(), true));
+        }
+        return success(List.copyOf(options.values()));
+    }
 
     @GetMapping("/sites")
     @PermitAll

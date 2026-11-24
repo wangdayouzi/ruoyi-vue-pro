@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Locale;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.invalidParamException;
@@ -71,7 +72,7 @@ public class SampleLoanServiceImpl implements SampleLoanService {
         if (StrUtil.isBlank(site) || getSiteOptions().stream().noneMatch(item -> item.getValue().equals(site))) {
             return List.of();
         }
-        return enabledOptions("sample_loan_floor_" + site.toLowerCase(java.util.Locale.ROOT));
+        return enabledOptions("sample_loan_floor_" + site.toLowerCase(Locale.ROOT));
     }
 
     private void validateLocation(String site, String location) {
