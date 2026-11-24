@@ -18,7 +18,6 @@ public class DingTalkTemplateSaveReqVO {
     private Map<String, String> content;
     @NotNull @Min(0) @Max(1)
     private Integer status;
-    @Size(max = 20)
     private List<@NotNull @Positive Long> defaultUserIds;
     @Size(max = 100)
     private List<@NotNull @Positive Long> defaultDeptIds;
