@@ -18,7 +18,8 @@ public class SampleUrgentRespVO {
     private String sampleScope;
     private LocalDateTime deadline;
     private LocalDateTime expectedArrival;
-    private LocalDateTime sampleReceivedTime;
+    private List<String> sampleReceivedTimes;
+
     private LocalDateTime plannedTestTime;
     private String contacts;
     private String legacyContacts;

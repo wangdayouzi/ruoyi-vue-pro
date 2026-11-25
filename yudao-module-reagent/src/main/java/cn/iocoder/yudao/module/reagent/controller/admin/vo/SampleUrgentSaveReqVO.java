@@ -18,7 +18,8 @@ public class SampleUrgentSaveReqVO {
     @NotBlank @Size(max=2000) private String sampleScope;
     @NotNull private LocalDateTime deadline;
     private LocalDateTime expectedArrival;
-    private LocalDateTime sampleReceivedTime;
+    @Size(max = 20)
+    private List<String> sampleReceivedTimes;
     private LocalDateTime plannedTestTime;
     @Size(max=300) private String contacts;
     @Size(max=2000) private String reason;

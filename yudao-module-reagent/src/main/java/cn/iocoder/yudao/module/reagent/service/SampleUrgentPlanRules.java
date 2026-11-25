@@ -30,7 +30,8 @@ public final class SampleUrgentPlanRules {
             throw invalidParamException("持续日期内没有符合所选星期的预约日期");
         if (req.getTemplate() == null || req.getTemplate().getId() != null)
             throw invalidParamException("周期计划必须使用新的预约信息");
-        if (req.getTemplate().getExpectedArrival() != null || req.getTemplate().getSampleReceivedTime() != null
+        if (req.getTemplate().getExpectedArrival() != null
+                || (req.getTemplate().getSampleReceivedTimes() != null && !req.getTemplate().getSampleReceivedTimes().isEmpty())
                 || req.getTemplate().getPlannedTestTime() != null || req.getTemplate().getLogisticsNo() != null
                 && !req.getTemplate().getLogisticsNo().isBlank())
             throw invalidParamException("周期计划不能复用一次性的到样、接收、检测时间或物流单号");

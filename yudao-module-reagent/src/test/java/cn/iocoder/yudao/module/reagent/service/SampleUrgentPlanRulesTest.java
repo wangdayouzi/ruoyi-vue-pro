@@ -48,7 +48,7 @@ class SampleUrgentPlanRulesTest {
         assertDoesNotThrow(() -> SampleUrgentPlanRules.validate(req, today));
         req.getTemplate().setId(1L);
         assertThrows(RuntimeException.class, () -> SampleUrgentPlanRules.validate(req, today));
-        req.getTemplate().setId(null); req.getTemplate().setSampleReceivedTime(today.atStartOfDay());
+        req.getTemplate().setId(null); req.getTemplate().setSampleReceivedTimes(List.of(today + " 00:00:00"));
         assertThrows(RuntimeException.class, () -> SampleUrgentPlanRules.validate(req, today));
     }
 }

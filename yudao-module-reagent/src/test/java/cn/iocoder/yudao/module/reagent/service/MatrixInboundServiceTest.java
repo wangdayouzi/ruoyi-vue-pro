@@ -47,7 +47,6 @@ class MatrixInboundServiceTest {
         queue = mock(DingTalkNotificationQueue.class);
         ReflectionTestUtils.setField(notifier, "templates", mock(DingTalkMessageSendApi.class));
         ReflectionTestUtils.setField(notifier, "queue", queue);
-        ReflectionTestUtils.setField(notifier, "permissions", permissions);
         ReflectionTestUtils.setField(service, "mapper", mapper);
         ReflectionTestUtils.setField(service, "counters", counters);
         ReflectionTestUtils.setField(service, "logs", logs);

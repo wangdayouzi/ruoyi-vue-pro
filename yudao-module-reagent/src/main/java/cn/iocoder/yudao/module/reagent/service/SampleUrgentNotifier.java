@@ -62,6 +62,7 @@ public class SampleUrgentNotifier {
     }
 
     void notifyEvent(SampleUrgentNoticeEvent event) {
+        if ("补充说明".equals(event.action())) return;
         var row=mapper.selectById(event.urgentId());
         if(row==null) return;
         boolean registered = "登记需求".equals(event.action());
@@ -71,9 +72,7 @@ public class SampleUrgentNotifier {
         boolean partialInbound = "更新进度".equals(event.action()) && row.getStatus() == 2;
         if ("更新进度".equals(event.action()) && !partialInbound) return;
         Targets receivers=switch(event.action()) {
-            case "登记需求" -> templateTargets(row);
-            case "修改需求", "取消需求" -> sampleTargets(row);
-            case "补充说明" -> SampleUrgentRules.isParty(row,event.actorId())?sampleTargets(row):appointmentTargets(row);
+            case "登记需求", "修改需求", "取消需求" -> templateTargets(row);
             case "更新进度", "完成" -> new Targets(
                     Objects.requireNonNullElse(row.getAppointmentUserIds(), List.of()), List.of(), false);
             default -> appointmentTargets(row);
@@ -87,17 +86,17 @@ public class SampleUrgentNotifier {
         }
     }
 
+    void deleted(SampleUrgentDO row, Long logId, Long actorId) {
+        if ("false".equalsIgnoreCase(setting("enabled"))) return;
+        // 删除后无法再通过默认 Mapper 查询到单据，因此用删除前的记录生成消息。
+        deliver(row, templateTargets(row), "urgent-event-" + logId, "删除需求", "",
+                LocalDateTime.now(), actorId);
+    }
+
     private record Targets(List<Long> users,List<Long> departments,boolean configuredAudience) {}
     private Targets appointmentTargets(SampleUrgentDO row) {
         if(row.getAppointmentUserIds()!=null && !row.getAppointmentUserIds().isEmpty()) return new Targets(row.getAppointmentUserIds(),List.of(),false);
         return new Targets(List.of(row.getRequesterId()),List.of(),false);
-    }
-    private Targets sampleTargets(SampleUrgentDO row) {
-        if(row.getHandlerId()!=null) return new Targets(List.of(row.getHandlerId()),List.of(),false);
-        var users=row.getNoticeUserIds()==null?List.<Long>of():row.getNoticeUserIds();
-        var depts=row.getNoticeDeptIds()==null?List.<Long>of():row.getNoticeDeptIds();
-        if(!users.isEmpty() || !depts.isEmpty()) return new Targets(users,depts,true);
-        return templateTargets(row);
     }
     private Targets templateTargets(SampleUrgentDO row) {
         var defaults=sender.getDefaultUserIds(SampleUrgentTemplateParameters.codeForSite(row.getInboundSite()));
@@ -118,7 +117,9 @@ public class SampleUrgentNotifier {
     Map<String,String> params(SampleUrgentDO row,String action,String content) {
         Map<String,String> p=new LinkedHashMap<>();
         p.put("inboundSite", SampleUrgentTemplateParameters.siteName(row.getInboundSite()));
-        p.put("action",value(action,50)); p.put("registrationNo",String.valueOf(row.getId()));
+        boolean modified = "修改需求".equals(action);
+        p.put("action", modified ? "修改需求：以下是修改后内容" : value(action, 50));
+        p.put("registrationNo",String.valueOf(row.getId()));
         p.put("clinicalProtocolNo",value(row.getProjectNo(),200)); p.put("testItems",value(row.getSampleScope(),400));
         p.put("basNos",value(row.getBasNos(),300)); p.put("reservationTime",time(row.getDeadline()));
         p.put("appointmentNames",row.getAppointmentUserIds()!=null && !row.getAppointmentUserIds().isEmpty()?value(row.getContacts(),300):"待确认");
@@ -129,7 +130,7 @@ public class SampleUrgentNotifier {
         p.put("completedScope",value(row.getCompletedScope(),4000)); p.put("remainingScope",value(row.getRemainingScope(),4000));
         p.put("exceptionTypeName",Map.of("NONE","无异常","NOT_ARRIVED","未收到样品","WAIT_REPLY","等待回复/补资料","SAMPLE_ISSUE","样品问题","DELAY","预计延期","OTHER","其他异常").getOrDefault(Objects.toString(row.getExceptionType(),"NONE"),"其他异常"));
         p.put("exceptionNote",value(row.getExceptionNote(),4000)); p.put("actualInboundTime",time(row.getCompletedTime()));
-        String reason="修改需求".equals(action)?changeReason(content):"";
+        String reason = modified ? changeReason(content) : "";
         p.put("changeReason",value(reason,1000));
         return p;
     }

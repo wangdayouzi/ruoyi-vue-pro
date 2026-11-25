@@ -27,7 +27,8 @@ public class SampleUrgentDO extends TenantBaseDO {
     private String sampleScope;
     private LocalDateTime deadline;
     private LocalDateTime expectedArrival;
-    private LocalDateTime sampleReceivedTime;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> sampleReceivedTimes;
     private LocalDateTime plannedTestTime;
     private String contacts;
     private String legacyContacts;

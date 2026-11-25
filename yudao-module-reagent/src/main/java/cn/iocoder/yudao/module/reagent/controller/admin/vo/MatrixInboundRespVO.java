@@ -11,6 +11,8 @@ public class MatrixInboundRespVO {
     private String site;
     private String basNo;
     private String matrixKind;
+    private Long applicantId;
+    private String submitterName;
     private String applicantName;
     private List<Long> appointmentUserIds;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

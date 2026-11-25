@@ -48,7 +48,16 @@ public class MatrixInboundService {
     public PageResult<MatrixInboundRespVO> page(MatrixInboundPageReqVO filter) {
         validateFilter(filter);
         PageResult<MatrixInboundDO> result = mapper.page(filter, tenantId(), getLoginUserId(), now().toLocalDate());
-        return new PageResult<>(result.getList().stream().map(this::response).toList(), result.getTotal());
+        var submitterIds = result.getList().stream().map(MatrixInboundDO::getApplicantId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        var submitters = users.getUserMap(submitterIds);
+        var records = result.getList().stream().map(row -> {
+            MatrixInboundRespVO record = response(row);
+            var submitter = row.getApplicantId() == null ? null : submitters.get(row.getApplicantId());
+            if (submitter != null) record.setSubmitterName(submitter.getNickname());
+            return record;
+        }).toList();
+        return new PageResult<>(records, result.getTotal());
     }
 
     public MatrixInboundRespVO get(Long id) {
@@ -110,6 +119,7 @@ public class MatrixInboundService {
     @Transactional(rollbackFor = Exception.class)
     public void update(@Valid MatrixInboundUpdateReqVO input) {
         MatrixInboundDO row = locked(input.id(), input.version());
+        requireEditor(row);
         ensureEditable(row);
         row.setApplicantName(appointmentNames(input.appointmentUserIds()));
         row.setAppointmentUserIds(List.copyOf(input.appointmentUserIds()));
@@ -123,10 +133,11 @@ public class MatrixInboundService {
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id, Integer version) {
         MatrixInboundDO row = locked(id, version);
+        requireEditor(row);
         ensureEditable(row);
         if (mapper.deleteCurrent(tenantId(), id, version, getLoginUserId(), now()) != 1) staleRecord();
         // 逻辑删除保留编号和请求标识，避免后续重试或清理时重复使用已发 BAS。
-        notifier.deleted(id, version);
+        notifier.deleted(row);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -199,6 +210,16 @@ public class MatrixInboundService {
         row.setUpdatedAt(now());
         row.setVersion(previousVersion + 1);
         if (mapper.updateCurrent(row, previousVersion) != 1) staleRecord();
+    }
+
+    private void requireEditor(MatrixInboundDO row) {
+        Long userId = getLoginUserId();
+        if (Objects.equals(row.getApplicantId(), userId)
+                || (row.getAppointmentUserIds() != null && row.getAppointmentUserIds().contains(userId))
+                || permissions.hasAnyRoles(userId, "super_admin")) {
+            return;
+        }
+        throw invalidParamException("仅提交人、预约人或系统管理员可修改或删除预约");
     }
 
     private void ensureEditable(MatrixInboundDO row) {

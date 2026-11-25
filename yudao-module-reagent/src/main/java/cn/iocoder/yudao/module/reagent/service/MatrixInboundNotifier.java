@@ -5,7 +5,6 @@ import cn.iocoder.yudao.module.reagent.enums.MatrixInboundStatusEnum;
 import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkMessageSendApi;
 import cn.iocoder.yudao.module.system.api.dingtalk.DingTalkNotificationQueue;
 import cn.iocoder.yudao.module.system.api.dingtalk.dto.DingTalkNotificationPlanReqDTO;
-import cn.iocoder.yudao.module.system.api.permission.PermissionApi;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -19,7 +18,6 @@ public class MatrixInboundNotifier {
     public static final String REMINDER_GUARD = "matrix-inbound-deadline";
     @Resource private DingTalkMessageSendApi templates;
     @Resource private DingTalkNotificationQueue queue;
-    @Resource private PermissionApi permissions;
     @Value("${reagent.matrix-inbound.page-url:}") private String pageUrl;
 
     public void created(MatrixInboundDO row) {
@@ -35,13 +33,18 @@ public class MatrixInboundNotifier {
 
     public void registered(MatrixInboundDO row) {
         cancelPrevious(row.getId(), row.getVersion() - 1);
-        enqueue(row, "matrix_inbound_completed", List.of(row.getApplicantId()), "matrix-inbound:" + row.getId(),
-                "matrix-inbound:" + row.getId() + ":status:" + row.getVersion(), "入库状态更新", now(), null, null, false);
+        List<Long> recipients = row.getAppointmentUserIds();
+        if (recipients == null || recipients.isEmpty()) {
+            recipients = row.getApplicantId() == null ? List.of() : List.of(row.getApplicantId());
+        }
+        enqueue(row, "matrix_inbound_completed", recipients, "matrix-inbound:" + row.getId(),
+                "matrix-inbound:" + row.getId() + ":status:" + row.getVersion(), "入库状态更新", now(), null, null);
         schedule(row);
     }
 
-    public void deleted(Long id, Integer version) {
-        cancelPrevious(id, version);
+    public void deleted(MatrixInboundDO row) {
+        cancelPrevious(row.getId(), row.getVersion());
+        sendReservation(row, ":deleted:" + row.getVersion(), "预约已删除");
     }
 
     private void cancelPrevious(Long id, Integer version) {
@@ -54,7 +57,7 @@ public class MatrixInboundNotifier {
         if ("SHANGHAI".equals(row.getSite()) && !Boolean.TRUE.equals(row.getUrgent())) return;
         String template = templateCode(row.getSite());
         enqueue(row, template, audience(template), "matrix-inbound:" + row.getId(),
-                "matrix-inbound:" + row.getId() + event, action, now(), null, null, true);
+                "matrix-inbound:" + row.getId() + event, action, now(), null, null);
     }
 
     void schedule(MatrixInboundDO row) {
@@ -65,7 +68,7 @@ public class MatrixInboundNotifier {
         String template = templateCode(row.getSite());
         enqueue(row, template, audience(template), reminderBusiness(row.getId(), row.getVersion()),
                 "matrix-soon:" + row.getId() + ":" + row.getVersion(), "加急预约将在 2 小时内到期",
-                planned.isAfter(current) ? planned : current, row.getAppointmentDate(), REMINDER_GUARD, true);
+                planned.isAfter(current) ? planned : current, row.getAppointmentDate(), REMINDER_GUARD);
     }
 
     private boolean reminderPending(MatrixInboundDO row, LocalDateTime current) {
@@ -74,7 +77,7 @@ public class MatrixInboundNotifier {
     }
 
     private void enqueue(MatrixInboundDO row, String template, List<Long> targets, String businessId, String requestId,
-                         String action, LocalDateTime after, LocalDateTime expires, String guard, boolean managers) {
+                         String action, LocalDateTime after, LocalDateTime expires, String guard) {
         var plan = new DingTalkNotificationPlanReqDTO();
         plan.setBusinessId(businessId);
         plan.setRequestId(requestId);
@@ -84,8 +87,7 @@ public class MatrixInboundNotifier {
         plan.setSendAfter(after);
         plan.setExpiresAt(expires);
         plan.setGuardType(guard);
-        queue.enqueuePlan(plan, user -> !managers || (permissions.hasAnyPermissions(user, QUERY_PERMISSION)
-                && permissions.hasAnyPermissions(user, REGISTER_PERMISSION)));
+        queue.enqueuePlan(plan, user -> true);
     }
 
     private List<Long> audience(String template) {

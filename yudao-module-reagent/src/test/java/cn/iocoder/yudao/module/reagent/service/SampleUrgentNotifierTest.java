@@ -150,6 +150,7 @@ class SampleUrgentNotifierTest {
     }
     @Test void commentsDoNotRegenerateRemindersAndStartupDoesNotResendExistingVersion() {
         notifier.notifyEvent(event(10L,"补充说明"));
+        verify(queue(),never()).enqueuePlan(any(),any());
         verify(queue(),never()).cancelPending(anyString(),anyString());
         clearInvocations(queue());
         var mapper=(SampleUrgentMapper)ReflectionTestUtils.getField(notifier,"mapper");
